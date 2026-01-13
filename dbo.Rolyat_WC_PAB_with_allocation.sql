@@ -1,17 +1,32 @@
 USE [MED]
 GO
 
-EXEC sys.sp_dropextendedproperty @name=N'MS_DiagramPaneCount' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'Rolyat_WC_PAB_with_allocation'
+/****** Object:  View [dbo].[Rolyat_WC_PAB_with_allocation]    Script Date: 1/13/2026 ******/
+/*
+================================================================================
+VIEW: Rolyat_WC_PAB_with_allocation
+PURPOSE: Layer 4 - Calculate WC inventory allocation per demand row
+DEPENDENCIES: dbo.Rolyat_WC_PAB_with_prioritized_inventory
+DOWNSTREAM: Rolyat_WC_PAB_effective_demand
+
+BUSINESS LOGIC:
+- For each WC batch (WC_Batch_ID), allocate inventory to demands in priority order
+- Priority order: pri_wcid_match, pri_expiry_proximity, pri_temporal_proximity, Date_Expiry, ORDERNUMBER
+- Allocation is capped at available WC_Effective_Qty per batch
+- batch_prior_claimed_demand: Running sum of demand already claimed by earlier rows
+- allocated: Amount of WC inventory allocated to this specific demand row
+
+CHANGES (2026-01-13):
+- PERFORMANCE FIX: Extracted repeated window function into CTE to compute only once
+- Added comprehensive header documentation
+- Simplified allocation logic with clearer variable names
+- Added comments explaining the allocation algorithm
+================================================================================
+*/
+
+DROP VIEW IF EXISTS [dbo].[Rolyat_WC_PAB_with_allocation]
 GO
 
-EXEC sys.sp_dropextendedproperty @name=N'MS_DiagramPane1' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'Rolyat_WC_PAB_with_allocation'
-GO
-
-/****** Object:  View [dbo].[Rolyat_WC_PAB_with_allocation]    Script Date: 1/13/2026 9:33:53 AM ******/
-DROP VIEW [dbo].[Rolyat_WC_PAB_with_allocation]
-GO
-
-/****** Object:  View [dbo].[Rolyat_WC_PAB_with_allocation]    Script Date: 1/13/2026 9:33:53 AM ******/
 SET ANSI_NULLS ON
 GO
 
@@ -20,199 +35,84 @@ GO
 
 CREATE VIEW [dbo].[Rolyat_WC_PAB_with_allocation]
 AS
+WITH PriorClaimed AS (
+    -- Calculate cumulative demand claimed by prior rows within each WC batch
+    -- This window function was previously computed 4 times; now computed once
+    SELECT 
+        pi.*,
+        CASE 
+            WHEN WC_Batch_ID IS NULL THEN 0.0
+            ELSE COALESCE(
+                SUM(Base_Demand) OVER (
+                    PARTITION BY WC_Batch_ID
+                    ORDER BY pri_wcid_match, pri_expiry_proximity, pri_temporal_proximity, Date_Expiry, ORDERNUMBER
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                ), 0.0)
+        END AS batch_prior_claimed_demand
+    FROM dbo.Rolyat_WC_PAB_with_prioritized_inventory AS pi
+)
 SELECT 
-    pi.*,
+    -- Pass through all columns from prioritized inventory
+    ORDERNUMBER,
+    CleanOrder,
+    ITEMNMBR,
+    CleanItem,
+    WCID_From_MO,
+    Construct,
+    FG,
+    FG_Desc,
+    ItemDescription,
+    UOMSCHDL,
+    STSDESCR,
+    MRPTYPE,
+    VendorItem,
+    INCLUDE_MRP,
+    SITE,
+    PRIME_VNDR,
+    Date_Expiry,
+    Expiry_Dates,
+    DUEDATE,
+    MRP_IssueDate,
+    BEG_BAL,
+    POs,
+    Deductions,
+    CleanDeductions,
+    Expiry,
+    Remaining,
+    Running_Balance,
+    Issued,
+    PURCHASING_LT,
+    PLANNING_LT,
+    ORDER_POINT_QTY,
+    SAFETY_STOCK,
+    Has_Issued,
+    IssueDate_Mismatch,
+    Early_Issue_Flag,
+    Base_Demand,
+    WC_Item,
+    WC_Site,
+    Available_Qty,
+    WC_DateReceived,
+    WC_Age_Days,
+    WC_Degradation_Factor,
+    WC_Effective_Qty,
+    WC_Batch_ID,
+    pri_wcid_match,
+    pri_expiry_proximity,
+    pri_temporal_proximity,
+    batch_prior_claimed_demand,
+    
+    -- Calculate allocation for this row
+    -- remaining_in_batch = WC_Effective_Qty - batch_prior_claimed_demand
+    -- allocated = MIN(Base_Demand, MAX(remaining_in_batch, 0))
     CASE 
         WHEN WC_Batch_ID IS NULL THEN 0.0
-        ELSE COALESCE(
-            SUM(Base_Demand) OVER (
-                PARTITION BY WC_Batch_ID
-                ORDER BY pri_wcid_match, pri_expiry_proximity, pri_temporal_proximity, Date_Expiry, ORDERNUMBER
-                ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-            ), 0.0)
-    END AS batch_prior_claimed_demand,
-    CASE 
-        WHEN WC_Batch_ID IS NULL THEN 0.0
-        WHEN Base_Demand <= (WC_Effective_Qty - 
-            COALESCE(
-                SUM(Base_Demand) OVER (
-                    PARTITION BY WC_Batch_ID
-                    ORDER BY pri_wcid_match, pri_expiry_proximity, pri_temporal_proximity, Date_Expiry, ORDERNUMBER
-                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                ), 0.0))
-        THEN Base_Demand
-        WHEN (WC_Effective_Qty - 
-            COALESCE(
-                SUM(Base_Demand) OVER (
-                    PARTITION BY WC_Batch_ID
-                    ORDER BY pri_wcid_match, pri_expiry_proximity, pri_temporal_proximity, Date_Expiry, ORDERNUMBER
-                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                ), 0.0)) > 0
-        THEN (WC_Effective_Qty - 
-            COALESCE(
-                SUM(Base_Demand) OVER (
-                    PARTITION BY WC_Batch_ID
-                    ORDER BY pri_wcid_match, pri_expiry_proximity, pri_temporal_proximity, Date_Expiry, ORDERNUMBER
-                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                ), 0.0))
-        ELSE 0.0
+        WHEN Base_Demand <= (WC_Effective_Qty - batch_prior_claimed_demand)
+            THEN Base_Demand  -- Full demand can be satisfied
+        WHEN (WC_Effective_Qty - batch_prior_claimed_demand) > 0
+            THEN (WC_Effective_Qty - batch_prior_claimed_demand)  -- Partial allocation
+        ELSE 0.0  -- No remaining inventory in batch
     END AS allocated
-FROM dbo.Rolyat_WC_PAB_with_prioritized_inventory AS pi;
-GO
 
-EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPane1', @value=N'[0E232FF0-B466-11cf-A24F-00AA00A3EFFF, 1.00]
-Begin DesignProperties = 
-   Begin PaneConfigurations = 
-      Begin PaneConfiguration = 0
-         NumPanes = 4
-         Configuration = "(H (1[15] 4[9] 2[15] 3) )"
-      End
-      Begin PaneConfiguration = 1
-         NumPanes = 3
-         Configuration = "(H (1 [50] 4 [25] 3))"
-      End
-      Begin PaneConfiguration = 2
-         NumPanes = 3
-         Configuration = "(H (1 [50] 2 [25] 3))"
-      End
-      Begin PaneConfiguration = 3
-         NumPanes = 3
-         Configuration = "(H (4 [30] 2 [40] 3))"
-      End
-      Begin PaneConfiguration = 4
-         NumPanes = 2
-         Configuration = "(H (1 [56] 3))"
-      End
-      Begin PaneConfiguration = 5
-         NumPanes = 2
-         Configuration = "(H (2 [66] 3))"
-      End
-      Begin PaneConfiguration = 6
-         NumPanes = 2
-         Configuration = "(H (4 [50] 3))"
-      End
-      Begin PaneConfiguration = 7
-         NumPanes = 1
-         Configuration = "(V (3))"
-      End
-      Begin PaneConfiguration = 8
-         NumPanes = 3
-         Configuration = "(H (1[56] 4[18] 2) )"
-      End
-      Begin PaneConfiguration = 9
-         NumPanes = 2
-         Configuration = "(H (1 [75] 4))"
-      End
-      Begin PaneConfiguration = 10
-         NumPanes = 2
-         Configuration = "(H (1[66] 2) )"
-      End
-      Begin PaneConfiguration = 11
-         NumPanes = 2
-         Configuration = "(H (4 [60] 2))"
-      End
-      Begin PaneConfiguration = 12
-         NumPanes = 1
-         Configuration = "(H (1) )"
-      End
-      Begin PaneConfiguration = 13
-         NumPanes = 1
-         Configuration = "(V (4))"
-      End
-      Begin PaneConfiguration = 14
-         NumPanes = 1
-         Configuration = "(V (2))"
-      End
-      ActivePaneConfig = 0
-   End
-   Begin DiagramPane = 
-      Begin Origin = 
-         Top = 0
-         Left = 0
-      End
-      Begin Tables = 
-      End
-   End
-   Begin SQLPane = 
-   End
-   Begin DataPane = 
-      Begin ParameterDefaults = ""
-      End
-      Begin ColumnWidths = 51
-         Width = 284
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-      End
-   End
-   Begin CriteriaPane = 
-      Begin ColumnWidths = 11
-         Column = 1440
-         Alias = 900
-         Table = 1170
-         Output = 720
-         Append = 1400
-         NewValue = 1170
-         SortType = 1350
-         SortOrder = 1410
-         GroupBy = 1350
-         Filter = 1350
-         Or = 1350
-         Or = 1350
-         Or = 1350
-      End
-   End
-End
-' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'Rolyat_WC_PAB_with_allocation'
+FROM PriorClaimed;
 GO
-
-EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPaneCount', @value=1 , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'Rolyat_WC_PAB_with_allocation'
-GO
-
