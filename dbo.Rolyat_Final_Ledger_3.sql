@@ -93,4 +93,4 @@ SELECT
         ELSE 'NORMAL'
     END AS QC_Flag
 
-FROM dbo.Rolyat_WC_Allocation_Effective_2
+FROM dbo.Rolyat_WC_Allocation_Effective_2;

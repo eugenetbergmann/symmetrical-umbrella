@@ -22,4 +22,4 @@ GROUP BY
     TRIM(itm.UOMSCHDL)
 
 HAVING
-    SUM(inv.QTYRECVD - inv.QTYSOLD) <> 0
+    SUM(inv.QTYRECVD - inv.QTYSOLD) <> 0;

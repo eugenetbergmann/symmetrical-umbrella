@@ -72,4 +72,4 @@ WHERE
     AND TRIM(ITEMNMBR) NOT LIKE '60.%'
     AND TRIM(ITEMNMBR) NOT LIKE '70.%'
     -- Exclude partially received orders
-    AND TRIM(COALESCE(STSDESCR, '')) <> 'Partially Received'
+    AND TRIM(COALESCE(STSDESCR, '')) <> 'Partially Received';
