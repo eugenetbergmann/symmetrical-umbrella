@@ -32,6 +32,9 @@ SELECT
     Running_Balance AS Original_Running_Balance,
     Issued,
 
+    -- WF_Q quantity
+    COALESCE(wfq.QTY_ON_HAND, 0.0) AS WF_Q,
+
     -- Planning parameters
     PURCHASING_LT,
     PLANNING_LT,
@@ -49,11 +52,11 @@ SELECT
     effective_demand AS Effective_Demand,
     wc_allocation_status,
 
-    -- CORRECTED: Per-item running balance
-    -- BEG_BAL and POs only counted on first row per item (item_row_num = 1)
+    -- CORRECTED: Per-item running balance including WF_Q as available stock
+    -- BEG_BAL, WF_Q, and POs only counted on first row per item (item_row_num = 1)
     -- This prevents double-counting when multiple WC batches match one demand
     SUM(
-        CASE WHEN item_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
+        CASE WHEN item_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) + COALESCE(wfq.QTY_ON_HAND, 0.0) ELSE 0.0 END
         + CASE WHEN item_row_num = 1 THEN COALESCE(POs, 0.0) ELSE 0.0 END
         - effective_demand
     ) OVER (
@@ -93,4 +96,7 @@ SELECT
         ELSE 'NORMAL'
     END AS QC_Flag
 
-FROM dbo.Rolyat_WC_Allocation_Effective_2
+FROM dbo.Rolyat_WC_Allocation_Effective_2 AS base
+LEFT JOIN dbo.Rolyat_WFQ_5 AS wfq
+    ON base.ITEMNMBR = wfq.Item_Number
+    AND base.SITE = wfq.SITE
