@@ -78,7 +78,7 @@ WITH PrioritizedInventory AS (
         )) AS pri_expiry_proximity,
         ABS(DATEDIFF(DAY, w.DATERECD, bd.Date_Expiry)) AS pri_temporal_proximity
 
-    FROM dbo.Rolyat_Cleaned_Base_Demand AS bd
+    FROM dbo.Rolyat_Cleaned_Base_Demand_1 AS bd
     LEFT JOIN dbo.ETB_WC_INV AS w
         ON LTRIM(RTRIM(w.Item_Number)) = bd.CleanItem
         AND w.SITE LIKE 'WC-W%'
