@@ -4,8 +4,8 @@
 Stress-test the SQL views to verify WC demand deprecation, allocation integrity, and stock-out intelligence until failures surface or confidence is established.
 
 ## Scope
-- Views: 5 merged views - Rolyat_WC_PAB_data_and_demand, Rolyat_WC_PAB_inventory_and_allocation, Rolyat_WC_PAB_effective_demand, Rolyat_Final_Ledger, Rolyat_Intelligence
-- Testing Intensity: Basic (violation detection on existing data)
+- Views: 5 numbered SELECT statements - Rolyat_Cleaned_Base_Demand_1.sql, Rolyat_WC_Allocation_Effective_Demand_2.sql, Rolyat_Final_Ledger_3.sql, Rolyat_Unit_Price_4.sql, Rolyat_WFQ_5.sql
+- Testing Intensity: Basic (violation detection on existing data using inlined SELECT statements)
 
 ## Critical Behaviors to Verify
 1. **WC Demand Deprecation**: Inventory reduces demand only within ±21 days, unexpired, with remaining value

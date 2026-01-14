@@ -4,12 +4,12 @@
 ## 1. WC Demand Deprecation Violations
 
 ### Test 1.1: Demands within window with WC inventory but not suppressed
-- **View**: Rolyat_WC_PAB_effective_demand
+- **Query**: Rolyat_WC_Allocation_Effective_Demand_2.sql
 - **Violation**: Rows where Date_Expiry within ±21 days, WC_Batch_ID exists, but effective_demand = Base_Demand
 - **Query**: Returns rows that should be suppressed but aren't
 
 ### Test 1.2: Demands outside window incorrectly suppressed
-- **View**: Rolyat_WC_PAB_effective_demand
+- **Query**: Rolyat_WC_Allocation_Effective_Demand_2.sql
 - **Violation**: Rows where Date_Expiry outside ±21 days, but effective_demand < Base_Demand
 - **Query**: Returns rows incorrectly suppressed
 
