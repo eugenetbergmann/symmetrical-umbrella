@@ -2,9 +2,17 @@
 
 This document defines the exact criteria for determining whether each unit test passes or fails. All tests are violation-detection queries that should return 0 rows for a PASS.
 
+## Views Reference
+- **dbo.Rolyat_Cleaned_Base_Demand** - Data cleansing + base demand (from `dbo.Rolyat_Cleaned_Base_Demand_1.sql`)
+- **dbo.Rolyat_WC_Allocation_Effective_Demand** - Inventory matching, allocation, effective demand (from `dbo.Rolyat_WC_Allocation_Effective_Demand_2.sql`)
+- **dbo.Rolyat_Final_Ledger** - Running balance + status flags (from `dbo.Rolyat_Final_Ledger_3.sql`)
+- **dbo.Rolyat_Unit_Price** - Blended average cost (from `dbo.Rolyat_Unit_Price_4.sql`)
+- **dbo.Rolyat_WFQ** - WF-Q inventory on hand (from `dbo.Rolyat_WFQ_5.sql`)
+
 ## 1. WC Demand Deprecation Tests
 
 ### Test 1.1: Demands within window with WC inventory but not suppressed
+**View:** dbo.Rolyat_WC_Allocation_Effective_Demand
 **PASS Criteria:** Query returns 0 rows
 - No demand rows exist where:
   - Date_Expiry is within ±21 days of today
@@ -15,6 +23,7 @@ This document defines the exact criteria for determining whether each unit test 
 - Indicates WC inventory failed to suppress demand when it should have
 
 ### Test 1.2: Demands outside window incorrectly suppressed
+**View:** dbo.Rolyat_WC_Allocation_Effective_Demand
 **PASS Criteria:** Query returns 0 rows
 - No demand rows exist where:
   - Date_Expiry is outside ±21 days of today
@@ -26,6 +35,7 @@ This document defines the exact criteria for determining whether each unit test 
 ## 2. Active Planning Window Tests
 
 ### Test 2.1: Suppression outside ±21 days
+**View:** dbo.Rolyat_WC_Allocation_Effective_Demand
 **PASS Criteria:** Query returns 0 rows
 - No rows exist where Date_Expiry is outside the window but wc_allocation_status != 'Outside_Active_Window'
 
@@ -35,6 +45,7 @@ This document defines the exact criteria for determining whether each unit test 
 ## 3. Inventory Age & Degradation Tests
 
 ### Test 3.1: Incorrect degradation factors
+**View:** dbo.Rolyat_WC_Allocation_Effective_Demand
 **PASS Criteria:** Query returns 0 rows
 - No inventory rows exist where WC_Degradation_Factor doesn't match age rules:
   - 0-30 days: factor = 1.00
@@ -48,6 +59,7 @@ This document defines the exact criteria for determining whether each unit test 
 ## 4. No Double Allocation Tests
 
 ### Test 4.1: Allocated quantity exceeds batch effective qty
+**View:** dbo.Rolyat_WC_Allocation_Effective_Demand
 **PASS Criteria:** Query returns 0 rows
 - No WC_Batch_ID groups exist where SUM(allocated) > MAX(WC_Effective_Qty)
 
@@ -57,6 +69,7 @@ This document defines the exact criteria for determining whether each unit test 
 ## 5. Running Balance Tests
 
 ### Test 5.1: Non-monotonic balance changes
+**View:** dbo.Rolyat_Final_Ledger
 **PASS Criteria:** Query returns 0 rows
 - No balance rows exist where current balance > previous balance for the same item
 - Balances should only decrease or stay the same over time
@@ -67,8 +80,9 @@ This document defines the exact criteria for determining whether each unit test 
 ## 6. Intelligence Tests
 
 ### Test 6.1: Invalid stock-out signals
+**Views:** dbo.Rolyat_Final_Ledger joined with dbo.Rolyat_WFQ
 **PASS Criteria:** Query returns 0 rows
-- No STOCK_OUT records exist where:
+- No DEMAND_EVENT records exist where:
   - Adjusted_Running_Balance < 0 (negative balance)
   - QTY_ON_HAND > 0 (inventory available to resolve)
 
