@@ -5,7 +5,7 @@ Stress-test the SQL views to verify WC demand deprecation, allocation integrity,
 
 ## Scope
 - Views: rolyat_WC_PAB_data_cleaned, Rolyat_Base_Demand, Rolyat_WC_PAB_with_prioritized_inventory, Rolyat_WC_PAB_with_allocation, Rolyat_WC_PAB_effective_demand, Rolyat_Final_Ledger, Rolyat_WFQ, Rolyat_StockOut_Analysis_v2
-- Testing Intensity: Basic (main happy-path and key edge cases)
+- Testing Intensity: Basic (violation detection on existing data)
 
 ## Critical Behaviors to Verify
 1. **WC Demand Deprecation**: Inventory reduces demand only within ±21 days, unexpired, with remaining value
@@ -17,23 +17,23 @@ Stress-test the SQL views to verify WC demand deprecation, allocation integrity,
 7. **Stock-Out Intelligence**: Negative balances are real, correct classifications
 
 ## Test Approach
-- Synthetic test data for controlled scenarios
-- SQL assertion queries to check expected vs actual
+- Violation-detection queries on existing production data
+- Queries return rows that violate expected behaviors
+- No synthetic data insertion
 - Document failures with root causes and minimal fixes
 
 ## Workflow
 ```mermaid
 graph TD
-    A[Analyze Views] --> B[Design Test Scenarios]
-    B --> C[Create Test Data]
-    C --> D[Implement Assertions]
-    D --> E[Execute Tests]
-    E --> F[Document Failures]
-    F --> G[Propose Fixes]
-    G --> H[Compile Report]
+    A[Analyze Views] --> B[Design Violation Tests]
+    B --> C[Implement Detection Queries]
+    C --> D[Execute on Existing Data]
+    D --> E[Document Failures]
+    E --> F[Propose Fixes]
+    F --> G[Compile Report]
 ```
 
 ## Deliverables
-- Test Matrix (test name, view, scenario, expected/actual outcome)
+- Test Matrix (test name, view, violations found, pass/fail)
 - Failure Catalog (root cause, implicated logic, minimal fix)
 - Confidence Assessment (PASS/PARTIAL/FAIL per view)
