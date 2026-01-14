@@ -15,28 +15,28 @@ The testing framework uses **violation-detection queries** that identify failure
 
 ## Views Under Test
 
-1. **Rolyat_WC_PAB_data_and_demand** - Data cleansing + base demand calculation
-2. **Rolyat_WC_PAB_inventory_and_allocation** - Inventory matching + allocation logic
-3. **Rolyat_WC_PAB_effective_demand** - Effective demand + window enforcement
-4. **Rolyat_Final_Ledger** - Running balance + status flags
-5. **Rolyat_Intelligence** - WF-Q inventory + stock-out analysis
+1. **dbo.Rolyat_Cleaned_Base_Demand** - Data cleansing + base demand calculation (from `dbo.Rolyat_Cleaned_Base_Demand_1.sql`)
+2. **dbo.Rolyat_WC_Allocation_Effective_Demand** - Inventory matching, allocation logic, effective demand + window enforcement (from `dbo.Rolyat_WC_Allocation_Effective_Demand_2.sql`)
+3. **dbo.Rolyat_Final_Ledger** - Running balance + status flags (from `dbo.Rolyat_Final_Ledger_3.sql`)
+4. **dbo.Rolyat_Unit_Price** - Blended average cost calculation (from `dbo.Rolyat_Unit_Price_4.sql`)
+5. **dbo.Rolyat_WFQ** - WF-Q inventory on hand (from `dbo.Rolyat_WFQ_5.sql`)
 
 ## How to Run the Unit Tests
 
 ### Prerequisites
 - Access to SQL Server with the MED database
-- The 5 merged views must be deployed
-- Existing data in `ETB_PAB_AUTO` and `ETB_WC_INV` tables
+- The 5 views must be deployed as named views
+- Existing data in `ETB_PAB_AUTO`, `ETB_WC_INV`, `IV00300`, and `IV00101` tables
 
 ### Execution Steps
 
 1. **Open SQL Studio** and connect to the MED database
-2. **Deploy the views** if not already done:
-   - Run `dbo.Rolyat_WC_PAB_data_and_demand.sql`
-   - Run `dbo.Rolyat_WC_PAB_inventory_and_allocation.sql`
-   - Run `dbo.Rolyat_WC_PAB_effective_demand.sql`
-   - Run `dbo.Rolyat_Final_Ledger.sql`
-   - Run `dbo.Rolyat_Intelligence.sql`
+2. **Deploy the views** if not already done (wrap each SELECT in CREATE VIEW):
+   - Run `dbo.Rolyat_Cleaned_Base_Demand_1.sql` as `CREATE VIEW dbo.Rolyat_Cleaned_Base_Demand AS ...`
+   - Run `dbo.Rolyat_WC_Allocation_Effective_Demand_2.sql` as `CREATE VIEW dbo.Rolyat_WC_Allocation_Effective_Demand AS ...`
+   - Run `dbo.Rolyat_Final_Ledger_3.sql` as `CREATE VIEW dbo.Rolyat_Final_Ledger AS ...`
+   - Run `dbo.Rolyat_Unit_Price_4.sql` as `CREATE VIEW dbo.Rolyat_Unit_Price AS ...`
+   - Run `dbo.Rolyat_WFQ_5.sql` as `CREATE VIEW dbo.Rolyat_WFQ AS ...`
 
 3. **Execute the test queries** from `assertions.sql` in order:
    - Test 1.1: WC Demand Deprecation - Valid Reduction
@@ -67,7 +67,12 @@ The tests validate:
 ## Troubleshooting
 
 ### Common Issues
-- **Views not found**: Ensure all 5 views are deployed in the correct order
+- **Views not found**: Ensure all 5 views are deployed in the correct order with correct names:
+  - `dbo.Rolyat_Cleaned_Base_Demand`
+  - `dbo.Rolyat_WC_Allocation_Effective_Demand`
+  - `dbo.Rolyat_Final_Ledger`
+  - `dbo.Rolyat_Unit_Price`
+  - `dbo.Rolyat_WFQ`
 - **Permission errors**: Ensure SELECT access to the views and base tables
 - **Unexpected failures**: Check `test_criteria.md` for detailed pass/fail criteria
 
