@@ -5,6 +5,9 @@
 USE [MED];
 GO
 
+SET NOCOUNT ON;
+GO
+
 -- Test 1.1: Demands within window with WC inventory but not suppressed
 -- This test uses the deployed view dbo.Rolyat_WC_Allocation_Effective_2
 SELECT 'FAILURE: Test 1.1 - Unsuppressed demand within window' AS Failure_Type,
