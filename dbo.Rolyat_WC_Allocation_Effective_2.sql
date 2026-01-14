@@ -1,4 +1,4 @@
-WITH PrioritizedInventory AS (
+;WITH PrioritizedInventory AS (
     -- Layer 3: Join demand with WC inventory and calculate priorities
     SELECT
         -- Pass through all demand columns
@@ -197,4 +197,4 @@ SELECT
         ORDER BY Date_Expiry, ORDERNUMBER
     ) AS item_row_num
 
-FROM Allocated
+FROM Allocated;
