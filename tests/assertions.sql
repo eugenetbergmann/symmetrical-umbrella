@@ -9,7 +9,7 @@ GO
 SELECT 'FAILURE: Test 1.1 - Unsuppressed demand within window' AS Failure_Type,
        ORDERNUMBER, ITEMNMBR, Date_Expiry, Base_Demand, effective_demand, WC_Batch_ID
 FROM (
--- Inline Rolyat_WC_Allocation_Effective_Demand_2.sql
+-- Inline Rolyat_WC_Allocation_Effective_2.sql
 WITH PrioritizedInventory AS (
     SELECT
         bd.ORDERNUMBER,
