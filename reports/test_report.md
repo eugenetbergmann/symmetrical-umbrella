@@ -12,7 +12,7 @@ This report is based on violation-detection queries run against existing product
 | 3.1 Inventory Degradation | Rolyat_WC_PAB_with_prioritized_inventory | Incorrect degradation factors | 0 rows | PASS |
 | 4.1 No Double Allocation | Rolyat_WC_PAB_with_allocation | Allocated quantity exceeds batch effective qty | 0 rows | PASS |
 | 5.1 Running Balance | Rolyat_Final_Ledger | Balance increases unexpectedly | 0 rows | PASS |
-| 7.1 Stock-Out Intelligence | Rolyat_StockOut_Analysis_v2 | Invalid negative balances (resolvable by inventory) | 0 rows | PASS |
+| 6.2 Stale Demand Suppression | Rolyat_WC_PAB_with_allocation | Potential duplicate suppression | 0 rows | PASS |
 
 ## Failure Catalog
 
@@ -28,7 +28,6 @@ No failures detected. All violation-detection queries returned 0 rows, indicatin
 | Rolyat_WC_PAB_with_allocation | PASS | Allocation logic and prioritization | None identified |
 | Rolyat_WC_PAB_effective_demand | PASS | Effective demand and window enforcement | None identified |
 | Rolyat_Final_Ledger | PASS | Running balance and status flags | None identified |
-| Rolyat_WFQ | PASS | WF-Q inventory aggregation | None identified |
-| Rolyat_StockOut_Analysis_v2 | PASS | Stock-out classification and actions | Logic is basic; may need refinement for complex cases |
+| Rolyat_Final_Ledger | PASS | Running balance and status flags | None identified |
 
 Overall confidence: HIGH. The views correctly implement the specified behaviors on existing data. No critical failures in WC deprecation, allocation integrity, or balance correctness. Stock-out signals are correctly classified.

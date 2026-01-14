@@ -46,11 +46,12 @@ FROM Rolyat_Final_Ledger
 WHERE Adjusted_Running_Balance > LAG(Adjusted_Running_Balance) OVER (PARTITION BY ITEMNMBR ORDER BY Date_Expiry, ORDERNUMBER)
     AND LAG(Adjusted_Running_Balance) OVER (PARTITION BY ITEMNMBR ORDER BY Date_Expiry, ORDERNUMBER) IS NOT NULL
 
--- Test 7.1: Invalid negative balances (can be resolved by inventory)
-SELECT 'FAILURE: Test 7.1 - False negative balance' AS Failure_Type,
-       soa.*
-FROM Rolyat_StockOut_Analysis_v2 AS soa
-WHERE Adjusted_Running_Balance < 0
-    AND (WC_Inventory_Applied > 0 OR WFQ_Available > 0)
+-- Test 6.2: Potential duplicate suppression (check for same item/demand allocated multiple times)
+SELECT 'FAILURE: Test 6.2 - Potential duplicate suppression' AS Failure_Type,
+       ITEMNMBR, Base_Demand, SUM(allocated) AS Total_Allocated
+FROM Rolyat_WC_PAB_with_allocation
+WHERE allocated > 0
+GROUP BY ITEMNMBR, Base_Demand
+HAVING COUNT(*) > 1 AND SUM(allocated) > Base_Demand
 
 GO

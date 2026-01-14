@@ -46,9 +46,8 @@
 - **Violation**: Same demand event reducing inventory more than once
 - **Query**: Checks for duplicate suppression
 
-## 7. Stock-Out Intelligence Violations
+## 6. Stale Demand Suppression Violations (continued)
 
-### Test 7.1: Invalid negative balances
-- **View**: Rolyat_StockOut_Analysis_v2
-- **Violation**: Negative balances that can be resolved by available inventory
-- **Query**: Finds false negatives
+### Test 6.2: Demand suppressed multiple times
+- **Violation**: Same demand event reducing inventory more than once
+- **Query**: Checks for duplicate suppression in allocation
