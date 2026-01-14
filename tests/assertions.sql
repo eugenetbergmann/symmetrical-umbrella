@@ -6,10 +6,10 @@ USE [MED];
 GO
 
 -- Test 1.1: Demands within window with WC inventory but not suppressed
--- This test uses the deployed view dbo.Rolyat_WC_Allocation_Effective_Demand_2
+-- This test uses the deployed view dbo.Rolyat_WC_Allocation_Effective_2
 SELECT 'FAILURE: Test 1.1 - Unsuppressed demand within window' AS Failure_Type,
        ORDERNUMBER, ITEMNMBR, Date_Expiry, Base_Demand, effective_demand, WC_Batch_ID
-FROM dbo.Rolyat_WC_Allocation_Effective_Demand_2
+FROM dbo.Rolyat_WC_Allocation_Effective_2
 WHERE Date_Expiry BETWEEN DATEADD(DAY, -21, GETDATE()) AND DATEADD(DAY, 21, GETDATE())
     AND WC_Batch_ID IS NOT NULL
     AND effective_demand = Base_Demand
@@ -19,7 +19,7 @@ GO
 -- Test 1.2: Demands outside window incorrectly suppressed
 SELECT 'FAILURE: Test 1.2 - Suppressed demand outside window' AS Failure_Type,
        ORDERNUMBER, ITEMNMBR, Date_Expiry, Base_Demand, effective_demand
-FROM dbo.Rolyat_WC_Allocation_Effective_Demand_2
+FROM dbo.Rolyat_WC_Allocation_Effective_2
 WHERE Date_Expiry NOT BETWEEN DATEADD(DAY, -21, GETDATE()) AND DATEADD(DAY, 21, GETDATE())
     AND effective_demand < Base_Demand;
 GO
@@ -27,7 +27,7 @@ GO
 -- Test 3.1: Incorrect degradation factors
 SELECT 'FAILURE: Test 3.1 - Wrong degradation factor' AS Failure_Type,
        ORDERNUMBER, ITEMNMBR, WC_Age_Days, WC_Degradation_Factor
-FROM dbo.Rolyat_WC_Allocation_Effective_Demand_2
+FROM dbo.Rolyat_WC_Allocation_Effective_2
 WHERE (WC_Age_Days <= 30 AND WC_Degradation_Factor != 1.00)
    OR (WC_Age_Days BETWEEN 31 AND 60 AND WC_Degradation_Factor != 0.75)
    OR (WC_Age_Days BETWEEN 61 AND 90 AND WC_Degradation_Factor != 0.50)
@@ -37,7 +37,7 @@ GO
 -- Test 4.1: Double allocation - allocated exceeds batch effective qty
 SELECT 'FAILURE: Test 4.1 - Double allocation' AS Failure_Type,
        WC_Batch_ID, SUM(allocated) AS Total_Allocated, MAX(WC_Effective_Qty) AS Batch_Effective_Qty
-FROM dbo.Rolyat_WC_Allocation_Effective_Demand_2
+FROM dbo.Rolyat_WC_Allocation_Effective_2
 WHERE WC_Batch_ID IS NOT NULL
 GROUP BY WC_Batch_ID
 HAVING SUM(allocated) > MAX(WC_Effective_Qty);
