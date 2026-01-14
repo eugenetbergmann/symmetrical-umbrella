@@ -16,7 +16,7 @@ The testing framework uses **violation-detection queries** that identify failure
 ## Views Under Test
 
 1. **dbo.Rolyat_Cleaned_Base_Demand_1** - Data cleansing + base demand calculation (from `dbo.Rolyat_Cleaned_Base_Demand_1.sql`)
-2. **dbo.Rolyat_WC_Allocation_Effective_Demand_2** - Inventory matching, allocation logic, effective demand + window enforcement (from `dbo.Rolyat_WC_Allocation_Effective_Demand_2.sql`)
+2. **dbo.Rolyat_WC_Allocation_Effective_2** - Inventory matching, allocation logic, effective demand + window enforcement (from `dbo.Rolyat_WC_Allocation_Effective_2.sql`)
 3. **dbo.Rolyat_Final_Ledger_3** - Running balance + status flags (from `dbo.Rolyat_Final_Ledger_3.sql`)
 4. **dbo.Rolyat_Unit_Price_4** - Blended average cost calculation (from `dbo.Rolyat_Unit_Price_4.sql`)
 5. **dbo.Rolyat_WFQ_5** - WF-Q inventory on hand (from `dbo.Rolyat_WFQ_5.sql`)
@@ -33,7 +33,7 @@ The testing framework uses **violation-detection queries** that identify failure
 1. **Open SQL Studio** and connect to the MED database
 2. **Deploy the views** if not already done (wrap each SELECT in CREATE VIEW):
    - Run `dbo.Rolyat_Cleaned_Base_Demand_1.sql` as `CREATE VIEW dbo.Rolyat_Cleaned_Base_Demand_1 AS ...`
-   - Run `dbo.Rolyat_WC_Allocation_Effective_Demand_2.sql` as `CREATE VIEW dbo.Rolyat_WC_Allocation_Effective_Demand_2 AS ...`
+   - Run `dbo.Rolyat_WC_Allocation_Effective_2.sql` as `CREATE VIEW dbo.Rolyat_WC_Allocation_Effective_2 AS ...`
    - Run `dbo.Rolyat_Final_Ledger_3.sql` as `CREATE VIEW dbo.Rolyat_Final_Ledger_3 AS ...`
    - Run `dbo.Rolyat_Unit_Price_4.sql` as `CREATE VIEW dbo.Rolyat_Unit_Price_4 AS ...`
    - Run `dbo.Rolyat_WFQ_5.sql` as `CREATE VIEW dbo.Rolyat_WFQ_5 AS ...`
@@ -69,7 +69,7 @@ The tests validate:
 ### Common Issues
 - **Views not found**: Ensure all 5 views are deployed in the correct order with correct names:
   - `dbo.Rolyat_Cleaned_Base_Demand_1`
-  - `dbo.Rolyat_WC_Allocation_Effective_Demand_2`
+  - `dbo.Rolyat_WC_Allocation_Effective_2`
   - `dbo.Rolyat_Final_Ledger_3`
   - `dbo.Rolyat_Unit_Price_4`
   - `dbo.Rolyat_WFQ_5`

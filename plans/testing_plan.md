@@ -6,7 +6,7 @@ Stress-test the SQL views to verify WC demand deprecation, allocation integrity,
 ## Scope
 - Views: 5 numbered SELECT statements to be deployed as named views:
   - `dbo.Rolyat_Cleaned_Base_Demand_1.sql` → `dbo.Rolyat_Cleaned_Base_Demand`
-  - `dbo.Rolyat_WC_Allocation_Effective_Demand_2.sql` → `dbo.Rolyat_WC_Allocation_Effective_Demand`
+  - `dbo.Rolyat_WC_Allocation_Effective_2.sql` → `dbo.Rolyat_WC_Allocation_Effective_Demand`
   - `dbo.Rolyat_Final_Ledger_3.sql` → `dbo.Rolyat_Final_Ledger`
   - `dbo.Rolyat_Unit_Price_4.sql` → `dbo.Rolyat_Unit_Price`
   - `dbo.Rolyat_WFQ_5.sql` → `dbo.Rolyat_WFQ`
