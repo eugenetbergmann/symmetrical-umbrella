@@ -6,7 +6,7 @@ GO
 ================================================================================
 VIEW: Rolyat_WC_PAB_effective_demand
 PURPOSE: Layer 5 - Calculate effective demand after WC allocation
-DEPENDENCIES: dbo.Rolyat_WC_PAB_with_allocation
+DEPENDENCIES: dbo.Rolyat_WC_PAB_inventory_and_allocation
 DOWNSTREAM: Rolyat_Final_Ledger
 
 BUSINESS LOGIC:
@@ -117,5 +117,5 @@ SELECT
         ORDER BY Date_Expiry, ORDERNUMBER
     ) AS item_row_num
 
-FROM dbo.Rolyat_WC_PAB_with_allocation;
+FROM dbo.Rolyat_WC_PAB_inventory_and_allocation;
 GO

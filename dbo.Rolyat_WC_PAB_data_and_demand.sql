@@ -1,24 +1,26 @@
 USE [MED]
 GO
 
-/****** Object:  View [dbo].[rolyat_WC_PAB_data_cleaned]    Script Date: 1/13/2026 ******/
+/****** Object:  View [dbo].[Rolyat_WC_PAB_data_and_demand]    Script Date: 1/14/2026 ******/
 /*
 ================================================================================
-VIEW: rolyat_WC_PAB_data_cleaned
-PURPOSE: Layer 1 - Data cleansing and standardization from ETB_PAB_AUTO
+VIEW: Rolyat_WC_PAB_data_and_demand
+PURPOSE: Merged Layer 1-2 - Data cleansing, standardization, and base demand calculation
 DEPENDENCIES: dbo.ETB_PAB_AUTO (base table)
-DOWNSTREAM: Rolyat_Base_Demand
+DOWNSTREAM: Rolyat_WC_PAB_inventory_and_allocation
 
-CHANGES (2026-01-13):
-- Removed redundant CleanItem column (was identical to ITEMNMBR after trim)
-- Consolidated LTRIM/RTRIM to single TRIM() calls for readability
-- Added explicit column comments
-- Standardized NULL handling with COALESCE
-- Improved date conversion with explicit TRY_CONVERT
+BUSINESS LOGIC:
+- Data cleansing and standardization from ETB_PAB_AUTO
+- Base_Demand calculated using priority: Remaining > Deductions > Expiry
+- Only the first non-zero value is used (not summed)
+- If all are zero or negative, Base_Demand = 0
+
+CHANGES (2026-01-14):
+- Merged rolyat_WC_PAB_data_cleaned and Rolyat_Base_Demand into single view
 ================================================================================
 */
 
-DROP VIEW IF EXISTS [dbo].[rolyat_WC_PAB_data_cleaned]
+DROP VIEW IF EXISTS [dbo].[Rolyat_WC_PAB_data_and_demand]
 GO
 
 SET ANSI_NULLS ON
@@ -27,7 +29,7 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
-CREATE VIEW [dbo].[rolyat_WC_PAB_data_cleaned]
+CREATE VIEW [dbo].[Rolyat_WC_PAB_data_and_demand]
 AS
 SELECT 
     -- Order identifiers (cleaned and standardized)
@@ -81,7 +83,19 @@ SELECT
     -- Status flags (standardized to uppercase YES/NO)
     UPPER(TRIM(COALESCE(Has_Issued, 'NO'))) AS Has_Issued,
     UPPER(TRIM(COALESCE(IssueDate_Mismatch, 'NO'))) AS IssueDate_Mismatch,
-    UPPER(TRIM(COALESCE(Early_Issue_Flag, 'NO'))) AS Early_Issue_Flag
+    UPPER(TRIM(COALESCE(Early_Issue_Flag, 'NO'))) AS Early_Issue_Flag,
+    
+    -- Calculate Base_Demand using priority logic:
+    -- 1. If Remaining > 0, use Remaining
+    -- 2. Else if Deductions > 0, use Deductions  
+    -- 3. Else if Expiry > 0, use Expiry
+    -- 4. Otherwise, 0.0
+    CASE 
+        WHEN COALESCE(TRY_CAST(Remaining AS DECIMAL(18, 5)), 0.0) > 0 THEN COALESCE(TRY_CAST(Remaining AS DECIMAL(18, 5)), 0.0)
+        WHEN COALESCE(TRY_CAST(Deductions AS DECIMAL(18, 5)), 0.0) > 0 THEN COALESCE(TRY_CAST(Deductions AS DECIMAL(18, 5)), 0.0)
+        WHEN COALESCE(TRY_CAST(Expiry AS DECIMAL(18, 5)), 0.0) > 0 THEN COALESCE(TRY_CAST(Expiry AS DECIMAL(18, 5)), 0.0)
+        ELSE 0.0 
+    END AS Base_Demand
 
 FROM dbo.ETB_PAB_AUTO
 WHERE 

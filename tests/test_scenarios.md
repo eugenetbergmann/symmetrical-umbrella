@@ -1,5 +1,5 @@
 # Violation Detection Tests for Rolyat WC-Adjusted PAB & Stock-Out Intelligence
-# These queries run on existing data to detect failures in the views
+# These queries run on existing data to detect failures in the 5 merged views
 
 ## 1. WC Demand Deprecation Violations
 
@@ -22,14 +22,14 @@
 ## 3. Inventory Age & Degradation Violations
 
 ### Test 3.1: Incorrect degradation factors
-- **View**: Rolyat_WC_PAB_with_prioritized_inventory
+- **View**: Rolyat_WC_PAB_inventory_and_allocation
 - **Violation**: Rows where WC_Degradation_Factor doesn't match age rules
 - **Query**: Checks factor accuracy
 
-## 4. Double Allocation Violations
+## 4. No Double Allocation Violations
 
 ### Test 4.1: Allocated quantity exceeds batch effective qty
-- **View**: Rolyat_WC_PAB_with_allocation
+- **View**: Rolyat_WC_PAB_inventory_and_allocation
 - **Violation**: Sum(allocated) per WC_Batch_ID > WC_Effective_Qty
 - **Query**: Returns over-allocated batches
 
@@ -40,14 +40,9 @@
 - **Violation**: Balance increases unexpectedly or duplicates
 - **Query**: Detects balance anomalies per item
 
-## 6. Stale Demand Suppression Violations
+## 6. Intelligence Violations
 
-### Test 6.1: Demand suppressed multiple times
-- **Violation**: Same demand event reducing inventory more than once
-- **Query**: Checks for duplicate suppression
-
-## 6. Stale Demand Suppression Violations (continued)
-
-### Test 6.2: Demand suppressed multiple times
-- **Violation**: Same demand event reducing inventory more than once
-- **Query**: Checks for duplicate suppression in allocation
+### Test 6.1: Invalid stock-out signals
+- **View**: Rolyat_Intelligence
+- **Violation**: STOCK_OUT records with negative balances that can be resolved by WFQ inventory
+- **Query**: Finds false negatives

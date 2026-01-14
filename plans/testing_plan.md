@@ -4,7 +4,7 @@
 Stress-test the SQL views to verify WC demand deprecation, allocation integrity, and stock-out intelligence until failures surface or confidence is established.
 
 ## Scope
-- Views: Core consolidated views - rolyat_WC_PAB_data_cleaned, Rolyat_Base_Demand, Rolyat_WC_PAB_with_prioritized_inventory, Rolyat_WC_PAB_with_allocation, Rolyat_WC_PAB_effective_demand, Rolyat_Final_Ledger
+- Views: 5 merged views - Rolyat_WC_PAB_data_and_demand, Rolyat_WC_PAB_inventory_and_allocation, Rolyat_WC_PAB_effective_demand, Rolyat_Final_Ledger, Rolyat_Intelligence
 - Testing Intensity: Basic (violation detection on existing data)
 
 ## Critical Behaviors to Verify

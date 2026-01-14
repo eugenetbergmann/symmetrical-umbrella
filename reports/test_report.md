@@ -1,7 +1,7 @@
 # Exhaustive SQL Unit Testing Report for Rolyat WC-Adjusted PAB & Stock-Out Intelligence
 
 ## Testing Approach
-This report is based on violation-detection queries run against existing production data. The tests are designed to identify failures by finding rows that violate expected behaviors. No synthetic data was inserted; all tests operate on real data from ETB_PAB_AUTO and ETB_WC_INV tables.
+This report is based on violation-detection queries run against existing production data on the 5 merged views. The tests identify failures by finding rows that violate expected behaviors. No synthetic data was inserted; all tests operate on real data from ETB_PAB_AUTO and ETB_WC_INV tables.
 
 ## Test Matrix
 
@@ -9,10 +9,10 @@ This report is based on violation-detection queries run against existing product
 |-----------|------------------|---------------------|--------------|-----------|
 | 1.1 WC Demand Deprecation | Rolyat_WC_PAB_effective_demand | Demands within window with WC inventory but not suppressed | 0 rows | PASS |
 | 1.2 WC Demand Deprecation | Rolyat_WC_PAB_effective_demand | Demands outside window incorrectly suppressed | 0 rows | PASS |
-| 3.1 Inventory Degradation | Rolyat_WC_PAB_with_prioritized_inventory | Incorrect degradation factors | 0 rows | PASS |
-| 4.1 No Double Allocation | Rolyat_WC_PAB_with_allocation | Allocated quantity exceeds batch effective qty | 0 rows | PASS |
+| 3.1 Inventory Degradation | Rolyat_WC_PAB_inventory_and_allocation | Incorrect degradation factors | 0 rows | PASS |
+| 4.1 No Double Allocation | Rolyat_WC_PAB_inventory_and_allocation | Allocated quantity exceeds batch effective qty | 0 rows | PASS |
 | 5.1 Running Balance | Rolyat_Final_Ledger | Balance increases unexpectedly | 0 rows | PASS |
-| 6.2 Stale Demand Suppression | Rolyat_WC_PAB_with_allocation | Potential duplicate suppression | 0 rows | PASS |
+| 6.1 Intelligence | Rolyat_Intelligence | Invalid stock-out signals | 0 rows | PASS |
 
 ## Failure Catalog
 
