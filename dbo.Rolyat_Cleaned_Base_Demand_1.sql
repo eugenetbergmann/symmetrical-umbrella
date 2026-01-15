@@ -62,7 +62,23 @@ SELECT
         WHEN COALESCE(TRY_CAST(Deductions AS DECIMAL(18, 5)), 0.0) > 0 THEN COALESCE(TRY_CAST(Deductions AS DECIMAL(18, 5)), 0.0)
         WHEN COALESCE(TRY_CAST(Expiry AS DECIMAL(18, 5)), 0.0) > 0 THEN COALESCE(TRY_CAST(Expiry AS DECIMAL(18, 5)), 0.0)
         ELSE 0.0
-    END AS Base_Demand
+    END AS Base_Demand,
+
+    -- Deterministic SortPriority for event ordering (lower = higher priority)
+    -- Priority: Beginning Balance (1), Purchase Orders (2), Demand Events (3), Expiry (4)
+    CASE
+        WHEN COALESCE(TRY_CAST(BEG_BAL AS DECIMAL(18, 5)), 0.0) > 0 THEN 1
+        WHEN COALESCE(TRY_CAST(POs AS DECIMAL(18, 5)), 0.0) > 0 THEN 2
+        WHEN COALESCE(TRY_CAST(Remaining AS DECIMAL(18, 5)), 0.0) > 0 OR COALESCE(TRY_CAST(Deductions AS DECIMAL(18, 5)), 0.0) > 0 THEN 3
+        WHEN COALESCE(TRY_CAST(Expiry AS DECIMAL(18, 5)), 0.0) > 0 THEN 4
+        ELSE 5
+    END AS SortPriority,
+
+    -- IsActiveWindow flag for ±21 day planning window
+    CASE
+        WHEN TRY_CONVERT(DATE, DUEDATE) BETWEEN DATEADD(DAY, -21, GETDATE()) AND DATEADD(DAY, 21, GETDATE()) THEN 1
+        ELSE 0
+    END AS IsActiveWindow
 
 FROM dbo.ETB_PAB_AUTO
 WHERE

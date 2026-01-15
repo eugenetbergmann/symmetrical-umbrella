@@ -58,7 +58,7 @@ SELECT
         - effective_demand
     ) OVER (
         PARTITION BY ITEMNMBR
-        ORDER BY Date_Expiry, ORDERNUMBER
+        ORDER BY Date_Expiry, SortPriority, ORDERNUMBER
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
     ) AS Adjusted_Running_Balance,
 

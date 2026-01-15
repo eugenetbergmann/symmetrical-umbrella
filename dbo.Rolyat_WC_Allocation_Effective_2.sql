@@ -76,13 +76,18 @@ WITH PrioritizedInventory AS (
             COALESCE(w.EXPNDATE, '9999-12-31'),
             COALESCE(bd.Expiry_Dates, '9999-12-31')
         )) AS pri_expiry_proximity,
-        ABS(DATEDIFF(DAY, w.DATERECD, bd.Date_Expiry)) AS pri_temporal_proximity
+        ABS(DATEDIFF(DAY, w.DATERECD, bd.Date_Expiry)) AS pri_temporal_proximity,
+
+        -- Include SortPriority for deterministic ordering
+        bd.SortPriority,
+        bd.IsActiveWindow
 
     FROM dbo.Rolyat_Cleaned_Base_Demand_1 AS bd
     LEFT JOIN dbo.ETB_WC_INV AS w
         ON LTRIM(RTRIM(w.Item_Number)) = bd.CleanItem
         AND w.SITE LIKE 'WC-W%'
         AND w.QTY_Available > 0
+        AND bd.IsActiveWindow = 1
         AND ABS(DATEDIFF(DAY, w.DATERECD, bd.Date_Expiry)) <= 21
         AND DATEDIFF(DAY, w.DATERECD, GETDATE()) <= 90
 ),
@@ -95,7 +100,7 @@ PriorClaimed AS (
             ELSE COALESCE(
                 SUM(Base_Demand) OVER (
                     PARTITION BY WC_Batch_ID
-                    ORDER BY pri_wcid_match, pri_expiry_proximity, pri_temporal_proximity, Date_Expiry, ORDERNUMBER
+                    ORDER BY Date_Expiry, SortPriority, pri_wcid_match, pri_expiry_proximity, pri_temporal_proximity, ORDERNUMBER
                     ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
                 ), 0.0)
         END AS batch_prior_claimed_demand
@@ -191,10 +196,14 @@ SELECT
         ELSE 'Outside_Active_Window'
     END AS wc_allocation_status,
 
+    -- Include SortPriority and IsActiveWindow
+    SortPriority,
+    IsActiveWindow,
+
     -- Row number within each item for deduplication in Final_Ledger
     ROW_NUMBER() OVER (
         PARTITION BY ITEMNMBR
-        ORDER BY Date_Expiry, ORDERNUMBER
+        ORDER BY Date_Expiry, SortPriority, ORDERNUMBER
     ) AS item_row_num
 
 FROM Allocated
