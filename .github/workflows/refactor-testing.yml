@@ -1,0 +1,69 @@
+name: Rolyat Refactor Testing
+
+on:
+  push:
+    branches:
+      - refactor/stockout-intel
+  pull_request:
+    branches:
+      - refactor/stockout-intel
+
+jobs:
+  test-refactor:
+    runs-on: ubuntu-latest
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: YourStrong!Passw0rd
+        options: >-
+          --health-cmd "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup SQL Server client
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y mssql-tools unixodbc-dev
+
+    - name: Create test database
+      run: |
+        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -Q "CREATE DATABASE MED;"
+
+    - name: Deploy views
+      run: |
+        for file in dbo/*.sql; do
+          view_name=$(basename "$file" .sql)
+          /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -d MED -Q "CREATE OR ALTER VIEW dbo.$view_name AS" -i "$file"
+        done
+
+    - name: Run synthetic data generation
+      run: |
+        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -d MED -i tests/synthetic_data_generation.sql
+
+    - name: Run unit tests
+      run: |
+        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -d MED -i tests/unit_tests.sql
+
+    - name: Run test harness
+      run: |
+        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -d MED -Q "EXEC tests.sp_run_test_iterations @max_iterations = 10, @seed_start = 1000;"
+
+    - name: Generate readout
+      run: |
+        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -d MED -Q "EXEC tests.sp_generate_readout;" > readout.txt
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ github.run_number }}
+        path: |
+          readout.txt
+          tests/output/

@@ -11,8 +11,8 @@ LEFT JOIN dbo.IV00101 AS itm
 WHERE
     -- Exclude zero-quantity lots
     (inv.QTYRECVD - inv.QTYSOLD) <> 0
-    -- WF-Q location only
-    AND TRIM(inv.LOCNCODE) = 'WF-Q'
+    -- WF-Q and RMQTY locations
+    AND TRIM(inv.LOCNCODE) IN ('WF-Q', 'RMQTY')
     -- Exclude expired or soon-to-expire inventory
     AND (inv.EXPNDATE IS NULL OR inv.EXPNDATE > DATEADD(DAY, 90, GETDATE()))
 
