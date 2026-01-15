@@ -81,6 +81,17 @@ BEGIN
         FROM #CurrentResults
         WHERE pass = 0;
 
+        -- Add ATP vs Forecast mismatch diagnostics
+        DECLARE @atp_forecast_mismatch INT = 0;
+        SELECT @atp_forecast_mismatch = COUNT(*)
+        FROM dbo.Rolyat_Final_Ledger_3
+        WHERE Forecast_Running_Balance >= 0 AND ATP_Running_Balance < 0;
+
+        IF @atp_forecast_mismatch > 0
+        BEGIN
+            SET @diagnostics = @diagnostics + 'ATP vs Forecast mismatch rows: ' + CAST(@atp_forecast_mismatch AS NVARCHAR(10)) + CHAR(13) + CHAR(10);
+        END
+
         INSERT INTO tests.TestIterationLog (seed, scenario, total_tests, passed_tests, pass_percentage, duration_seconds, status, diagnostics)
         VALUES (@current_seed, 'DEFAULT', @total_tests, @passed_tests, @pass_pct, @duration, @status, @diagnostics);
 

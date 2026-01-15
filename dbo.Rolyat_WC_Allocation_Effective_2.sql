@@ -1,4 +1,20 @@
-WITH PrioritizedInventory AS (
+WITH AlternateStock AS (
+    SELECT
+        Item_Number,
+        Client_ID,
+        SUM(CASE WHEN SITE = 'WF-Q' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY,
+        SUM(CASE WHEN SITE = 'RMQTY' THEN QTY_ON_HAND ELSE 0 END) AS RMQTY_QTY
+    FROM dbo.Rolyat_WFQ_5
+    GROUP BY Item_Number, Client_ID
+),
+AltStock_Item AS (
+    SELECT
+        Item_Number,
+        SUM(CASE WHEN SITE = 'WF-Q' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY
+    FROM dbo.Rolyat_WFQ_5
+    GROUP BY Item_Number
+),
+PrioritizedInventory AS (
     -- Layer 3: Join demand with WC inventory and calculate priorities
     SELECT
         -- Pass through all demand columns
@@ -18,6 +34,7 @@ WITH PrioritizedInventory AS (
         bd.INCLUDE_MRP,
         bd.SITE,
         bd.PRIME_VNDR,
+        COALESCE(NULLIF(bd.PRIME_VNDR, ''), 'UNASSIGNED') AS Client_ID,
         bd.Date_Expiry,
         bd.Expiry_Dates,
         bd.DUEDATE,
@@ -38,6 +55,26 @@ WITH PrioritizedInventory AS (
         bd.IssueDate_Mismatch,
         bd.Early_Issue_Flag,
         bd.Base_Demand,
+
+        -- Alternate stock (WFQ/RMQTY)
+        COALESCE(asi.WFQ_QTY, 0.0) AS WFQ_QTY,
+        COALESCE(ascq.RMQTY_QTY, 0.0) AS RMQTY_QTY,
+        COALESCE(ascq.Client_ID, 'UNASSIGNED') AS RMQTY_Client_ID,
+
+        -- PO released to ATP only when issue date or due date is in the past
+        CASE
+            WHEN bd.POs > 0
+             AND COALESCE(bd.MRP_IssueDate, bd.DUEDATE) <= CAST(GETDATE() AS DATE)
+                THEN bd.POs
+            ELSE 0.0
+        END AS Released_PO_Qty,
+
+        -- RMQTY is client-restricted (only eligible when client matches)
+        CASE
+            WHEN COALESCE(NULLIF(bd.PRIME_VNDR, ''), 'UNASSIGNED') = COALESCE(ascq.Client_ID, 'UNASSIGNED')
+                THEN COALESCE(ascq.RMQTY_QTY, 0.0)
+            ELSE 0.0
+        END AS RMQTY_Eligible_Qty,
 
         -- WC Inventory columns
         w.Item_Number AS WC_Item,
@@ -83,6 +120,11 @@ WITH PrioritizedInventory AS (
         bd.IsActiveWindow
 
     FROM dbo.Rolyat_Cleaned_Base_Demand_1 AS bd
+    LEFT JOIN AltStock_Item AS asi
+        ON bd.CleanItem = asi.Item_Number
+    LEFT JOIN AlternateStock AS ascq
+        ON bd.CleanItem = ascq.Item_Number
+       AND COALESCE(NULLIF(bd.PRIME_VNDR, ''), 'UNASSIGNED') = ascq.Client_ID
     LEFT JOIN dbo.ETB_WC_INV AS w
         ON LTRIM(RTRIM(w.Item_Number)) = bd.CleanItem
         AND w.SITE LIKE 'WC-W%'
@@ -95,6 +137,10 @@ PriorClaimed AS (
     -- Layer 4: Calculate cumulative demand claimed by prior rows within each WC batch
     SELECT
         pi.*,
+        ROW_NUMBER() OVER (
+            PARTITION BY ITEMNMBR, Client_ID
+            ORDER BY Date_Expiry, SortPriority, ORDERNUMBER
+        ) AS client_row_num,
         CASE
             WHEN WC_Batch_ID IS NULL THEN 0.0
             ELSE COALESCE(
@@ -122,6 +168,27 @@ Allocated AS (
         END AS allocated
 
     FROM PriorClaimed AS pc
+),
+ATPWindow AS (
+    SELECT
+        a.*,
+        -- ATP supply event (client-restricted)
+        CASE WHEN client_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
+        + CASE WHEN client_row_num = 1 THEN COALESCE(Released_PO_Qty, 0.0) ELSE 0.0 END
+        + CASE WHEN client_row_num = 1 THEN COALESCE(RMQTY_Eligible_Qty, 0.0) ELSE 0.0 END
+            AS ATP_Supply_Event,
+        -- ATP available before this demand (excludes current row)
+        SUM(
+            (CASE WHEN client_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
+             + CASE WHEN client_row_num = 1 THEN COALESCE(Released_PO_Qty, 0.0) ELSE 0.0 END
+             + CASE WHEN client_row_num = 1 THEN COALESCE(RMQTY_Eligible_Qty, 0.0) ELSE 0.0 END)
+            - (Base_Demand - allocated)
+        ) OVER (
+            PARTITION BY ITEMNMBR, Client_ID
+            ORDER BY Date_Expiry, SortPriority, ORDERNUMBER
+            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+        ) AS ATP_Available_Prior
+    FROM Allocated AS a
 )
 -- Layer 5: Calculate effective demand and allocation status
 SELECT
@@ -162,6 +229,12 @@ SELECT
     IssueDate_Mismatch,
     Early_Issue_Flag,
     Base_Demand,
+    Client_ID,
+    WFQ_QTY,
+    RMQTY_QTY,
+    RMQTY_Client_ID,
+    Released_PO_Qty,
+    RMQTY_Eligible_Qty,
     WC_Item,
     WC_Site,
     Available_Qty,
@@ -175,12 +248,43 @@ SELECT
     pri_temporal_proximity,
     batch_prior_claimed_demand,
     allocated,
+    client_row_num,
+    ATP_Supply_Event,
+    ATP_Available_Prior,
+
+    -- ATP suppression within active window
+    CASE
+        WHEN IsActiveWindow = 1 THEN
+            CASE
+                WHEN (Base_Demand - allocated) <= COALESCE(ATP_Available_Prior, 0.0)
+                    THEN (Base_Demand - allocated)
+                WHEN COALESCE(ATP_Available_Prior, 0.0) > 0
+                    THEN COALESCE(ATP_Available_Prior, 0.0)
+                ELSE 0.0
+            END
+        ELSE 0.0
+    END AS ATP_Suppression_Qty,
 
     -- Calculate effective demand based on active window
     CASE
         WHEN Date_Expiry BETWEEN DATEADD(DAY, -21, GETDATE()) AND DATEADD(DAY, 21, GETDATE())
         THEN CASE
-                WHEN Base_Demand - allocated > 0 THEN Base_Demand - allocated
+                WHEN Base_Demand - allocated -
+                     (CASE
+                        WHEN (Base_Demand - allocated) <= COALESCE(ATP_Available_Prior, 0.0)
+                            THEN (Base_Demand - allocated)
+                        WHEN COALESCE(ATP_Available_Prior, 0.0) > 0
+                            THEN COALESCE(ATP_Available_Prior, 0.0)
+                        ELSE 0.0
+                      END) > 0
+                    THEN Base_Demand - allocated -
+                     (CASE
+                        WHEN (Base_Demand - allocated) <= COALESCE(ATP_Available_Prior, 0.0)
+                            THEN (Base_Demand - allocated)
+                        WHEN COALESCE(ATP_Available_Prior, 0.0) > 0
+                            THEN COALESCE(ATP_Available_Prior, 0.0)
+                        ELSE 0.0
+                      END)
                 ELSE 0.0
              END
         ELSE Base_Demand
@@ -190,8 +294,10 @@ SELECT
     CASE
         WHEN Date_Expiry BETWEEN DATEADD(DAY, -21, GETDATE()) AND DATEADD(DAY, 21, GETDATE())
         THEN CASE
+                WHEN allocated > 0 AND ATP_Suppression_Qty > 0 THEN 'WC_ATP_Suppressed'
                 WHEN allocated > 0 THEN 'WC_Suppressed'
-                ELSE 'No_WC_Allocation'
+                WHEN ATP_Suppression_Qty > 0 THEN 'ATP_Suppressed'
+                ELSE 'No_Allocation'
              END
         ELSE 'Outside_Active_Window'
     END AS wc_allocation_status,
@@ -206,4 +312,4 @@ SELECT
         ORDER BY Date_Expiry, SortPriority, ORDERNUMBER
     ) AS item_row_num
 
-FROM Allocated
+FROM ATPWindow

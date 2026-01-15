@@ -22,6 +22,7 @@ GO
 -- Create staging tables
 CREATE TABLE stg.Synthetic_Demand (
     ItemNMBR NVARCHAR(50),
+    Client_ID NVARCHAR(50) NULL,
     EventType NVARCHAR(50), -- 'DEMAND', 'EXPIRY'
     DUEDATE DATE,
     Quantity DECIMAL(18,5),
@@ -46,6 +47,7 @@ CREATE TABLE stg.Synthetic_WFQ (
 
 CREATE TABLE stg.Synthetic_RMQTY (
     ItemNMBR NVARCHAR(50),
+    Client_ID NVARCHAR(50) NULL,
     RMQTY_QTY DECIMAL(18,5)
 );
 
@@ -91,6 +93,7 @@ BEGIN
     WHILE @@FETCH_STATUS = 0
     BEGIN
         -- Generate beginning balance
+        DECLARE @client_id NVARCHAR(50) = 'CLIENT_' + CAST(@i AS NVARCHAR(10));
         INSERT INTO stg.Synthetic_BeginningBalance (ItemNMBR, DUEDATE, Quantity)
         VALUES (
             @current_item,
@@ -114,13 +117,13 @@ BEGIN
             -- Generate corresponding demand event (sometimes same-day)
             IF ABS(CHECKSUM(@rand_seed + @i + @po_idx + 500)) % 2 = 0
             BEGIN
-                INSERT INTO stg.Synthetic_Demand (ItemNMBR, EventType, DUEDATE, Quantity, PO_ID, ExpiryDate)
-                VALUES (@current_item, 'DEMAND', @po_duedate, @po_qty * 0.8, @po_id, NULL);
+                INSERT INTO stg.Synthetic_Demand (ItemNMBR, Client_ID, EventType, DUEDATE, Quantity, PO_ID, ExpiryDate)
+                VALUES (@current_item, @client_id, 'DEMAND', @po_duedate, @po_qty * 0.8, @po_id, NULL);
             END
             ELSE
             BEGIN
-                INSERT INTO stg.Synthetic_Demand (ItemNMBR, EventType, DUEDATE, Quantity, PO_ID, ExpiryDate)
-                VALUES (@current_item, 'DEMAND', DATEADD(DAY, ABS(CHECKSUM(@rand_seed + @i + @po_idx + 600)) % 30, @po_duedate), @po_qty * 0.8, @po_id, NULL);
+                INSERT INTO stg.Synthetic_Demand (ItemNMBR, Client_ID, EventType, DUEDATE, Quantity, PO_ID, ExpiryDate)
+                VALUES (@current_item, @client_id, 'DEMAND', DATEADD(DAY, ABS(CHECKSUM(@rand_seed + @i + @po_idx + 600)) % 30, @po_duedate), @po_qty * 0.8, @po_id, NULL);
             END
 
             SET @po_idx = @po_idx + 1;
@@ -132,9 +135,10 @@ BEGIN
 
         WHILE @demand_idx <= @demand_count
         BEGIN
-            INSERT INTO stg.Synthetic_Demand (ItemNMBR, EventType, DUEDATE, Quantity, PO_ID, ExpiryDate)
+            INSERT INTO stg.Synthetic_Demand (ItemNMBR, Client_ID, EventType, DUEDATE, Quantity, PO_ID, ExpiryDate)
             VALUES (
                 @current_item,
+                @client_id,
                 'DEMAND',
                 DATEADD(DAY, (CHECKSUM(@rand_seed + @i + @demand_idx + 800) % 120) - 60, GETDATE()),
                 ABS(CHECKSUM(@rand_seed + @i + @demand_idx + 900)) % 50 + 5,
@@ -148,9 +152,10 @@ BEGIN
         -- Generate expiry events
         IF ABS(CHECKSUM(@rand_seed + @i + 1000)) % 3 = 0
         BEGIN
-            INSERT INTO stg.Synthetic_Demand (ItemNMBR, EventType, DUEDATE, Quantity, PO_ID, ExpiryDate)
+            INSERT INTO stg.Synthetic_Demand (ItemNMBR, Client_ID, EventType, DUEDATE, Quantity, PO_ID, ExpiryDate)
             VALUES (
                 @current_item,
+                @client_id,
                 'EXPIRY',
                 DATEADD(DAY, ABS(CHECKSUM(@rand_seed + @i + 1100)) % 30, GETDATE()),
                 ABS(CHECKSUM(@rand_seed + @i + 1200)) % 20 + 5,
@@ -163,8 +168,8 @@ BEGIN
         INSERT INTO stg.Synthetic_WFQ (ItemNMBR, WFQ_QTY)
         VALUES (@current_item, ABS(CHECKSUM(@rand_seed + @i + 1400)) % 100);
 
-        INSERT INTO stg.Synthetic_RMQTY (ItemNMBR, RMQTY_QTY)
-        VALUES (@current_item, ABS(CHECKSUM(@rand_seed + @i + 1500)) % 50);
+        INSERT INTO stg.Synthetic_RMQTY (ItemNMBR, Client_ID, RMQTY_QTY)
+        VALUES (@current_item, @client_id, ABS(CHECKSUM(@rand_seed + @i + 1500)) % 50);
 
         SET @i = @i + 1;
         FETCH NEXT FROM @item_cursor INTO @current_item;
@@ -184,8 +189,8 @@ BEGIN
     VALUES ('10.020B', DATEADD(DAY, -10, GETDATE()), 50);
 
     -- Demand that creates negative balance
-    INSERT INTO stg.Synthetic_Demand (ItemNMBR, EventType, DUEDATE, Quantity)
-    VALUES ('10.020B', 'DEMAND', GETDATE(), 60);
+    INSERT INTO stg.Synthetic_Demand (ItemNMBR, Client_ID, EventType, DUEDATE, Quantity)
+    VALUES ('10.020B', 'CLIENT_1', 'DEMAND', GETDATE(), 60);
 
     -- Same-day PO that offsets
     INSERT INTO stg.Synthetic_PO (PO_ID, ItemNMBR, PO_DUEDATE, PO_QTY)

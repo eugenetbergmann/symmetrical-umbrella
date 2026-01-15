@@ -48,16 +48,60 @@ SELECT
     allocated AS WC_Inventory_Applied,
     effective_demand AS Effective_Demand,
     wc_allocation_status,
+    Client_ID,
+    WFQ_QTY,
+    RMQTY_QTY,
+    RMQTY_Client_ID,
+    Released_PO_Qty,
+    RMQTY_Eligible_Qty,
+    ATP_Suppression_Qty,
 
-    -- CORRECTED: Per-item running balance
-    -- BEG_BAL and POs only counted on first row per item (item_row_num = 1)
-    -- This prevents double-counting when multiple WC batches match one demand
+    -- Forecast supply event (per item)
+    CASE WHEN item_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
+    + CASE WHEN item_row_num = 1 THEN COALESCE(POs, 0.0) ELSE 0.0 END
+    + CASE WHEN item_row_num = 1 THEN COALESCE(WFQ_QTY, 0.0) ELSE 0.0 END
+    + CASE WHEN item_row_num = 1 THEN COALESCE(RMQTY_QTY, 0.0) ELSE 0.0 END
+        AS Forecast_Supply_Event,
+
+    -- ATP supply event (per client)
+    CASE WHEN client_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
+    + CASE WHEN client_row_num = 1 THEN COALESCE(Released_PO_Qty, 0.0) ELSE 0.0 END
+    + CASE WHEN client_row_num = 1 THEN COALESCE(RMQTY_Eligible_Qty, 0.0) ELSE 0.0 END
+        AS ATP_Supply_Event,
+
+    -- Forecast running balance (potential inventory)
     SUM(
-        CASE WHEN item_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
-        + CASE WHEN item_row_num = 1 THEN COALESCE(POs, 0.0) ELSE 0.0 END
-        - effective_demand
+        (CASE WHEN item_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
+         + CASE WHEN item_row_num = 1 THEN COALESCE(POs, 0.0) ELSE 0.0 END
+         + CASE WHEN item_row_num = 1 THEN COALESCE(WFQ_QTY, 0.0) ELSE 0.0 END
+         + CASE WHEN item_row_num = 1 THEN COALESCE(RMQTY_QTY, 0.0) ELSE 0.0 END)
+        - Base_Demand
     ) OVER (
         PARTITION BY ITEMNMBR
+        ORDER BY Date_Expiry, SortPriority, ORDERNUMBER
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS Forecast_Running_Balance,
+
+    -- ATP running balance (consumable now, client-restricted)
+    SUM(
+        (CASE WHEN client_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
+         + CASE WHEN client_row_num = 1 THEN COALESCE(Released_PO_Qty, 0.0) ELSE 0.0 END
+         + CASE WHEN client_row_num = 1 THEN COALESCE(RMQTY_Eligible_Qty, 0.0) ELSE 0.0 END)
+        - effective_demand
+    ) OVER (
+        PARTITION BY ITEMNMBR, Client_ID
+        ORDER BY Date_Expiry, SortPriority, ORDERNUMBER
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS ATP_Running_Balance,
+
+    -- Backward-compatible running balance (aligned to ATP)
+    SUM(
+        (CASE WHEN client_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
+         + CASE WHEN client_row_num = 1 THEN COALESCE(Released_PO_Qty, 0.0) ELSE 0.0 END
+         + CASE WHEN client_row_num = 1 THEN COALESCE(RMQTY_Eligible_Qty, 0.0) ELSE 0.0 END)
+        - effective_demand
+    ) OVER (
+        PARTITION BY ITEMNMBR, Client_ID
         ORDER BY Date_Expiry, SortPriority, ORDERNUMBER
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
     ) AS Adjusted_Running_Balance,
@@ -88,7 +132,7 @@ SELECT
     CASE
         WHEN effective_demand > 0 AND Date_Expiry BETWEEN GETDATE() AND DATEADD(DAY, 3, GETDATE())
             THEN 'URGENT_UNMET_DEMAND'
-        WHEN wc_allocation_status = 'No_WC_Allocation' AND Base_Demand > 0
+        WHEN wc_allocation_status IN ('No_Allocation', 'No_WC_Allocation') AND Base_Demand > 0
             THEN 'REVIEW_NO_WC_AVAILABLE'
         ELSE 'NORMAL'
     END AS QC_Flag
