@@ -152,8 +152,122 @@ BEGIN
         @review_count
     );
 
-    -- Test 10: Coverage Metric
-    DECLARE @total_tests INT = 9; -- Number of tests above
+    -- Test 10: WC Demand Deprecation - Within Window with WC Not Suppressed
+    DECLARE @wc_demand_within INT;
+    SELECT @wc_demand_within = COUNT(*)
+    FROM dbo.Rolyat_WC_Allocation_Effective_2
+    WHERE DATEDIFF(DAY, GETDATE(), Date_Expiry) BETWEEN -21 AND 21
+      AND WC_Batch_ID IS NOT NULL
+      AND effective_demand = Base_Demand;
+
+    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
+    VALUES (
+        'test_wc_demand_deprecation_within_window',
+        CASE WHEN @wc_demand_within = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @wc_demand_within = 0 THEN 'No demands within window with WC inventory left unsuppressed' ELSE 'Found ' + CAST(@wc_demand_within AS NVARCHAR(10)) + ' unsuppressed demands within window' END,
+        @wc_demand_within
+    );
+
+    -- Test 11: WC Demand Deprecation - Outside Window Incorrectly Suppressed
+    DECLARE @wc_demand_outside INT;
+    SELECT @wc_demand_outside = COUNT(*)
+    FROM dbo.Rolyat_WC_Allocation_Effective_2
+    WHERE DATEDIFF(DAY, GETDATE(), Date_Expiry) NOT BETWEEN -21 AND 21
+      AND effective_demand < Base_Demand;
+
+    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
+    VALUES (
+        'test_wc_demand_deprecation_outside_window',
+        CASE WHEN @wc_demand_outside = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @wc_demand_outside = 0 THEN 'No demands outside window incorrectly suppressed' ELSE 'Found ' + CAST(@wc_demand_outside AS NVARCHAR(10)) + ' suppressed demands outside window' END,
+        @wc_demand_outside
+    );
+
+    -- Test 12: Active Planning Window - Suppression Outside ±21 Days
+    DECLARE @window_status_error INT;
+    SELECT @window_status_error = COUNT(*)
+    FROM dbo.Rolyat_WC_Allocation_Effective_2
+    WHERE DATEDIFF(DAY, GETDATE(), Date_Expiry) NOT BETWEEN -21 AND 21
+      AND wc_allocation_status != 'Outside_Active_Window';
+
+    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
+    VALUES (
+        'test_active_planning_window_suppression',
+        CASE WHEN @window_status_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @window_status_error = 0 THEN 'Allocation status correct for out-of-window demands' ELSE 'Found ' + CAST(@window_status_error AS NVARCHAR(10)) + ' incorrect status for out-of-window demands' END,
+        @window_status_error
+    );
+
+    -- Test 13: Inventory Age & Degradation - Incorrect Degradation Factors
+    DECLARE @degradation_error INT;
+    SELECT @degradation_error = COUNT(*)
+    FROM dbo.Rolyat_WC_Allocation_Effective_2
+    WHERE WC_Degradation_Factor NOT IN (
+        CASE
+            WHEN DATEDIFF(DAY, GETDATE(), Date_Expiry) BETWEEN 0 AND 30 THEN 1.00
+            WHEN DATEDIFF(DAY, GETDATE(), Date_Expiry) BETWEEN 31 AND 60 THEN 0.75
+            WHEN DATEDIFF(DAY, GETDATE(), Date_Expiry) BETWEEN 61 AND 90 THEN 0.50
+            WHEN DATEDIFF(DAY, GETDATE(), Date_Expiry) > 90 THEN 0.00
+            ELSE NULL -- For negative days or other cases
+        END
+    ) AND WC_Degradation_Factor IS NOT NULL;
+
+    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
+    VALUES (
+        'test_inventory_degradation_factors',
+        CASE WHEN @degradation_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @degradation_error = 0 THEN 'Degradation factors match age rules' ELSE 'Found ' + CAST(@degradation_error AS NVARCHAR(10)) + ' incorrect degradation factors' END,
+        @degradation_error
+    );
+
+    -- Test 14: No Double Allocation - Allocated Exceeds Batch Effective Qty
+    DECLARE @double_alloc INT;
+    SELECT @double_alloc = COUNT(DISTINCT WC_Batch_ID)
+    FROM dbo.Rolyat_WC_Allocation_Effective_2
+    GROUP BY WC_Batch_ID
+    HAVING SUM(allocated) > MAX(WC_Effective_Qty);
+
+    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
+    VALUES (
+        'test_no_double_allocation',
+        CASE WHEN @double_alloc = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @double_alloc = 0 THEN 'No over-allocated batches' ELSE 'Found ' + CAST(@double_alloc AS NVARCHAR(10)) + ' over-allocated batches' END,
+        @double_alloc
+    );
+
+    -- Test 15: Running Balance - Non-Monotonic Changes
+    DECLARE @balance_error INT;
+    SELECT @balance_error = COUNT(*)
+    FROM dbo.Rolyat_Final_Ledger_3
+    WHERE Adjusted_Running_Balance > ISNULL(LAG(Adjusted_Running_Balance) OVER (PARTITION BY ITEMNMBR ORDER BY Date_Expiry, SortPriority, ORDERNUMBER), 0);
+
+    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
+    VALUES (
+        'test_running_balance_monotonic',
+        CASE WHEN @balance_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @balance_error = 0 THEN 'Balances decrease or stay same over time' ELSE 'Found ' + CAST(@balance_error AS NVARCHAR(10)) + ' non-monotonic balance changes' END,
+        @balance_error
+    );
+
+    -- Test 16: Intelligence - Invalid Stock-Out Signals
+    DECLARE @intelligence_error INT;
+    SELECT @intelligence_error = COUNT(*)
+    FROM dbo.Rolyat_Final_Ledger_3 rfl
+    INNER JOIN dbo.Rolyat_WFQ_5 rwf ON rfl.ITEMNMBR = rwf.ITEMNMBR
+    WHERE rfl.Row_Type = 'DEMAND_EVENT'
+      AND rfl.Adjusted_Running_Balance < 0
+      AND rwf.QTY_ON_HAND > 0;
+
+    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
+    VALUES (
+        'test_intelligence_stock_out_signals',
+        CASE WHEN @intelligence_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @intelligence_error = 0 THEN 'No invalid stock-out signals' ELSE 'Found ' + CAST(@intelligence_error AS NVARCHAR(10)) + ' invalid stock-out signals' END,
+        @intelligence_error
+    );
+
+    -- Test 17: Coverage Metric
+    DECLARE @total_tests INT = 16; -- Number of tests above
     DECLARE @passed_tests INT;
     SELECT @passed_tests = COUNT(*) FROM #TestResults WHERE pass = 1;
 
