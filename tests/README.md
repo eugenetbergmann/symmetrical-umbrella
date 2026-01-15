@@ -1,6 +1,6 @@
-# Unit Testing Framework for Rolyat WC-Adjusted PAB & Stock-Out Intelligence
+# Unit Testing Framework for Rolyat WC-Adjusted PAB & Stock-Out Intelligence + BOM Event Ledger
 
-This directory contains the complete unit testing framework for validating the 5 merged SQL views on existing production data.
+This directory contains the complete unit testing framework for validating the 5 merged SQL views on existing production data, plus the BOM Event Ledger testing framework.
 
 ## Overview
 
