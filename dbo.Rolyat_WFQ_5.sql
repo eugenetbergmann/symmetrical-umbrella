@@ -2,6 +2,8 @@ SELECT
     TRIM(inv.ITEMNMBR) AS Item_Number,
     TRIM(inv.LOCNCODE) AS SITE,
     TRIM(itm.UOMSCHDL) AS UOM,
+    -- Client segregation placeholder (override with real client mapping if available)
+    COALESCE(NULLIF(TRIM(inv.UDFSTR1), ''), 'UNASSIGNED') AS Client_ID,
     SUM(inv.QTYRECVD - inv.QTYSOLD) AS QTY_ON_HAND
 
 FROM dbo.IV00300 AS inv
@@ -19,7 +21,8 @@ WHERE
 GROUP BY
     TRIM(inv.ITEMNMBR),
     TRIM(inv.LOCNCODE),
-    TRIM(itm.UOMSCHDL)
+    TRIM(itm.UOMSCHDL),
+    COALESCE(NULLIF(TRIM(inv.UDFSTR1), ''), 'UNASSIGNED')
 
 HAVING
     SUM(inv.QTYRECVD - inv.QTYSOLD) <> 0

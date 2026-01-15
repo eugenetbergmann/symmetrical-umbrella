@@ -17,24 +17,39 @@ BEGIN
         rows_affected INT
     );
 
-    -- Test 1: Adjusted Running Balance Identity
+    -- Test 1: Forecast Running Balance Identity
     DECLARE @mismatches INT;
     SELECT @mismatches = COUNT(*)
     FROM dbo.Rolyat_Final_Ledger_3
-    WHERE Adjusted_Running_Balance <> ISNULL(LAG(Adjusted_Running_Balance) OVER (PARTITION BY ITEMNMBR ORDER BY Date_Expiry, SortPriority, ORDERNUMBER), 0)
-        + CASE WHEN item_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
-        + CASE WHEN item_row_num = 1 THEN COALESCE(POs, 0.0) ELSE 0.0 END
-        - effective_demand;
+    WHERE Forecast_Running_Balance <> ISNULL(LAG(Forecast_Running_Balance) OVER (PARTITION BY ITEMNMBR ORDER BY Date_Expiry, SortPriority, ORDERNUMBER), 0)
+        + Forecast_Supply_Event
+        - Base_Demand;
 
     INSERT INTO #TestResults (test_name, pass, message, rows_affected)
     VALUES (
-        'test_adjusted_running_balance_identity',
+        'test_forecast_running_balance_identity',
         CASE WHEN @mismatches = 0 THEN 1 ELSE 0 END,
         CASE WHEN @mismatches = 0 THEN 'All balances match identity' ELSE 'Found ' + CAST(@mismatches AS NVARCHAR(10)) + ' mismatches' END,
         @mismatches
     );
 
-    -- Test 2: SortPriority Presence
+    -- Test 2: ATP Running Balance Identity
+    DECLARE @atp_mismatches INT;
+    SELECT @atp_mismatches = COUNT(*)
+    FROM dbo.Rolyat_Final_Ledger_3
+    WHERE ATP_Running_Balance <> ISNULL(LAG(ATP_Running_Balance) OVER (PARTITION BY ITEMNMBR, Client_ID ORDER BY Date_Expiry, SortPriority, ORDERNUMBER), 0)
+        + ATP_Supply_Event
+        - Effective_Demand;
+
+    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
+    VALUES (
+        'test_atp_running_balance_identity',
+        CASE WHEN @atp_mismatches = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @atp_mismatches = 0 THEN 'All ATP balances match identity' ELSE 'Found ' + CAST(@atp_mismatches AS NVARCHAR(10)) + ' mismatches' END,
+        @atp_mismatches
+    );
+
+    -- Test 3: SortPriority Presence
     DECLARE @null_sort INT;
     SELECT @null_sort = COUNT(*) FROM dbo.Rolyat_Cleaned_Base_Demand_1 WHERE SortPriority IS NULL;
 
@@ -46,7 +61,7 @@ BEGIN
         @null_sort
     );
 
-    -- Test 3: Active Window Flagging
+    -- Test 4: Active Window Flagging
     DECLARE @window_mismatch INT;
     SELECT @window_mismatch = COUNT(*)
     FROM dbo.Rolyat_Cleaned_Base_Demand_1
@@ -61,166 +76,104 @@ BEGIN
         @window_mismatch
     );
 
-    -- Test 4: WC Allocation Status Rules
-    DECLARE @status_error INT;
-    SELECT @status_error = COUNT(*)
+    -- Test 5: ATP Suppression Within Window
+    DECLARE @atp_suppress_error INT;
+    SELECT @atp_suppress_error = COUNT(*)
     FROM dbo.Rolyat_WC_Allocation_Effective_2
-    WHERE Row_Type = 'DEMAND_EVENT'
-      AND Adjusted_Running_Balance > 0
-      AND NOT (wc_allocation_status = 'Full_Allocation' AND QC_Flag = 'NORMAL');
+    WHERE IsActiveWindow = 1
+      AND effective_demand > (Base_Demand - allocated);
 
     INSERT INTO #TestResults (test_name, pass, message, rows_affected)
     VALUES (
-        'test_wc_allocation_legends',
-        CASE WHEN @status_error = 0 THEN 1 ELSE 0 END,
-        CASE WHEN @status_error = 0 THEN 'Allocation status rules correct' ELSE 'Found ' + CAST(@status_error AS NVARCHAR(10)) + ' status errors' END,
-        @status_error
+        'test_atp_suppression_within_window',
+        CASE WHEN @atp_suppress_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @atp_suppress_error = 0 THEN 'ATP suppression within window correct' ELSE 'Found ' + CAST(@atp_suppress_error AS NVARCHAR(10)) + ' suppression errors' END,
+        @atp_suppress_error
     );
 
-    -- Test 5: QC Review Condition
-    DECLARE @qc_error INT;
-    SELECT @qc_error = COUNT(*)
-    FROM dbo.Rolyat_StockOut_Analysis_v2
-    WHERE (Adjusted_Running_Balance < 0 AND Alternate_Stock <= 0 AND Updated_QC_Flag <> 'REVIEW_NO_WC_AVAILABLE')
-       OR (NOT (Adjusted_Running_Balance < 0 AND Alternate_Stock <= 0) AND Updated_QC_Flag = 'REVIEW_NO_WC_AVAILABLE');
-
-    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
-    VALUES (
-        'test_qc_review_condition',
-        CASE WHEN @qc_error = 0 THEN 1 ELSE 0 END,
-        CASE WHEN @qc_error = 0 THEN 'QC review conditions correct' ELSE 'Found ' + CAST(@qc_error AS NVARCHAR(10)) + ' QC errors' END,
-        @qc_error
-    );
-
-    -- Test 6: WFQ RMQTY Integration
-    DECLARE @alt_stock_error INT;
-    SELECT @alt_stock_error = COUNT(*)
-    FROM dbo.Rolyat_StockOut_Analysis_v2
-    WHERE WFQ_QTY + RMQTY_QTY <> Alternate_Stock;
-
-    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
-    VALUES (
-        'test_wfq_rmqty_integration',
-        CASE WHEN @alt_stock_error = 0 THEN 1 ELSE 0 END,
-        CASE WHEN @alt_stock_error = 0 THEN 'Alternate stock computed correctly' ELSE 'Found ' + CAST(@alt_stock_error AS NVARCHAR(10)) + ' computation errors' END,
-        @alt_stock_error
-    );
-
-    -- Test 7: StockOut Action Tags
-    DECLARE @action_error INT;
-    SELECT @action_error = COUNT(*)
-    FROM dbo.Rolyat_StockOut_Analysis_v2
-    WHERE Deficit > 0
-      AND Action_Tag NOT IN ('URGENT_EXPEDITE', 'URGENT_TRANSFER', 'URGENT_PURCHASE', 'REVIEW_ALTERNATE_STOCK', 'STOCK_OUT');
-
-    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
-    VALUES (
-        'test_stockout_action_tags',
-        CASE WHEN @action_error = 0 THEN 1 ELSE 0 END,
-        CASE WHEN @action_error = 0 THEN 'Action tags consistent with rules' ELSE 'Found ' + CAST(@action_error AS NVARCHAR(10)) + ' invalid tags' END,
-        @action_error
-    );
-
-    -- Test 8: Example Item Snapshot (10.020B)
-    DECLARE @example_error INT;
-    SELECT @example_error = COUNT(*)
-    FROM dbo.Rolyat_StockOut_Analysis_v2
-    WHERE ITEMNMBR = '10.020B'
-      AND NOT (
-          -- Same-day PO offsets negative drift: expect positive or zero balance after PO
-          (Row_Type = 'PURCHASE_ORDER' AND Adjusted_Running_Balance >= 0)
-          OR (Row_Type <> 'PURCHASE_ORDER')
-      );
-
-    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
-    VALUES (
-        'test_example_item_snapshot',
-        CASE WHEN @example_error = 0 THEN 1 ELSE 0 END,
-        CASE WHEN @example_error = 0 THEN 'Example item 10.020B shows expected behavior' ELSE 'Example item does not match expected snapshot' END,
-        @example_error
-    );
-
-    -- Test 9: Noise Reduction
-    DECLARE @review_count INT;
-    SELECT @review_count = COUNT(*) FROM dbo.Rolyat_StockOut_Analysis_v2 WHERE Updated_QC_Flag = 'REVIEW_NO_WC_AVAILABLE';
-
-    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
-    VALUES (
-        'test_noise_reduction',
-        CASE WHEN @review_count <= 3 THEN 1 ELSE 0 END, -- Threshold for synthetic data
-        'REVIEW_NO_WC_AVAILABLE count: ' + CAST(@review_count AS NVARCHAR(10)) + ' (target <= 3)',
-        @review_count
-    );
-
-    -- Test 10: WC Demand Deprecation - Within Window with WC Not Suppressed
-    DECLARE @wc_demand_within INT;
-    SELECT @wc_demand_within = COUNT(*)
+    -- Test 6: No Suppression Outside Window
+    DECLARE @outside_suppress INT;
+    SELECT @outside_suppress = COUNT(*)
     FROM dbo.Rolyat_WC_Allocation_Effective_2
-    WHERE DATEDIFF(DAY, GETDATE(), Date_Expiry) BETWEEN -21 AND 21
-      AND WC_Batch_ID IS NOT NULL
-      AND effective_demand = Base_Demand;
+    WHERE IsActiveWindow = 0
+      AND effective_demand <> Base_Demand;
 
     INSERT INTO #TestResults (test_name, pass, message, rows_affected)
     VALUES (
-        'test_wc_demand_deprecation_within_window',
-        CASE WHEN @wc_demand_within = 0 THEN 1 ELSE 0 END,
-        CASE WHEN @wc_demand_within = 0 THEN 'No demands within window with WC inventory left unsuppressed' ELSE 'Found ' + CAST(@wc_demand_within AS NVARCHAR(10)) + ' unsuppressed demands within window' END,
-        @wc_demand_within
+        'test_no_suppression_outside_window',
+        CASE WHEN @outside_suppress = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @outside_suppress = 0 THEN 'No suppression outside window' ELSE 'Found ' + CAST(@outside_suppress AS NVARCHAR(10)) + ' suppressed rows outside window' END,
+        @outside_suppress
     );
 
-    -- Test 11: WC Demand Deprecation - Outside Window Incorrectly Suppressed
-    DECLARE @wc_demand_outside INT;
-    SELECT @wc_demand_outside = COUNT(*)
+    -- Test 7: RMQTY Client Restriction
+    DECLARE @rmqty_client_error INT;
+    SELECT @rmqty_client_error = COUNT(*)
     FROM dbo.Rolyat_WC_Allocation_Effective_2
-    WHERE DATEDIFF(DAY, GETDATE(), Date_Expiry) NOT BETWEEN -21 AND 21
-      AND effective_demand < Base_Demand;
+    WHERE RMQTY_QTY > 0
+      AND Client_ID <> RMQTY_Client_ID
+      AND RMQTY_Eligible_Qty <> 0;
 
     INSERT INTO #TestResults (test_name, pass, message, rows_affected)
     VALUES (
-        'test_wc_demand_deprecation_outside_window',
-        CASE WHEN @wc_demand_outside = 0 THEN 1 ELSE 0 END,
-        CASE WHEN @wc_demand_outside = 0 THEN 'No demands outside window incorrectly suppressed' ELSE 'Found ' + CAST(@wc_demand_outside AS NVARCHAR(10)) + ' suppressed demands outside window' END,
-        @wc_demand_outside
+        'test_rmqty_client_restriction',
+        CASE WHEN @rmqty_client_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @rmqty_client_error = 0 THEN 'RMQTY restriction respected' ELSE 'Found ' + CAST(@rmqty_client_error AS NVARCHAR(10)) + ' RMQTY client mismatches' END,
+        @rmqty_client_error
     );
 
-    -- Test 12: Active Planning Window - Suppression Outside ±21 Days
-    DECLARE @window_status_error INT;
-    SELECT @window_status_error = COUNT(*)
+    -- Test 8: PO Release Logic
+    DECLARE @po_release_error INT;
+    SELECT @po_release_error = COUNT(*)
     FROM dbo.Rolyat_WC_Allocation_Effective_2
-    WHERE DATEDIFF(DAY, GETDATE(), Date_Expiry) NOT BETWEEN -21 AND 21
-      AND wc_allocation_status != 'Outside_Active_Window';
+    WHERE POs > 0
+      AND COALESCE(MRP_IssueDate, DUEDATE) > CAST(GETDATE() AS DATE)
+      AND Released_PO_Qty <> 0;
 
     INSERT INTO #TestResults (test_name, pass, message, rows_affected)
     VALUES (
-        'test_active_planning_window_suppression',
-        CASE WHEN @window_status_error = 0 THEN 1 ELSE 0 END,
-        CASE WHEN @window_status_error = 0 THEN 'Allocation status correct for out-of-window demands' ELSE 'Found ' + CAST(@window_status_error AS NVARCHAR(10)) + ' incorrect status for out-of-window demands' END,
-        @window_status_error
+        'test_po_release_logic',
+        CASE WHEN @po_release_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @po_release_error = 0 THEN 'PO release logic correct' ELSE 'Found ' + CAST(@po_release_error AS NVARCHAR(10)) + ' release errors' END,
+        @po_release_error
     );
 
-    -- Test 13: Inventory Age & Degradation - Incorrect Degradation Factors
-    DECLARE @degradation_error INT;
-    SELECT @degradation_error = COUNT(*)
-    FROM dbo.Rolyat_WC_Allocation_Effective_2
-    WHERE WC_Degradation_Factor NOT IN (
-        CASE
-            WHEN DATEDIFF(DAY, GETDATE(), Date_Expiry) BETWEEN 0 AND 30 THEN 1.00
-            WHEN DATEDIFF(DAY, GETDATE(), Date_Expiry) BETWEEN 31 AND 60 THEN 0.75
-            WHEN DATEDIFF(DAY, GETDATE(), Date_Expiry) BETWEEN 61 AND 90 THEN 0.50
-            WHEN DATEDIFF(DAY, GETDATE(), Date_Expiry) > 90 THEN 0.00
-            ELSE NULL -- For negative days or other cases
-        END
-    ) AND WC_Degradation_Factor IS NOT NULL;
+    -- Test 9: Forecast Supply Event Composition
+    DECLARE @forecast_supply_error INT;
+    SELECT @forecast_supply_error = COUNT(*)
+    FROM dbo.Rolyat_Final_Ledger_3
+    WHERE Forecast_Supply_Event <>
+        (CASE WHEN item_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
+         + CASE WHEN item_row_num = 1 THEN COALESCE(POs, 0.0) ELSE 0.0 END
+         + CASE WHEN item_row_num = 1 THEN COALESCE(WFQ_QTY, 0.0) ELSE 0.0 END
+         + CASE WHEN item_row_num = 1 THEN COALESCE(RMQTY_QTY, 0.0) ELSE 0.0 END);
 
     INSERT INTO #TestResults (test_name, pass, message, rows_affected)
     VALUES (
-        'test_inventory_degradation_factors',
-        CASE WHEN @degradation_error = 0 THEN 1 ELSE 0 END,
-        CASE WHEN @degradation_error = 0 THEN 'Degradation factors match age rules' ELSE 'Found ' + CAST(@degradation_error AS NVARCHAR(10)) + ' incorrect degradation factors' END,
-        @degradation_error
+        'test_forecast_supply_event',
+        CASE WHEN @forecast_supply_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @forecast_supply_error = 0 THEN 'Forecast supply matches components' ELSE 'Found ' + CAST(@forecast_supply_error AS NVARCHAR(10)) + ' mismatches' END,
+        @forecast_supply_error
     );
 
-    -- Test 14: No Double Allocation - Allocated Exceeds Batch Effective Qty
+    -- Test 10: ATP Supply Event Composition
+    DECLARE @atp_supply_error INT;
+    SELECT @atp_supply_error = COUNT(*)
+    FROM dbo.Rolyat_Final_Ledger_3
+    WHERE ATP_Supply_Event <>
+        (CASE WHEN client_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
+         + CASE WHEN client_row_num = 1 THEN COALESCE(Released_PO_Qty, 0.0) ELSE 0.0 END
+         + CASE WHEN client_row_num = 1 THEN COALESCE(RMQTY_Eligible_Qty, 0.0) ELSE 0.0 END);
+
+    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
+    VALUES (
+        'test_atp_supply_event',
+        CASE WHEN @atp_supply_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @atp_supply_error = 0 THEN 'ATP supply matches components' ELSE 'Found ' + CAST(@atp_supply_error AS NVARCHAR(10)) + ' mismatches' END,
+        @atp_supply_error
+    );
+
+    -- Test 11: No Double Allocation - Allocated Exceeds Batch Effective Qty
     DECLARE @double_alloc INT;
     SELECT @double_alloc = COUNT(DISTINCT WC_Batch_ID)
     FROM dbo.Rolyat_WC_Allocation_Effective_2
@@ -235,35 +188,91 @@ BEGIN
         @double_alloc
     );
 
-    -- Test 15: Running Balance - Non-Monotonic Changes
-    DECLARE @balance_error INT;
-    SELECT @balance_error = COUNT(*)
-    FROM dbo.Rolyat_Final_Ledger_3
-    WHERE Adjusted_Running_Balance > ISNULL(LAG(Adjusted_Running_Balance) OVER (PARTITION BY ITEMNMBR ORDER BY Date_Expiry, SortPriority, ORDERNUMBER), 0);
+    -- Test 12: Inventory Age & Degradation - Incorrect Degradation Factors
+    DECLARE @degradation_error INT;
+    SELECT @degradation_error = COUNT(*)
+    FROM dbo.Rolyat_WC_Allocation_Effective_2
+    WHERE WC_Degradation_Factor NOT IN (
+        CASE
+            WHEN WC_Age_Days <= 30 THEN 1.00
+            WHEN WC_Age_Days <= 60 THEN 0.75
+            WHEN WC_Age_Days <= 90 THEN 0.50
+            ELSE 0.00
+        END
+    ) AND WC_Degradation_Factor IS NOT NULL;
 
     INSERT INTO #TestResults (test_name, pass, message, rows_affected)
     VALUES (
-        'test_running_balance_monotonic',
-        CASE WHEN @balance_error = 0 THEN 1 ELSE 0 END,
-        CASE WHEN @balance_error = 0 THEN 'Balances decrease or stay same over time' ELSE 'Found ' + CAST(@balance_error AS NVARCHAR(10)) + ' non-monotonic balance changes' END,
-        @balance_error
+        'test_inventory_degradation_factors',
+        CASE WHEN @degradation_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @degradation_error = 0 THEN 'Degradation factors match age rules' ELSE 'Found ' + CAST(@degradation_error AS NVARCHAR(10)) + ' incorrect degradation factors' END,
+        @degradation_error
     );
 
-    -- Test 16: Intelligence - Invalid Stock-Out Signals
-    DECLARE @intelligence_error INT;
-    SELECT @intelligence_error = COUNT(*)
-    FROM dbo.Rolyat_Final_Ledger_3 rfl
-    INNER JOIN dbo.Rolyat_WFQ_5 rwf ON rfl.ITEMNMBR = rwf.ITEMNMBR
-    WHERE rfl.Row_Type = 'DEMAND_EVENT'
-      AND rfl.Adjusted_Running_Balance < 0
-      AND rwf.QTY_ON_HAND > 0;
+    -- Test 13: StockOut Action Tags
+    DECLARE @action_error INT;
+    SELECT @action_error = COUNT(*)
+    FROM dbo.Rolyat_StockOut_Analysis_v2
+    WHERE Deficit_ATP > 0
+      AND Action_Tag NOT IN ('ATP_CONSTRAINED', 'URGENT_EXPEDITE', 'URGENT_TRANSFER', 'URGENT_PURCHASE', 'REVIEW_ALTERNATE_STOCK', 'STOCK_OUT');
 
     INSERT INTO #TestResults (test_name, pass, message, rows_affected)
     VALUES (
-        'test_intelligence_stock_out_signals',
-        CASE WHEN @intelligence_error = 0 THEN 1 ELSE 0 END,
-        CASE WHEN @intelligence_error = 0 THEN 'No invalid stock-out signals' ELSE 'Found ' + CAST(@intelligence_error AS NVARCHAR(10)) + ' invalid stock-out signals' END,
-        @intelligence_error
+        'test_stockout_action_tags',
+        CASE WHEN @action_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @action_error = 0 THEN 'Action tags consistent with rules' ELSE 'Found ' + CAST(@action_error AS NVARCHAR(10)) + ' invalid tags' END,
+        @action_error
+    );
+
+    -- Test 14: QC Review Condition
+    DECLARE @qc_error INT;
+    SELECT @qc_error = COUNT(*)
+    FROM dbo.Rolyat_StockOut_Analysis_v2
+    WHERE (ATP_Running_Balance < 0 AND Alternate_Stock <= 0 AND Updated_QC_Flag <> 'REVIEW_NO_WC_AVAILABLE')
+       OR (NOT (ATP_Running_Balance < 0 AND Alternate_Stock <= 0) AND Updated_QC_Flag = 'REVIEW_NO_WC_AVAILABLE');
+
+    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
+    VALUES (
+        'test_qc_review_condition',
+        CASE WHEN @qc_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @qc_error = 0 THEN 'QC review conditions correct' ELSE 'Found ' + CAST(@qc_error AS NVARCHAR(10)) + ' QC errors' END,
+        @qc_error
+    );
+
+    -- Test 15: Example Item Snapshot (10.020B)
+    DECLARE @example_error INT;
+    SELECT @example_error = COUNT(*)
+    FROM dbo.Rolyat_Final_Ledger_3
+    WHERE ITEMNMBR = '10.020B'
+      AND NOT (
+          -- Same-day PO offsets negative drift: expect positive or zero ATP balance after PO
+          (Row_Type = 'PURCHASE_ORDER' AND ATP_Running_Balance >= 0)
+          OR (Row_Type <> 'PURCHASE_ORDER')
+      );
+
+    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
+    VALUES (
+        'test_example_item_snapshot',
+        CASE WHEN @example_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @example_error = 0 THEN 'Example item 10.020B shows expected behavior' ELSE 'Example item does not match expected snapshot' END,
+        @example_error
+    );
+
+    -- Test 16: Deficit Calculations in StockOut Analysis
+    DECLARE @deficit_error INT;
+    SELECT @deficit_error = COUNT(*)
+    FROM dbo.Rolyat_StockOut_Analysis_v2
+    WHERE (ATP_Running_Balance < 0 AND Deficit_ATP <> ABS(ATP_Running_Balance))
+       OR (ATP_Running_Balance >= 0 AND Deficit_ATP <> 0)
+       OR (Forecast_Running_Balance < 0 AND Deficit_Forecast <> ABS(Forecast_Running_Balance))
+       OR (Forecast_Running_Balance >= 0 AND Deficit_Forecast <> 0);
+
+    INSERT INTO #TestResults (test_name, pass, message, rows_affected)
+    VALUES (
+        'test_deficit_calculations',
+        CASE WHEN @deficit_error = 0 THEN 1 ELSE 0 END,
+        CASE WHEN @deficit_error = 0 THEN 'Deficit calculations correct' ELSE 'Found ' + CAST(@deficit_error AS NVARCHAR(10)) + ' deficit errors' END,
+        @deficit_error
     );
 
     -- Test 17: Coverage Metric

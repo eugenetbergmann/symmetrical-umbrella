@@ -17,26 +17,31 @@ SELECT
 
     -- Deficit calculation (negative balance indicates stock-out)
     CASE
-        WHEN fl.Adjusted_Running_Balance < 0 THEN ABS(fl.Adjusted_Running_Balance)
+        WHEN fl.ATP_Running_Balance < 0 THEN ABS(fl.ATP_Running_Balance)
         ELSE 0.0
-    END AS Deficit,
+    END AS Deficit_ATP,
+    CASE
+        WHEN fl.Forecast_Running_Balance < 0 THEN ABS(fl.Forecast_Running_Balance)
+        ELSE 0.0
+    END AS Deficit_Forecast,
 
     -- Action tags for planners based on urgency rules
     CASE
-        WHEN fl.Adjusted_Running_Balance < 0 AND fl.IsActiveWindow = 1 THEN
+        WHEN fl.ATP_Running_Balance < 0 AND fl.Forecast_Running_Balance >= 0 THEN 'ATP_CONSTRAINED'
+        WHEN fl.ATP_Running_Balance < 0 AND fl.IsActiveWindow = 1 THEN
             CASE
-                WHEN ABS(fl.Adjusted_Running_Balance) >= 100 THEN 'URGENT_PURCHASE'
-                WHEN ABS(fl.Adjusted_Running_Balance) >= 50 THEN 'URGENT_TRANSFER'
+                WHEN ABS(fl.ATP_Running_Balance) >= 100 THEN 'URGENT_PURCHASE'
+                WHEN ABS(fl.ATP_Running_Balance) >= 50 THEN 'URGENT_TRANSFER'
                 ELSE 'URGENT_EXPEDITE'
             END
-        WHEN fl.Adjusted_Running_Balance < 0 AND COALESCE(asq.Alternate_Stock, 0.0) > 0 THEN 'REVIEW_ALTERNATE_STOCK'
-        WHEN fl.Adjusted_Running_Balance < 0 THEN 'STOCK_OUT'
+        WHEN fl.ATP_Running_Balance < 0 AND COALESCE(asq.Alternate_Stock, 0.0) > 0 THEN 'REVIEW_ALTERNATE_STOCK'
+        WHEN fl.ATP_Running_Balance < 0 THEN 'STOCK_OUT'
         ELSE 'NORMAL'
     END AS Action_Tag,
 
     -- QC flag updated for alternate stock awareness
     CASE
-        WHEN fl.Adjusted_Running_Balance < 0 AND COALESCE(asq.Alternate_Stock, 0.0) <= 0 THEN 'REVIEW_NO_WC_AVAILABLE'
+        WHEN fl.ATP_Running_Balance < 0 AND COALESCE(asq.Alternate_Stock, 0.0) <= 0 THEN 'REVIEW_NO_WC_AVAILABLE'
         ELSE fl.QC_Flag
     END AS Updated_QC_Flag
 
