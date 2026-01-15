@@ -1,315 +1,159 @@
-WITH AlternateStock AS (
+CREATE VIEW dbo.Rolyat_WC_Allocation_Effective_2
+AS
+WITH WC_With_Degradation AS (
+    -- Apply age-based degradation factors to WC batches
     SELECT
-        Item_Number,
-        Client_ID,
-        SUM(CASE WHEN SITE = 'WF-Q' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY,
-        SUM(CASE WHEN SITE = 'RMQTY' THEN QTY_ON_HAND ELSE 0 END) AS RMQTY_QTY
-    FROM dbo.Rolyat_WFQ_5
-    GROUP BY Item_Number, Client_ID
-),
-AltStock_Item AS (
-    SELECT
-        Item_Number,
-        SUM(CASE WHEN SITE = 'WF-Q' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY
-    FROM dbo.Rolyat_WFQ_5
-    GROUP BY Item_Number
-),
-PrioritizedInventory AS (
-    -- Layer 3: Join demand with WC inventory and calculate priorities
-    SELECT
-        -- Pass through all demand columns
-        bd.ORDERNUMBER,
-        bd.CleanOrder,
-        bd.ITEMNMBR,
-        bd.CleanItem,
-        bd.WCID_From_MO,
-        bd.Construct,
-        bd.FG,
-        bd.FG_Desc,
-        bd.ItemDescription,
-        bd.UOMSCHDL,
-        bd.STSDESCR,
-        bd.MRPTYPE,
-        bd.VendorItem,
-        bd.INCLUDE_MRP,
-        bd.SITE,
-        bd.PRIME_VNDR,
-        'UNASSIGNED' AS Client_ID,
-        bd.Date_Expiry,
-        bd.Expiry_Dates,
-        bd.DUEDATE,
-        bd.MRP_IssueDate,
-        bd.BEG_BAL,
-        bd.POs,
-        bd.Deductions,
-        bd.CleanDeductions,
-        bd.Expiry,
-        bd.Remaining,
-        bd.Running_Balance,
-        bd.Issued,
-        bd.PURCHASING_LT,
-        bd.PLANNING_LT,
-        bd.ORDER_POINT_QTY,
-        bd.SAFETY_STOCK,
-        bd.Has_Issued,
-        bd.IssueDate_Mismatch,
-        bd.Early_Issue_Flag,
-        bd.Base_Demand,
-
-        -- Alternate stock (WFQ/RMQTY)
-        COALESCE(asi.WFQ_QTY, 0.0) AS WFQ_QTY,
-        COALESCE(ascq.RMQTY_QTY, 0.0) AS RMQTY_QTY,
-        COALESCE(ascq.Client_ID, 'UNASSIGNED') AS RMQTY_Client_ID,
-
-        -- PO released to ATP only when issue date or due date is in the past
+        wc.*,
+        -- Calculate degradation factor based on configurable age tiers
         CASE
-            WHEN bd.POs > 0
-             AND COALESCE(bd.MRP_IssueDate, bd.DUEDATE) <= CAST(GETDATE() AS DATE)
-                THEN bd.POs
-            ELSE 0.0
-        END AS Released_PO_Qty,
-
-        -- RMQTY is client-restricted (only eligible when client matches)
-        CASE
-            WHEN COALESCE(ascq.Client_ID, 'UNASSIGNED') = 'UNASSIGNED'
-                THEN COALESCE(ascq.RMQTY_QTY, 0.0)
-            ELSE 0.0
-        END AS RMQTY_Eligible_Qty,
-
-        -- WC Inventory columns
-        w.Item_Number AS WC_Item,
-        w.SITE AS WC_Site,
-        w.QTY_Available AS Available_Qty,
-        w.DATERECD AS WC_DateReceived,
-
-        -- WC Age calculation
-        DATEDIFF(DAY, w.DATERECD, GETDATE()) AS WC_Age_Days,
-
-        -- Degradation factor based on inventory age
-        CASE
-            WHEN DATEDIFF(DAY, w.DATERECD, GETDATE()) <= 30 THEN 1.00
-            WHEN DATEDIFF(DAY, w.DATERECD, GETDATE()) <= 60 THEN 0.75
-            WHEN DATEDIFF(DAY, w.DATERECD, GETDATE()) <= 90 THEN 0.50
-            ELSE 0.00
-        END AS WC_Degradation_Factor,
-
-        -- Effective quantity after degradation
-        w.QTY_Available * CASE
-            WHEN DATEDIFF(DAY, w.DATERECD, GETDATE()) <= 30 THEN 1.00
-            WHEN DATEDIFF(DAY, w.DATERECD, GETDATE()) <= 60 THEN 0.75
-            WHEN DATEDIFF(DAY, w.DATERECD, GETDATE()) <= 90 THEN 0.50
-            ELSE 0.00
-        END AS WC_Effective_Qty,
-
-        -- Unique batch identifier for allocation partitioning
-        ISNULL(w.Item_Number, '') + '|' +
-        ISNULL(w.SITE, '') + '|' +
-        ISNULL(w.LOT_Number, '') + '|' +
-        ISNULL(FORMAT(w.DATERECD, 'yyyy-MM-dd'), '') AS WC_Batch_ID,
-
-        -- Priority scores for FEFO allocation (lower = higher priority)
-        CASE WHEN w.SITE = bd.SITE THEN 1 ELSE 999 END AS pri_wcid_match,
-        ABS(DATEDIFF(DAY,
-            COALESCE(w.EXPNDATE, '9999-12-31'),
-            COALESCE(bd.Expiry_Dates, '9999-12-31')
-        )) AS pri_expiry_proximity,
-        ABS(DATEDIFF(DAY, w.DATERECD, bd.Date_Expiry)) AS pri_temporal_proximity,
-
-        -- Include SortPriority for deterministic ordering
-        bd.SortPriority,
-        bd.IsActiveWindow
-
-    FROM dbo.Rolyat_Cleaned_Base_Demand_1 AS bd
-    LEFT JOIN AltStock_Item AS asi
-        ON bd.CleanItem = asi.Item_Number
-    LEFT JOIN AlternateStock AS ascq
-        ON bd.CleanItem = ascq.Item_Number
-       AND ascq.Client_ID = 'UNASSIGNED'
-    LEFT JOIN dbo.ETB_WC_INV AS w
-        ON LTRIM(RTRIM(w.Item_Number)) = bd.CleanItem
-        AND w.SITE LIKE 'WC-W%'
-        AND w.QTY_Available > 0
-        AND bd.IsActiveWindow = 1
-        AND ABS(DATEDIFF(DAY, w.DATERECD, bd.Date_Expiry)) <= 21
-        AND DATEDIFF(DAY, w.DATERECD, GETDATE()) <= 90
+            WHEN wc.Batch_Age_Days <= CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier1_Days', GETDATE()) AS int)
+                THEN CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier1_Factor', GETDATE()) AS decimal(5,2))
+            WHEN wc.Batch_Age_Days <= CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier2_Days', GETDATE()) AS int)
+                THEN CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier2_Factor', GETDATE()) AS decimal(5,2))
+            WHEN wc.Batch_Age_Days <= CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier3_Days', GETDATE()) AS int)
+                THEN CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier3_Factor', GETDATE()) AS decimal(5,2))
+            ELSE CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier4_Factor', GETDATE()) AS decimal(5,2))
+        END AS Degradation_Factor
+    FROM dbo.Rolyat_WC_Inventory wc
 ),
-PriorClaimed AS (
-    -- Layer 4: Calculate cumulative demand claimed by prior rows within each WC batch
+
+WC_Effective_Qty AS (
+    -- Calculate effective quantity after degradation
     SELECT
-        pi.*,
+        *,
+        Available_Qty * Degradation_Factor AS Effective_Batch_Qty
+    FROM WC_With_Degradation
+),
+
+Demand_WC_Eligible AS (
+    -- Match demand to eligible WC batches (client/site match, within active window)
+    SELECT
+        demand.*,
+        wc.WC_Batch_ID,
+        wc.Available_Qty AS WC_Available_Qty,
+        wc.Batch_Expiry_Date,
+        wc.Batch_Receipt_Date,
+        wc.Batch_Age_Days,
+        wc.Degradation_Factor,
+        wc.Effective_Batch_Qty,
+
+        -- FEFO ordering: earliest expiry, then closest temporal proximity
         ROW_NUMBER() OVER (
-            PARTITION BY ITEMNMBR, Client_ID
-            ORDER BY Date_Expiry, SortPriority, ORDERNUMBER
-        ) AS client_row_num,
-        CASE
-            WHEN WC_Batch_ID IS NULL THEN 0.0
-            ELSE COALESCE(
-                SUM(Base_Demand) OVER (
-                    PARTITION BY WC_Batch_ID
-                    ORDER BY Date_Expiry, SortPriority, pri_wcid_match, pri_expiry_proximity, pri_temporal_proximity, ORDERNUMBER
-                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                ), 0.0)
-        END AS batch_prior_claimed_demand
-    FROM PrioritizedInventory AS pi
-),
-Allocated AS (
-    -- Calculate allocation for each row
-    SELECT
-        pc.*,
+            PARTITION BY demand.ITEMNMBR, demand.ORDERNUMBER
+            ORDER BY
+                wc.Batch_Expiry_Date ASC,
+                ABS(DATEDIFF(day, wc.Batch_Receipt_Date, demand.DUEDATE)) ASC
+        ) AS FEFO_Priority
 
-        -- Calculate allocation
-        CASE
-            WHEN WC_Batch_ID IS NULL THEN 0.0
-            WHEN Base_Demand <= (WC_Effective_Qty - batch_prior_claimed_demand)
-                THEN Base_Demand  -- Full demand can be satisfied
-            WHEN (WC_Effective_Qty - batch_prior_claimed_demand) > 0
-                THEN (WC_Effective_Qty - batch_prior_claimed_demand)  -- Partial allocation
-            ELSE 0.0  -- No remaining inventory in batch
-        END AS allocated
-
-    FROM PriorClaimed AS pc
+    FROM dbo.Rolyat_Cleaned_Base_Demand_1 demand
+    LEFT JOIN WC_Effective_Qty wc
+        ON wc.ITEMNMBR = demand.ITEMNMBR
+        AND wc.Client_ID = demand.Client_ID  -- Client match
+        AND wc.Site_ID = demand.Site_ID      -- Site match
+        AND wc.Effective_Batch_Qty > 0
+        AND demand.IsActiveWindow = 1        -- Only allocate within active window
 ),
-ATPWindow AS (
+
+Cumulative_WC_Allocation AS (
+    -- Calculate cumulative WC availability per demand using window function
     SELECT
-        a.*,
-        -- ATP supply event (client-restricted)
-        CASE WHEN client_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
-        + CASE WHEN client_row_num = 1 THEN COALESCE(Released_PO_Qty, 0.0) ELSE 0.0 END
-        + CASE WHEN client_row_num = 1 THEN COALESCE(RMQTY_Eligible_Qty, 0.0) ELSE 0.0 END
-            AS ATP_Supply_Event,
-        -- ATP available before this demand (excludes current row)
-        SUM(
-            (CASE WHEN client_row_num = 1 THEN COALESCE(BEG_BAL, 0.0) ELSE 0.0 END
-             + CASE WHEN client_row_num = 1 THEN COALESCE(Released_PO_Qty, 0.0) ELSE 0.0 END
-             + CASE WHEN client_row_num = 1 THEN COALESCE(RMQTY_Eligible_Qty, 0.0) ELSE 0.0 END)
-            - (Base_Demand - allocated)
-        ) OVER (
-            PARTITION BY ITEMNMBR, Client_ID
-            ORDER BY Date_Expiry, SortPriority, ORDERNUMBER
-            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-        ) AS ATP_Available_Prior
-    FROM Allocated AS a
+        *,
+        SUM(Effective_Batch_Qty) OVER (
+            PARTITION BY ITEMNMBR, ORDERNUMBER
+            ORDER BY FEFO_Priority
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS Cumulative_WC_Available
+    FROM Demand_WC_Eligible
+),
+
+Final_Allocation AS (
+    -- Pick single row per demand with total cumulative WC available
+    SELECT
+        ORDERNUMBER,
+        ITEMNMBR,
+        Client_ID,
+        Site_ID,
+        DUEDATE,
+        Date_Expiry,
+        Base_Demand,
+        IsActiveWindow,
+        SortPriority,
+        Row_Type,
+
+        -- WC allocation details (from first/best FEFO batch)
+        WC_Batch_ID,
+        Degradation_Factor,
+
+        -- Total WC available after cumulative FEFO allocation
+        MAX(Cumulative_WC_Available) AS Total_WC_Available,
+
+        -- Calculate effective demand after WC suppression
+        CASE
+            WHEN IsActiveWindow = 1
+            THEN GREATEST(0, Base_Demand - MAX(Cumulative_WC_Available))
+            ELSE Base_Demand  -- No suppression outside active window
+        END AS effective_demand,
+
+        -- Allocation status flags
+        CASE
+            WHEN IsActiveWindow = 1 AND MAX(Cumulative_WC_Available) > 0
+            THEN 'WC_ALLOCATED'
+            WHEN IsActiveWindow = 1 AND MAX(Cumulative_WC_Available) = 0
+            THEN 'NO_WC_AVAILABLE'
+            ELSE 'OUTSIDE_WINDOW'
+        END AS Allocation_Status,
+
+        CASE
+            WHEN IsActiveWindow = 1
+             AND Base_Demand > 0
+             AND MAX(Cumulative_WC_Available) >= Base_Demand
+            THEN 'FULLY_COVERED'
+            WHEN IsActiveWindow = 1
+             AND Base_Demand > 0
+             AND MAX(Cumulative_WC_Available) > 0
+             AND MAX(Cumulative_WC_Available) < Base_Demand
+            THEN 'PARTIALLY_COVERED'
+            ELSE 'NOT_COVERED'
+        END AS WC_Coverage_Status,
+
+        -- Pass through all other demand columns
+        ItemDescription,
+        UOMSCHDL,
+        Status_Description,
+        MRPTYPE,
+        VendorItem,
+        INCLUDE_MRP,
+        BEG_BAL,
+        Item_Lead_Time_Days,
+        Item_Safety_Stock,
+        ORDER_POINT_QTY,
+        PLANNING_LT,
+        PRIME_VNDR,
+        Original_Deductions,
+        Original_Expiry,
+        Original_POs,
+        Original_Running_Balance,
+        MRP_IssueDate,
+        WCID_From_MO,
+        MRP_Issued_Qty,
+        MRP_Remaining_Qty,
+        Has_Issued,
+        IssueDate_Mismatch,
+        Early_Issue_Flag
+
+    FROM Cumulative_WC_Allocation
+    GROUP BY
+        ORDERNUMBER, ITEMNMBR, Client_ID, Site_ID, DUEDATE, Date_Expiry,
+        Base_Demand, IsActiveWindow, SortPriority, Row_Type,
+        WC_Batch_ID, Degradation_Factor,
+        ItemDescription, UOMSCHDL, Status_Description, MRPTYPE, VendorItem,
+        INCLUDE_MRP, BEG_BAL, Item_Lead_Time_Days, Item_Safety_Stock,
+        ORDER_POINT_QTY, PLANNING_LT, PRIME_VNDR,
+        Original_Deductions, Original_Expiry, Original_POs, Original_Running_Balance,
+        MRP_IssueDate, WCID_From_MO, MRP_Issued_Qty, MRP_Remaining_Qty,
+        Has_Issued, IssueDate_Mismatch, Early_Issue_Flag
 )
--- Layer 5: Calculate effective demand and allocation status
-SELECT
-    -- Pass through all columns from allocation layer
-    ORDERNUMBER,
-    CleanOrder,
-    ITEMNMBR,
-    CleanItem,
-    WCID_From_MO,
-    Construct,
-    FG,
-    FG_Desc,
-    ItemDescription,
-    UOMSCHDL,
-    STSDESCR,
-    MRPTYPE,
-    VendorItem,
-    INCLUDE_MRP,
-    SITE,
-    PRIME_VNDR,
-    Date_Expiry,
-    Expiry_Dates,
-    DUEDATE,
-    MRP_IssueDate,
-    BEG_BAL,
-    POs,
-    Deductions,
-    CleanDeductions,
-    Expiry,
-    Remaining,
-    Running_Balance,
-    Issued,
-    PURCHASING_LT,
-    PLANNING_LT,
-    ORDER_POINT_QTY,
-    SAFETY_STOCK,
-    Has_Issued,
-    IssueDate_Mismatch,
-    Early_Issue_Flag,
-    Base_Demand,
-    Client_ID,
-    WFQ_QTY,
-    RMQTY_QTY,
-    RMQTY_Client_ID,
-    Released_PO_Qty,
-    RMQTY_Eligible_Qty,
-    WC_Item,
-    WC_Site,
-    Available_Qty,
-    WC_DateReceived,
-    WC_Age_Days,
-    WC_Degradation_Factor,
-    WC_Effective_Qty,
-    WC_Batch_ID,
-    pri_wcid_match,
-    pri_expiry_proximity,
-    pri_temporal_proximity,
-    batch_prior_claimed_demand,
-    allocated,
-    client_row_num,
-    ATP_Supply_Event,
-    ATP_Available_Prior,
 
-    -- ATP suppression within active window
-    CASE
-        WHEN IsActiveWindow = 1 THEN
-            CASE
-                WHEN (Base_Demand - allocated) <= COALESCE(ATP_Available_Prior, 0.0)
-                    THEN (Base_Demand - allocated)
-                WHEN COALESCE(ATP_Available_Prior, 0.0) > 0
-                    THEN COALESCE(ATP_Available_Prior, 0.0)
-                ELSE 0.0
-            END
-        ELSE 0.0
-    END AS ATP_Suppression_Qty,
+SELECT * FROM Final_Allocation
 
-    -- Calculate effective demand based on active window
-    CASE
-        WHEN Date_Expiry BETWEEN DATEADD(DAY, -21, GETDATE()) AND DATEADD(DAY, 21, GETDATE())
-        THEN CASE
-                WHEN Base_Demand - allocated -
-                     (CASE
-                        WHEN (Base_Demand - allocated) <= COALESCE(ATP_Available_Prior, 0.0)
-                            THEN (Base_Demand - allocated)
-                        WHEN COALESCE(ATP_Available_Prior, 0.0) > 0
-                            THEN COALESCE(ATP_Available_Prior, 0.0)
-                        ELSE 0.0
-                      END) > 0
-                    THEN Base_Demand - allocated -
-                     (CASE
-                        WHEN (Base_Demand - allocated) <= COALESCE(ATP_Available_Prior, 0.0)
-                            THEN (Base_Demand - allocated)
-                        WHEN COALESCE(ATP_Available_Prior, 0.0) > 0
-                            THEN COALESCE(ATP_Available_Prior, 0.0)
-                        ELSE 0.0
-                      END)
-                ELSE 0.0
-             END
-        ELSE Base_Demand
-    END AS effective_demand,
-
-    -- Allocation status for reporting
-    CASE
-        WHEN Date_Expiry BETWEEN DATEADD(DAY, -21, GETDATE()) AND DATEADD(DAY, 21, GETDATE())
-        THEN CASE
-                WHEN allocated > 0 AND ATP_Suppression_Qty > 0 THEN 'WC_ATP_Suppressed'
-                WHEN allocated > 0 THEN 'WC_Suppressed'
-                WHEN ATP_Suppression_Qty > 0 THEN 'ATP_Suppressed'
-                ELSE 'No_Allocation'
-             END
-        ELSE 'Outside_Active_Window'
-    END AS wc_allocation_status,
-
-    -- Include SortPriority and IsActiveWindow
-    SortPriority,
-    IsActiveWindow,
-
-    -- Row number within each item for deduplication in Final_Ledger
-    ROW_NUMBER() OVER (
-        PARTITION BY ITEMNMBR
-        ORDER BY Date_Expiry, SortPriority, ORDERNUMBER
-    ) AS item_row_num
-
-FROM ATPWindow
+GO
