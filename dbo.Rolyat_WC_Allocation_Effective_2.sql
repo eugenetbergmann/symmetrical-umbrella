@@ -34,7 +34,7 @@ PrioritizedInventory AS (
         bd.INCLUDE_MRP,
         bd.SITE,
         bd.PRIME_VNDR,
-        COALESCE(NULLIF(bd.PRIME_VNDR, ''), 'UNASSIGNED') AS Client_ID,
+        'UNASSIGNED' AS Client_ID,
         bd.Date_Expiry,
         bd.Expiry_Dates,
         bd.DUEDATE,
@@ -71,7 +71,7 @@ PrioritizedInventory AS (
 
         -- RMQTY is client-restricted (only eligible when client matches)
         CASE
-            WHEN COALESCE(NULLIF(bd.PRIME_VNDR, ''), 'UNASSIGNED') = COALESCE(ascq.Client_ID, 'UNASSIGNED')
+            WHEN COALESCE(ascq.Client_ID, 'UNASSIGNED') = 'UNASSIGNED'
                 THEN COALESCE(ascq.RMQTY_QTY, 0.0)
             ELSE 0.0
         END AS RMQTY_Eligible_Qty,
@@ -124,7 +124,7 @@ PrioritizedInventory AS (
         ON bd.CleanItem = asi.Item_Number
     LEFT JOIN AlternateStock AS ascq
         ON bd.CleanItem = ascq.Item_Number
-       AND COALESCE(NULLIF(bd.PRIME_VNDR, ''), 'UNASSIGNED') = ascq.Client_ID
+       AND ascq.Client_ID = 'UNASSIGNED'
     LEFT JOIN dbo.ETB_WC_INV AS w
         ON LTRIM(RTRIM(w.Item_Number)) = bd.CleanItem
         AND w.SITE LIKE 'WC-W%'
