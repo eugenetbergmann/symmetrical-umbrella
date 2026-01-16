@@ -1,98 +1,289 @@
-# Unit Testing Framework for Rolyat WC-Adjusted PAB & Stock-Out Intelligence + BOM Event Ledger
+# Unit Testing Framework for Rolyat Pipeline
 
-This directory contains the complete unit testing framework for validating the 5 merged SQL views on existing production data, plus the BOM Event Ledger testing framework.
+This directory contains the complete unit testing framework for validating the Rolyat Stock-Out Intelligence Pipeline views.
 
 ## Overview
 
-The testing framework uses **violation-detection queries** that identify failures by finding rows that violate expected behaviors. All tests are designed to run on existing data in `ETB_PAB_AUTO` and `ETB_WC_INV` tables without requiring synthetic data insertion.
+The testing framework uses **violation-detection queries** that identify failures by finding rows that violate expected behaviors. All tests are designed to run on existing data or synthetic test data.
 
-## Files in This Directory
+## Test Files
 
-- **`assertions.sql`** - SQL queries for each unit test (violation detection)
-- **`test_scenarios.md`** - Detailed description of each test scenario
-- **`test_criteria.md`** - Pass/fail criteria for interpreting test results
-- **`README.md`** - This file with execution instructions
+| File | Description |
+|------|-------------|
+| `unit_tests.sql` | Comprehensive stored procedure with 25+ unit tests |
+| `assertions.sql` | Standalone assertion queries for manual validation |
+| `test_harness.sql` | Iterative test harness with synthetic data generation |
+| `synthetic_data_generation.sql` | Synthetic demand/supply data generation |
+| `generate_synthetic_bom_data.sql` | BOM-specific synthetic data |
+| `run_all_bom_tests.sql` | BOM test execution procedure |
+| `BOM_Event_Sequence_Validation.sql` | BOM sequence validation view |
+| `BOM_Material_Balance_Test.sql` | BOM material balance test view |
+| `Historical_Reconstruction_BOM.sql` | BOM historical reconstruction view |
+| `Rolyat_BOM_Health_Monitor.sql` | BOM health monitoring view |
 
 ## Views Under Test
 
-1. **dbo.Rolyat_Cleaned_Base_Demand_1** - Data cleansing + base demand calculation (from `dbo.Rolyat_Cleaned_Base_Demand_1.sql`)
-2. **dbo.Rolyat_WC_Allocation_Effective_Demand_2** - Inventory matching, allocation logic, effective demand + window enforcement (from `dbo.Rolyat_WC_Allocation_Effective_Demand_2.sql`)
-3. **dbo.Rolyat_Final_Ledger_3** - Running balance + status flags (from `dbo.Rolyat_Final_Ledger_3.sql`)
-4. **dbo.Rolyat_Unit_Price_4** - Blended average cost calculation (from `dbo.Rolyat_Unit_Price_4.sql`)
-5. **dbo.Rolyat_WFQ_5** - WF-Q inventory on hand (from `dbo.Rolyat_WFQ_5.sql`)
+1. **dbo.Rolyat_Cleaned_Base_Demand_1** - Data cleansing + base demand calculation
+2. **dbo.Rolyat_WC_Allocation_Effective_2** - WC allocation with FEFO logic
+3. **dbo.Rolyat_Final_Ledger_3** - Running balance calculations
+4. **dbo.Rolyat_Unit_Price_4** - Blended average cost
+5. **dbo.Rolyat_WFQ_5** - WFQ/RMQTY inventory tracking
+6. **dbo.Rolyat_StockOut_Analysis_v2** - Stock-out intelligence
+7. **dbo.Rolyat_Rebalancing_Layer** - Rebalancing analysis
+8. **dbo.Rolyat_WC_Inventory** - WC batch inventory
+9. **dbo.Rolyat_Consumption_Detail_v1** - Detailed consumption
+10. **dbo.Rolyat_Consumption_SSRS_v1** - SSRS reporting view
 
-## How to Run the Unit Tests
+## Test Categories
+
+### 1. Running Balance Tests
+- Forecast Running Balance Identity
+- ATP Running Balance Identity
+- Adjusted Balance equals ATP Balance
+
+### 2. Event Ordering Tests
+- SortPriority not NULL
+- SortPriority valid range (1-5)
+- Beginning Balance has SortPriority = 1
+
+### 3. Active Window Tests
+- Active window flagging correctness (±21 days)
+- IsActiveWindow is binary (0 or 1)
+
+### 4. WC Allocation Tests
+- Effective demand never exceeds base demand
+- No suppression outside active window
+- No double allocation
+- Allocation status consistency
+- Degradation factor valid range (0-1)
+
+### 5. Supply Event Tests
+- Forecast supply non-negative
+- ATP supply non-negative
+- ATP supply ≤ Forecast supply (conservative)
+
+### 6. Stock-Out Intelligence Tests
+- Stock_Out_Flag consistency
+- Action tag validity
+- Deficit calculation correctness
+- QC review condition
+
+### 7. Data Integrity Tests
+- No NULL ITEMNMBR
+- No NULL ORDERNUMBER
+- Valid Date_Expiry
+- Base_Demand non-negative
+- Excluded item prefixes filtered
+
+### 8. Edge Case Tests
+- WFQ eligibility flag consistency
+- WC inventory positive quantity
+- WC allocation applied flag consistency
+
+## How to Run Tests
 
 ### Prerequisites
-- Access to SQL Server with the MED database
-- The 5 views must be deployed as named views (with numbered suffixes)
-- Existing data in `ETB_PAB_AUTO`, `ETB_WC_INV`, `IV00300`, and `IV00101` tables
 
-### Execution Steps
+- SQL Server with MED database
+- Views deployed in correct order
+- Test schema created: `CREATE SCHEMA tests;`
 
-1. **Open SQL Studio** and connect to the MED database
-2. **Deploy the views** if not already done (wrap each SELECT in CREATE VIEW):
-   - Run `dbo.Rolyat_Cleaned_Base_Demand_1.sql` as `CREATE VIEW dbo.Rolyat_Cleaned_Base_Demand_1 AS ...`
-   - Run `dbo.Rolyat_WC_Allocation_Effective_Demand_2.sql` as `CREATE VIEW dbo.Rolyat_WC_Allocation_Effective_Demand_2 AS ...`
-   - Run `dbo.Rolyat_Final_Ledger_3.sql` as `CREATE VIEW dbo.Rolyat_Final_Ledger_3 AS ...`
-   - Run `dbo.Rolyat_Unit_Price_4.sql` as `CREATE VIEW dbo.Rolyat_Unit_Price_4 AS ...`
-   - Run `dbo.Rolyat_WFQ_5.sql` as `CREATE VIEW dbo.Rolyat_WFQ_5 AS ...`
+### Run All Unit Tests
 
-3. **Execute the test queries** from `assertions.sql` in order:
-   - Test 1.1: WC Demand Deprecation - Valid Reduction
-   - Test 1.2: WC Demand Deprecation - No Reduction Outside Window
-   - Test 3.1: Inventory Degradation Factors
-   - Test 4.1: No Double Allocation
-   - Test 5.1: Running Balance Correctness
-   - Test 6.1: Intelligence - Valid Stock-Out Signals
+```sql
+-- Execute comprehensive unit test suite
+EXEC tests.sp_run_unit_tests;
+```
 
-4. **Interpret Results:**
-   - **PASS**: Query returns 0 rows (no violations found)
-   - **FAIL**: Query returns ≥1 rows (violations detected)
+**Output:**
+- Detailed results per test
+- Summary by category
+- Overall pass percentage
 
-### Expected Results
+### Run Iterative Test Harness
 
-All tests should return **0 rows** for a complete PASS. If any test returns rows, examine the data to identify the specific failure and determine if it's a data issue or logic bug.
+```sql
+-- Run up to 25 iterations with synthetic data
+EXEC tests.sp_run_test_iterations 
+    @max_iterations = 25, 
+    @seed_start = 1000,
+    @target_pass_percentage = 100.0;
+```
 
-## Test Coverage
+**Features:**
+- Generates synthetic data per iteration
+- Logs results to `tests.TestIterationLog`
+- Stops on 100% pass rate
+- Generates readout on success or diagnostics on failure
 
-The tests validate:
-- ✅ WC inventory correctly suppresses demand within ±21 day window
-- ✅ Demand is not suppressed outside active planning window
-- ✅ Inventory degradation factors are calculated correctly by age
-- ✅ No inventory is double-allocated across demands
-- ✅ Running balances are calculated correctly without inflation
-- ✅ Stock-out signals correspond to real deficits
+### Run Quick Single Test
+
+```sql
+-- Quick test with specific seed
+EXEC tests.sp_quick_test @seed = 1000;
+```
+
+### Run Standalone Assertions
+
+Execute queries from `assertions.sql` individually:
+
+```sql
+-- Each query should return 0 rows for PASS
+-- Example: Test 1.1 - Unsuppressed demand within window
+SELECT 'FAILURE: Test 1.1' AS Failure_Type, ...
+FROM dbo.Rolyat_WC_Allocation_Effective_2
+WHERE ...;
+```
+
+### Run BOM Tests
+
+```sql
+-- Execute BOM test suite
+EXEC tests.sp_run_bom_tests;
+```
+
+## Interpreting Results
+
+### Unit Test Results
+
+| Result | Meaning |
+|--------|---------|
+| PASS | Test assertion validated successfully |
+| FAIL | Test found violations - review `rows_affected` and `message` |
+
+### Pass Criteria
+
+- **100% Pass Rate**: All tests pass - ready for deployment
+- **<100% Pass Rate**: Review failures before deployment
+
+### Failure Investigation
+
+1. Check `message` column for failure details
+2. Check `rows_affected` for violation count
+3. Run corresponding assertion query for sample data
+4. Review view logic against test expectations
+
+## Test Harness Logging
+
+Test iterations are logged to `tests.TestIterationLog`:
+
+```sql
+SELECT * FROM tests.TestIterationLog ORDER BY iteration_id DESC;
+```
+
+| Column | Description |
+|--------|-------------|
+| iteration_id | Unique iteration identifier |
+| timestamp | Execution timestamp |
+| seed | Random seed used |
+| scenario | Test scenario name |
+| total_tests | Number of tests executed |
+| passed_tests | Number of tests passed |
+| pass_percentage | Pass rate percentage |
+| status | SUCCESS, FAILED, TIMEOUT, ERROR |
+| diagnostics | Failure details |
+
+## Synthetic Data Generation
+
+### Generate Demand/Supply Data
+
+```sql
+EXEC stg.sp_generate_synthetic 
+    @seed = 1000, 
+    @scenario = 'DEFAULT', 
+    @scale_factor = 1;
+```
+
+### Generate BOM Data
+
+```sql
+EXEC stg.sp_generate_synthetic_bom 
+    @seed = 1000, 
+    @scenario = 'DEFAULT', 
+    @scale_factor = 1;
+```
+
+### Staging Tables
+
+| Table | Description |
+|-------|-------------|
+| `stg.Synthetic_Demand` | Demand events |
+| `stg.Synthetic_PO` | Purchase orders |
+| `stg.Synthetic_WFQ` | WFQ inventory |
+| `stg.Synthetic_RMQTY` | RMQTY inventory |
+| `stg.Synthetic_BeginningBalance` | Beginning balances |
+| `stg.BOM_Hierarchy` | BOM structure |
+| `stg.BOM_Events_Test` | BOM events |
+
+## Adding New Tests
+
+### To Unit Test Suite
+
+1. Add test logic to `tests.sp_run_unit_tests`
+2. Follow pattern:
+   ```sql
+   SET @start_time = GETDATE();
+   SELECT @mismatches = COUNT(*) FROM ... WHERE <violation_condition>;
+   
+   INSERT INTO #TestResults (test_category, test_name, pass, message, rows_affected, execution_time_ms)
+   VALUES (
+       'Category',
+       'test_name',
+       CASE WHEN @mismatches = 0 THEN 1 ELSE 0 END,
+       CASE WHEN @mismatches = 0 THEN 'Success message' ELSE 'Failure message' END,
+       @mismatches,
+       DATEDIFF(MILLISECOND, @start_time, GETDATE())
+   );
+   ```
+
+### To Assertions
+
+1. Add query to `assertions.sql`
+2. Follow pattern:
+   ```sql
+   SELECT 'FAILURE: Test X.X - Description' AS Failure_Type, columns...
+   FROM view
+   WHERE <violation_condition>;
+   ```
+
+## Maintenance
+
+### When Views Change
+
+1. Review test logic for compatibility
+2. Update column references if renamed
+3. Add tests for new functionality
+4. Re-run full test suite
+
+### Performance Considerations
+
+- Tests use efficient queries with appropriate indexes
+- Run during low-traffic periods for large datasets
+- Monitor `execution_time_ms` for slow tests
 
 ## Troubleshooting
 
 ### Common Issues
-- **Views not found**: Ensure all 5 views are deployed in the correct order with correct names:
-  - `dbo.Rolyat_Cleaned_Base_Demand_1`
-  - `dbo.Rolyat_WC_Allocation_Effective_Demand_2`
-  - `dbo.Rolyat_Final_Ledger_3`
-  - `dbo.Rolyat_Unit_Price_4`
-  - `dbo.Rolyat_WFQ_5`
-- **Permission errors**: Ensure SELECT access to the views and base tables
-- **Unexpected failures**: Check `test_criteria.md` for detailed pass/fail criteria
 
-### Performance Considerations
-- Tests are designed to be efficient on production data
-- All queries use appropriate indexes and avoid full table scans
-- Run during low-traffic periods if concerned about performance impact
+**"Object not found"**
+- Ensure views are deployed in correct order
+- Check schema names (dbo vs tests)
 
-## Maintenance
+**"Permission denied"**
+- Grant EXECUTE on test procedures
+- Grant SELECT on views
 
-When views are updated:
-1. Review `test_scenarios.md` to ensure test logic still applies
-2. Update `assertions.sql` if view column names or logic changes
-3. Update `test_criteria.md` if pass/fail conditions change
-4. Re-run all tests to validate
+**Tests timing out**
+- Reduce `@max_time_per_iteration`
+- Check for missing indexes
+- Review execution plans
 
-## Support
+### Getting Help
 
-For questions about test results or failures:
-1. Refer to `test_criteria.md` for detailed criteria
-2. Examine the returned rows for specific violation details
-3. Check view logic against the PRD requirements
-4. Document any confirmed logic bugs with minimal fix proposals
+1. Run diagnostics: `EXEC tests.sp_generate_diagnostics;`
+2. Check iteration log: `SELECT * FROM tests.TestIterationLog;`
+3. Review specific test failures in detail
+
+---
+
+*Last Updated: 2026-01-16*
