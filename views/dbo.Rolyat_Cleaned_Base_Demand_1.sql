@@ -126,12 +126,16 @@ SELECT
 
     -- ============================================================
     -- IsActiveWindow Flag
-    -- Identifies records within ±21 day planning window
+    -- Identifies records within configurable planning window
     -- Used for WC allocation gating
     -- ============================================================
     CASE
-        WHEN TRY_CONVERT(DATE, DUEDATE) BETWEEN DATEADD(DAY, -21, GETDATE()) 
-             AND DATEADD(DAY, 21, GETDATE()) THEN 1
+        WHEN TRY_CONVERT(DATE, DUEDATE) BETWEEN DATEADD(DAY,
+             -CAST(dbo.fn_GetConfig('ActiveWindow_Past_Days', NULL, NULL, GETDATE()) AS INT),
+             GETDATE())
+             AND DATEADD(DAY,
+             CAST(dbo.fn_GetConfig('ActiveWindow_Future_Days', NULL, NULL, GETDATE()) AS INT),
+             GETDATE()) THEN 1
         ELSE 0
     END AS IsActiveWindow
 

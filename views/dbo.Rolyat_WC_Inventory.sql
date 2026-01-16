@@ -50,7 +50,7 @@ SELECT
     -- Issue Date + Configurable Shelf Life Days
     -- ============================================================
     DATEADD(DAY,
-        CAST(dbo.fn_GetConfig(ITEMNMBR, Construct, 'WC_Batch_Shelf_Life_Days', GETDATE()) AS INT),
+        CAST(dbo.fn_GetConfig('WC_Batch_Shelf_Life_Days', ITEMNMBR, Construct, GETDATE()) AS INT),
         MRP_IssueDate
     ) AS Batch_Expiry_Date,
 

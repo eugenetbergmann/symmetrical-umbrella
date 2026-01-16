@@ -43,7 +43,7 @@ WITH WFQ_Data AS (
 
         -- Projected release date based on configurable hold period
         DATEADD(DAY,
-            CAST(dbo.fn_GetConfig(TRIM(inv.ITEMNMBR), NULL, 'WFQ_Hold_Days', GETDATE()) AS INT),
+            CAST(dbo.fn_GetConfig('WFQ_Hold_Days', TRIM(inv.ITEMNMBR), NULL, GETDATE()) AS INT),
             MAX(CAST(inv.DATERECD AS DATE))
         ) AS Projected_Release_Date,
 
@@ -65,7 +65,7 @@ WITH WFQ_Data AS (
         -- Expiry filter: exclude soon-to-expire inventory
         AND (inv.EXPNDATE IS NULL
              OR inv.EXPNDATE > DATEADD(DAY,
-                 CAST(dbo.fn_GetConfig(TRIM(inv.ITEMNMBR), NULL, 'WFQ_Expiry_Filter_Days', GETDATE()) AS INT),
+                 CAST(dbo.fn_GetConfig('WFQ_Expiry_Filter_Days', TRIM(inv.ITEMNMBR), NULL, GETDATE()) AS INT),
                  GETDATE()
              )
         )
@@ -94,7 +94,7 @@ RMQTY_Data AS (
 
         -- RMQTY eligibility date (different hold period than WFQ)
         DATEADD(DAY,
-            CAST(dbo.fn_GetConfig(TRIM(inv.ITEMNMBR), NULL, 'RMQTY_Hold_Days', GETDATE()) AS INT),
+            CAST(dbo.fn_GetConfig('RMQTY_Hold_Days', TRIM(inv.ITEMNMBR), NULL, GETDATE()) AS INT),
             MAX(CAST(inv.DATERECD AS DATE))
         ) AS Projected_Release_Date,
 
@@ -116,7 +116,7 @@ RMQTY_Data AS (
         -- Expiry filter: exclude soon-to-expire inventory
         AND (inv.EXPNDATE IS NULL
              OR inv.EXPNDATE > DATEADD(DAY,
-                 CAST(dbo.fn_GetConfig(TRIM(inv.ITEMNMBR), NULL, 'RMQTY_Expiry_Filter_Days', GETDATE()) AS INT),
+                 CAST(dbo.fn_GetConfig('RMQTY_Expiry_Filter_Days', TRIM(inv.ITEMNMBR), NULL, GETDATE()) AS INT),
                  GETDATE()
              )
         )
