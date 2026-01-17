@@ -24,7 +24,7 @@ Business Rules:
 ================================================================================
 */
 
-CREATE VIEW dbo.Rolyat_WFQ_5
+CREATE OR ALTER VIEW dbo.Rolyat_WFQ_5
 AS
 
 -- ============================================================
@@ -43,7 +43,10 @@ WITH WFQ_Data AS (
 
         -- Projected release date based on configurable hold period
         DATEADD(DAY,
-            CAST(dbo.fn_GetConfig('WFQ_Hold_Days', TRIM(inv.ITEMNMBR), NULL, GETDATE()) AS INT),
+            CAST(COALESCE(
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = TRIM(inv.ITEMNMBR) AND Config_Key = 'WFQ_Hold_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'WFQ_Hold_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+            ) AS INT),
             MAX(CAST(inv.DATERECD AS DATE))
         ) AS Projected_Release_Date,
 
@@ -65,7 +68,10 @@ WITH WFQ_Data AS (
         -- Expiry filter: exclude soon-to-expire inventory
         AND (inv.EXPNDATE IS NULL
              OR inv.EXPNDATE > DATEADD(DAY,
-                 CAST(dbo.fn_GetConfig('WFQ_Expiry_Filter_Days', TRIM(inv.ITEMNMBR), NULL, GETDATE()) AS INT),
+                 CAST(COALESCE(
+                     (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = TRIM(inv.ITEMNMBR) AND Config_Key = 'WFQ_Expiry_Filter_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                     (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'WFQ_Expiry_Filter_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+                 ) AS INT),
                  GETDATE()
              )
         )
@@ -94,7 +100,10 @@ RMQTY_Data AS (
 
         -- RMQTY eligibility date (different hold period than WFQ)
         DATEADD(DAY,
-            CAST(dbo.fn_GetConfig('RMQTY_Hold_Days', TRIM(inv.ITEMNMBR), NULL, GETDATE()) AS INT),
+            CAST(COALESCE(
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = TRIM(inv.ITEMNMBR) AND Config_Key = 'RMQTY_Hold_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'RMQTY_Hold_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+            ) AS INT),
             MAX(CAST(inv.DATERECD AS DATE))
         ) AS Projected_Release_Date,
 
@@ -116,7 +125,10 @@ RMQTY_Data AS (
         -- Expiry filter: exclude soon-to-expire inventory
         AND (inv.EXPNDATE IS NULL
              OR inv.EXPNDATE > DATEADD(DAY,
-                 CAST(dbo.fn_GetConfig('RMQTY_Expiry_Filter_Days', TRIM(inv.ITEMNMBR), NULL, GETDATE()) AS INT),
+                 CAST(COALESCE(
+                     (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = TRIM(inv.ITEMNMBR) AND Config_Key = 'RMQTY_Expiry_Filter_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                     (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'RMQTY_Expiry_Filter_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+                 ) AS INT),
                  GETDATE()
              )
         )

@@ -21,7 +21,7 @@ Business Rules:
 ================================================================================
 */
 
-CREATE VIEW dbo.Rolyat_Unit_Price_4
+CREATE OR ALTER VIEW dbo.Rolyat_Unit_Price_4
 AS
 SELECT
     -- Item identifier

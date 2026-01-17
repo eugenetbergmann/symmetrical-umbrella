@@ -23,7 +23,7 @@ Business Rules:
 ================================================================================
 */
 
-CREATE VIEW dbo.Rolyat_Rebalancing_Layer
+CREATE OR ALTER VIEW dbo.Rolyat_Rebalancing_Layer
 AS
 
 -- ============================================================

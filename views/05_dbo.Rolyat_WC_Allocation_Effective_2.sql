@@ -23,7 +23,7 @@ Business Rules:
 ================================================================================
 */
 
-CREATE VIEW dbo.Rolyat_WC_Allocation_Effective_2
+CREATE OR ALTER VIEW dbo.Rolyat_WC_Allocation_Effective_2
 AS
 
 -- ============================================================
@@ -35,13 +35,41 @@ WITH WC_With_Degradation AS (
         wc.*,
         -- Calculate degradation factor based on configurable age tiers
         CASE
-            WHEN wc.Batch_Age_Days <= CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier1_Days', GETDATE()) AS INT)
-                THEN CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier1_Factor', GETDATE()) AS DECIMAL(5,2))
-            WHEN wc.Batch_Age_Days <= CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier2_Days', GETDATE()) AS INT)
-                THEN CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier2_Factor', GETDATE()) AS DECIMAL(5,2))
-            WHEN wc.Batch_Age_Days <= CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier3_Days', GETDATE()) AS INT)
-                THEN CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier3_Factor', GETDATE()) AS DECIMAL(5,2))
-            ELSE CAST(dbo.fn_GetConfig(wc.ITEMNMBR, wc.Client_ID, 'Degradation_Tier4_Factor', GETDATE()) AS DECIMAL(5,2))
+            WHEN wc.Batch_Age_Days <= CAST(COALESCE(
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = wc.ITEMNMBR AND Config_Key = 'Degradation_Tier1_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = wc.Client_ID AND Config_Key = 'Degradation_Tier1_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'Degradation_Tier1_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+            ) AS INT)
+                THEN CAST(COALESCE(
+                    (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = wc.ITEMNMBR AND Config_Key = 'Degradation_Tier1_Factor' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                    (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = wc.Client_ID AND Config_Key = 'Degradation_Tier1_Factor' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                    (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'Degradation_Tier1_Factor' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+                ) AS DECIMAL(5,2))
+            WHEN wc.Batch_Age_Days <= CAST(COALESCE(
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = wc.ITEMNMBR AND Config_Key = 'Degradation_Tier2_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = wc.Client_ID AND Config_Key = 'Degradation_Tier2_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'Degradation_Tier2_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+            ) AS INT)
+                THEN CAST(COALESCE(
+                    (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = wc.ITEMNMBR AND Config_Key = 'Degradation_Tier2_Factor' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                    (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = wc.Client_ID AND Config_Key = 'Degradation_Tier2_Factor' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                    (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'Degradation_Tier2_Factor' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+                ) AS DECIMAL(5,2))
+            WHEN wc.Batch_Age_Days <= CAST(COALESCE(
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = wc.ITEMNMBR AND Config_Key = 'Degradation_Tier3_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = wc.Client_ID AND Config_Key = 'Degradation_Tier3_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'Degradation_Tier3_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+            ) AS INT)
+                THEN CAST(COALESCE(
+                    (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = wc.ITEMNMBR AND Config_Key = 'Degradation_Tier3_Factor' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                    (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = wc.Client_ID AND Config_Key = 'Degradation_Tier3_Factor' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                    (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'Degradation_Tier3_Factor' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+                ) AS DECIMAL(5,2))
+            ELSE CAST(COALESCE(
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = wc.ITEMNMBR AND Config_Key = 'Degradation_Tier4_Factor' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = wc.Client_ID AND Config_Key = 'Degradation_Tier4_Factor' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+                (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'Degradation_Tier4_Factor' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+            ) AS DECIMAL(5,2))
         END AS Degradation_Factor
     FROM dbo.Rolyat_WC_Inventory wc
 ),
