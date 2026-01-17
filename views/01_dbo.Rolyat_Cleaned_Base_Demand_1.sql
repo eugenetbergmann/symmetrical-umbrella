@@ -131,10 +131,10 @@ SELECT
     -- ============================================================
     CASE
         WHEN TRY_CONVERT(DATE, DUEDATE) BETWEEN DATEADD(DAY,
-             -CAST(dbo.fn_GetConfig('ActiveWindow_Past_Days', NULL, NULL, GETDATE()) AS INT),
+             -CAST(COALESCE((SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'ActiveWindow_Past_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())), NULL) AS INT),
              GETDATE())
              AND DATEADD(DAY,
-             CAST(dbo.fn_GetConfig('ActiveWindow_Future_Days', NULL, NULL, GETDATE()) AS INT),
+             CAST(COALESCE((SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'ActiveWindow_Future_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())), NULL) AS INT),
              GETDATE()) THEN 1
         ELSE 0
     END AS IsActiveWindow

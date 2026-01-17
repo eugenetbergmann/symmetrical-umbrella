@@ -59,7 +59,11 @@ SELECT
     END AS Requirements_Status,
     ri.AsOfDate,
     df.Latest_Demand_Date,
-    dbo.fn_GetConfig('Safety_Stock_Days', ri.ITEMNMBR, ri.Client_ID, GETDATE()) AS Safety_Stock_Days_Config
+    COALESCE(
+        (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = ri.ITEMNMBR AND Config_Key = 'Safety_Stock_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+        (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = ri.Client_ID AND Config_Key = 'Safety_Stock_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+        (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'Safety_Stock_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+    ) AS Safety_Stock_Days_Config
 FROM Rebalanced_Inventory ri
 LEFT JOIN Demand_Forecast df ON ri.ITEMNMBR = df.ITEMNMBR AND ri.Client_ID = df.Client_ID;
 

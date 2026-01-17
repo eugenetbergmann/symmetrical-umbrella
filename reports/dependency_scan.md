@@ -8,30 +8,33 @@
 ### dbo.Rolyat_Cleaned_Base_Demand_1
 - **Source Tables:**
   - dbo.ETB_PAB_AUTO
-- **Config Dependencies:**
-  - dbo.fn_GetConfig('ActiveWindow_Past_Days')
-  - dbo.fn_GetConfig('ActiveWindow_Future_Days')
+- **Config Tables:**
+  - dbo.Rolyat_Config_Global
 
 ### dbo.Rolyat_WC_Inventory
 - **Source Views:**
   - dbo.Rolyat_Cleaned_Base_Demand_1
-- **Config Dependencies:**
-  - dbo.fn_GetConfig('WC_Batch_Shelf_Life_Days')
+- **Config Tables:**
+  - dbo.Rolyat_Config_Items
+  - dbo.Rolyat_Config_Clients
+  - dbo.Rolyat_Config_Global
 
 ### dbo.Rolyat_WFQ_5
 - **Source Tables:**
   - dbo.IV00300 (Inventory Lot Master)
   - dbo.IV00101 (Item Master)
   - dbo.Rolyat_Site_Config
-- **Config Dependencies:**
-  - dbo.fn_GetConfig('WFQ_Hold_Days')
-  - dbo.fn_GetConfig('WFQ_Expiry_Filter_Days')
-  - dbo.fn_GetConfig('RMQTY_Hold_Days')
-  - dbo.fn_GetConfig('RMQTY_Expiry_Filter_Days')
+- **Config Tables:**
+  - dbo.Rolyat_Config_Items
+  - dbo.Rolyat_Config_Global
 
 ### dbo.Rolyat_WC_Allocation_Effective_2
 - **Source Views:**
   - dbo.Rolyat_Cleaned_Base_Demand_1
+- **Config Tables:**
+  - dbo.Rolyat_Config_Items
+  - dbo.Rolyat_Config_Clients
+  - dbo.Rolyat_Config_Global
 
 ### dbo.Rolyat_Unit_Price_4
 - **Source Views:**
@@ -56,8 +59,10 @@
 - **Source Views:**
   - dbo.Rolyat_Rebalancing_Layer
   - dbo.Rolyat_StockOut_Analysis_v2
-- **Config Dependencies:**
-  - dbo.fn_GetConfig('Safety_Stock_Days')
+- **Config Tables:**
+  - dbo.Rolyat_Config_Items
+  - dbo.Rolyat_Config_Clients
+  - dbo.Rolyat_Config_Global
 
 ## Configuration Dependencies
 

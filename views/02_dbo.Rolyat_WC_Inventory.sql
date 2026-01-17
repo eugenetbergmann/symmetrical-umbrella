@@ -50,7 +50,11 @@ SELECT
     -- Issue Date + Configurable Shelf Life Days
     -- ============================================================
     DATEADD(DAY,
-        CAST(dbo.fn_GetConfig('WC_Batch_Shelf_Life_Days', ITEMNMBR, Construct, GETDATE()) AS INT),
+        CAST(COALESCE(
+            (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = wc.ITEMNMBR AND Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+            (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = wc.Construct AND Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+            (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+        ) AS INT),
         MRP_IssueDate
     ) AS Batch_Expiry_Date,
 
