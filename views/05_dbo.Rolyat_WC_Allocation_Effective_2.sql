@@ -23,7 +23,7 @@ Business Rules:
 ================================================================================
 */
 
-CREATE VIEW dbo.Rolyat_WC_Allocation_Effective_2
+CREATE OR ALTER VIEW dbo.Rolyat_WC_Allocation_Effective_2
 AS
 
 -- ============================================================

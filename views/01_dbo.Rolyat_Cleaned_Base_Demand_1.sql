@@ -20,7 +20,7 @@ Business Rules:
 ================================================================================
 */
 
-CREATE VIEW dbo.Rolyat_Cleaned_Base_Demand_1
+CREATE OR ALTER VIEW dbo.Rolyat_Cleaned_Base_Demand_1
 AS
 SELECT
     -- ============================================================

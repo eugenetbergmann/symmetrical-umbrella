@@ -22,7 +22,7 @@ Business Rules:
 ================================================================================
 */
 
-CREATE VIEW dbo.Rolyat_StockOut_Analysis_v2
+CREATE OR ALTER VIEW dbo.Rolyat_StockOut_Analysis_v2
 AS
 
 -- ============================================================

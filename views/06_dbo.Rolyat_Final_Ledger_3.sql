@@ -23,7 +23,7 @@ Business Rules:
 ================================================================================
 */
 
-CREATE VIEW dbo.Rolyat_Final_Ledger_3
+CREATE OR ALTER VIEW dbo.Rolyat_Final_Ledger_3
 AS
 
 -- ============================================================

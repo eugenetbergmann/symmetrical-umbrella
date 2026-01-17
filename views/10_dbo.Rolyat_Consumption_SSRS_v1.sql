@@ -19,7 +19,7 @@ Usage:
 ================================================================================
 */
 
-CREATE VIEW dbo.Rolyat_Consumption_SSRS_v1
+CREATE OR ALTER VIEW dbo.Rolyat_Consumption_SSRS_v1
 AS
 SELECT
     -- ============================================================

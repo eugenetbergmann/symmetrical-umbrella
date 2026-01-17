@@ -26,7 +26,7 @@ Implementation Notes:
 ================================================================================
 */
 
-CREATE VIEW dbo.Rolyat_WC_Inventory
+CREATE OR ALTER VIEW dbo.Rolyat_WC_Inventory
 AS
 SELECT
     -- Item identifier
