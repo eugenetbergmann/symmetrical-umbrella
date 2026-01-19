@@ -66,5 +66,3 @@ SELECT
     ) AS Safety_Stock_Days_Config
 FROM Rebalanced_Inventory ri
 LEFT JOIN Demand_Forecast df ON ri.ITEMNMBR = df.ITEMNMBR AND ri.Client_ID = df.Client_ID;
-
-GO

@@ -188,13 +188,3 @@ SELECT
     END AS WC_Allocation_Applied_Flag
 
 FROM Ledger_Base
-
-GO
-
--- Add extended property for documentation
-EXEC sp_addextendedproperty
-    @name = N'MS_Description',
-    @value = N'Final ledger view with Forecast (optimistic) and ATP (conservative) running balances, supply aggregation, and QC flags for stock-out detection.',
-    @level0type = N'SCHEMA', @level0name = 'dbo',
-    @level1type = N'VIEW', @level1name = 'Rolyat_Final_Ledger_3'
-GO

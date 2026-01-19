@@ -110,13 +110,3 @@ SELECT
 FROM dbo.Rolyat_Final_Ledger_3 AS fl
 LEFT JOIN AlternateStock AS asq
     ON fl.CleanItem = asq.Item_Number
-
-GO
-
--- Add extended property for documentation
-EXEC sp_addextendedproperty
-    @name = N'MS_Description',
-    @value = N'Stock-out analysis view with action tags, deficit calculations, and alternate stock awareness. Provides planner-ready intelligence for inventory management.',
-    @level0type = N'SCHEMA', @level0name = 'dbo',
-    @level1type = N'VIEW', @level1name = 'Rolyat_StockOut_Analysis_v2'
-GO

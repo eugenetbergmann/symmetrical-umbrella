@@ -76,13 +76,3 @@ WHERE
     AND MRP_Remaining_Qty > 0
     -- Partial issuance indicates WC batch in progress
     AND Has_Issued = 'YES'
-
-GO
-
--- Add extended property for documentation
-EXEC sp_addextendedproperty
-    @name = N'MS_Description',
-    @value = N'WC batch inventory view. Option A sources from ETB_PAB_AUTO WCID_From_MO/Remaining. Option B sources from IV00300 with WC site filter. Choose implementation based on your WC tracking method.',
-    @level0type = N'SCHEMA', @level0name = 'dbo',
-    @level1type = N'VIEW', @level1name = 'Rolyat_WC_Inventory'
-GO

@@ -79,13 +79,3 @@ SELECT
     fl.IsActiveWindow
 
 FROM dbo.Rolyat_Final_Ledger_3 AS fl
-
-GO
-
--- Add extended property for documentation
-EXEC sp_addextendedproperty
-    @name = N'MS_Description',
-    @value = N'Detailed consumption view exposing all key metrics from the final ledger for analysis and troubleshooting.',
-    @level0type = N'SCHEMA', @level0name = 'dbo',
-    @level1type = N'VIEW', @level1name = 'Rolyat_Consumption_Detail_v1'
-GO

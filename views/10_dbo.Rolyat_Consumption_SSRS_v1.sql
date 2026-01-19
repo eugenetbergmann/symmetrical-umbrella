@@ -65,13 +65,3 @@ SELECT
     fl.IsActiveWindow
 
 FROM dbo.Rolyat_Final_Ledger_3 AS fl
-
-GO
-
--- Add extended property for documentation
-EXEC sp_addextendedproperty
-    @name = N'MS_Description',
-    @value = N'SSRS-optimized consumption view with business-friendly column names for reporting.',
-    @level0type = N'SCHEMA', @level0name = 'dbo',
-    @level1type = N'VIEW', @level1name = 'Rolyat_Consumption_SSRS_v1'
-GO

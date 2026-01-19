@@ -231,13 +231,3 @@ Final_Allocation AS (
 )
 
 SELECT * FROM Final_Allocation
-
-GO
-
--- Add extended property for documentation
-EXEC sp_addextendedproperty
-    @name = N'MS_Description',
-    @value = N'WC allocation view with FEFO logic, age-based degradation, and effective demand calculation. Only allocates within ±21 day active window.',
-    @level0type = N'SCHEMA', @level0name = 'dbo',
-    @level1type = N'VIEW', @level1name = 'Rolyat_WC_Allocation_Effective_2'
-GO
