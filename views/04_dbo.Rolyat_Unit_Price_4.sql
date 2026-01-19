@@ -65,13 +65,3 @@ GROUP BY
 HAVING
     -- Final filter: ensure net quantity is non-zero after aggregation
     SUM(inv.QTYRECVD - inv.QTYSOLD) <> 0
-
-GO
-
--- Add extended property for documentation
-EXEC sp_addextendedproperty
-    @name = N'MS_Description',
-    @value = N'Blended average cost view for WF-Q inventory items. Calculates average of current cost and unit cost with NULL handling.',
-    @level0type = N'SCHEMA', @level0name = 'dbo',
-    @level1type = N'VIEW', @level1name = 'Rolyat_Unit_Price_4'
-GO

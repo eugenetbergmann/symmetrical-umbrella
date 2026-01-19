@@ -213,13 +213,3 @@ Net_Replenishment_Calc AS (
 )
 
 SELECT * FROM Net_Replenishment_Calc
-
-GO
-
--- Add extended property for documentation
-EXEC sp_addextendedproperty
-    @name = N'MS_Description',
-    @value = N'Rebalancing layer view with timed hope sources (PO, WFQ, RMQTY) and net replenishment need calculation for supply planning.',
-    @level0type = N'SCHEMA', @level0name = 'dbo',
-    @level1type = N'VIEW', @level1name = 'Rolyat_Rebalancing_Layer'
-GO

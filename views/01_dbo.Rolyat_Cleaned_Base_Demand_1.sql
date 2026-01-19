@@ -148,13 +148,3 @@ WHERE
     AND TRIM(ITEMNMBR) NOT LIKE '70.%'
     -- Exclude partially received orders
     AND TRIM(COALESCE(STSDESCR, '')) <> 'Partially Received'
-
-GO
-
--- Add extended property for documentation
-EXEC sp_addextendedproperty
-    @name = N'MS_Description',
-    @value = N'Cleaned base demand view with standardized data, Base_Demand calculation, SortPriority for deterministic ordering, and IsActiveWindow flag for planning window identification.',
-    @level0type = N'SCHEMA', @level0name = 'dbo',
-    @level1type = N'VIEW', @level1name = 'Rolyat_Cleaned_Base_Demand_1'
-GO

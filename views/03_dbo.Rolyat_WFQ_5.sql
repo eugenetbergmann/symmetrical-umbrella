@@ -177,13 +177,3 @@ FROM (
     UNION ALL
     SELECT * FROM RMQTY_Data
 ) combined
-
-GO
-
--- Add extended property for documentation
-EXEC sp_addextendedproperty
-    @name = N'MS_Description',
-    @value = N'WFQ and RMQTY inventory view with projected release dates, eligibility flags, and age tracking. Provides unified alternate stock visibility.',
-    @level0type = N'SCHEMA', @level0name = 'dbo',
-    @level1type = N'VIEW', @level1name = 'Rolyat_WFQ_5'
-GO
