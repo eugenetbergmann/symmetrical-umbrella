@@ -8,16 +8,16 @@ GO
 
 CREATE VIEW dbo.Rolyat_Config_Items AS
 SELECT
-    Item_Config_ID,
-    ITEMNMBR,
-    Config_Key,
-    Config_Value,
-    Data_Type,
-    Description,
-    Effective_Date,
-    Expiry_Date,
-    Created_Date,
-    Modified_Date,
-    Modified_By
-FROM dbo.Rolyat_Config_Items_Table;
+    CAST(NULL AS INT) AS Item_Config_ID,
+    CAST(NULL AS NVARCHAR(50)) AS ITEMNMBR,
+    CAST(NULL AS NVARCHAR(100)) AS Config_Key,
+    CAST(NULL AS NVARCHAR(100)) AS Config_Value,
+    CAST(NULL AS NVARCHAR(20)) AS Data_Type,
+    CAST(NULL AS NVARCHAR(255)) AS Description,
+    CAST(NULL AS DATETIME) AS Effective_Date,
+    CAST(NULL AS DATETIME) AS Expiry_Date,
+    CAST(NULL AS DATETIME) AS Created_Date,
+    CAST(NULL AS DATETIME) AS Modified_Date,
+    CAST(NULL AS NVARCHAR(50)) AS Modified_By
+WHERE 1 = 0; -- Return no rows
 GO
