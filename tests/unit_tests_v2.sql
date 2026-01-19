@@ -262,8 +262,8 @@ BEGIN
     SET NOCOUNT ON;
     PRINT 'Running quick v2.0 validation...';
     
-    IF OBJECT_ID('dbo.Rolyat_Config_Global', 'U') IS NULL
-    BEGIN PRINT 'ERROR: Rolyat_Config_Global table not found'; RETURN; END
+    IF OBJECT_ID('dbo.Rolyat_Config_Global', 'V') IS NULL
+    BEGIN PRINT 'ERROR: Rolyat_Config_Global view not found'; RETURN; END
     
     IF OBJECT_ID('dbo.fn_GetConfig', 'FN') IS NULL
     BEGIN PRINT 'ERROR: fn_GetConfig function not found'; RETURN; END

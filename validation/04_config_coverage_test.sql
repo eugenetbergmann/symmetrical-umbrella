@@ -20,18 +20,18 @@ Execution:
 -- Check 1: Config tables existence
 PRINT 'Checking config table existence...';
 
-IF OBJECT_ID('dbo.Rolyat_Config_Global', 'U') IS NULL
-    PRINT 'FAIL: Rolyat_Config_Global table missing'
+IF OBJECT_ID('dbo.Rolyat_Config_Global', 'V') IS NULL
+    PRINT 'FAIL: Rolyat_Config_Global view missing'
 ELSE
     PRINT 'PASS: Rolyat_Config_Global exists'
 
-IF OBJECT_ID('dbo.Rolyat_Config_Clients', 'U') IS NULL
-    PRINT 'FAIL: Rolyat_Config_Clients table missing'
+IF OBJECT_ID('dbo.Rolyat_Config_Clients', 'V') IS NULL
+    PRINT 'FAIL: Rolyat_Config_Clients view missing'
 ELSE
     PRINT 'PASS: Rolyat_Config_Clients exists'
 
-IF OBJECT_ID('dbo.Rolyat_Config_Items', 'U') IS NULL
-    PRINT 'FAIL: Rolyat_Config_Items table missing'
+IF OBJECT_ID('dbo.Rolyat_Config_Items', 'V') IS NULL
+    PRINT 'FAIL: Rolyat_Config_Items view missing'
 ELSE
     PRINT 'PASS: Rolyat_Config_Items exists'
 
