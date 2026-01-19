@@ -47,16 +47,22 @@ ETB_PAB_AUTO ──► Rolyat_Cleaned_Base_Demand_1 ──► Rolyat_WC_Allocati
 
 | View | Description |
 |------|-------------|
+| `Rolyat_Site_Config` | Site configuration (WFQ/RMQTY locations) - stub view |
+| `Rolyat_PO_Detail` | Purchase order details - stub view |
+| `Rolyat_Config_Global` | System-wide default parameters |
+| `Rolyat_Config_Clients` | Client-specific overrides |
+| `Rolyat_Config_Items` | Item-specific overrides |
 | `Rolyat_Cleaned_Base_Demand_1` | Data cleansing, Base_Demand calculation, SortPriority |
+| `Rolyat_WC_Inventory` | WC batch inventory tracking |
+| `Rolyat_WFQ_5` | WFQ/RMQTY inventory with release eligibility |
+| `Rolyat_Unit_Price_4` | Blended average cost calculation |
 | `Rolyat_WC_Allocation_Effective_2` | FEFO allocation, degradation factors, effective demand |
 | `Rolyat_Final_Ledger_3` | Forecast/ATP running balances, stock-out flags |
 | `Rolyat_StockOut_Analysis_v2` | Action tags, deficit calculations, QC flags |
 | `Rolyat_Rebalancing_Layer` | Timed hope sources, net replenishment needs |
-| `Rolyat_WFQ_5` | WFQ/RMQTY inventory with release eligibility |
-| `Rolyat_Unit_Price_4` | Blended average cost calculation |
-| `Rolyat_WC_Inventory` | WC batch inventory tracking |
 | `Rolyat_Consumption_Detail_v1` | Detailed consumption for analysis |
 | `Rolyat_Consumption_SSRS_v1` | SSRS-optimized reporting view |
+| `Rolyat_Net_Requirements_v1` | Net requirements calculation |
 
 ## Key Features
 
@@ -107,6 +113,11 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed deployment instruction
 
 ```bash
 # Deploy views in order
+sqlcmd -S <server> -d MED -i dbo.Rolyat_Site_Config.sql
+sqlcmd -S <server> -d MED -i dbo.Rolyat_PO_Detail.sql
+sqlcmd -S <server> -d MED -i dbo.Rolyat_Config_Global.sql
+sqlcmd -S <server> -d MED -i dbo.Rolyat_Config_Clients.sql
+sqlcmd -S <server> -d MED -i dbo.Rolyat_Config_Items.sql
 sqlcmd -S <server> -d MED -i dbo.Rolyat_Cleaned_Base_Demand_1.sql
 sqlcmd -S <server> -d MED -i dbo.Rolyat_WC_Inventory.sql
 sqlcmd -S <server> -d MED -i dbo.Rolyat_WFQ_5.sql
@@ -115,6 +126,9 @@ sqlcmd -S <server> -d MED -i dbo.Rolyat_WC_Allocation_Effective_2.sql
 sqlcmd -S <server> -d MED -i dbo.Rolyat_Final_Ledger_3.sql
 sqlcmd -S <server> -d MED -i dbo.Rolyat_StockOut_Analysis_v2.sql
 sqlcmd -S <server> -d MED -i dbo.Rolyat_Rebalancing_Layer.sql
+sqlcmd -S <server> -d MED -i dbo.Rolyat_Consumption_Detail_v1.sql
+sqlcmd -S <server> -d MED -i dbo.Rolyat_Consumption_SSRS_v1.sql
+sqlcmd -S <server> -d MED -i dbo.Rolyat_Net_Requirements_v1.sql
 ```
 
 ## Testing
@@ -215,4 +229,4 @@ For issues or questions:
 
 ---
 
-*Version 2.0.0 | Last Updated: 2026-01-16*
+*Version 2.0.0 | Last Updated: 2026-01-19*

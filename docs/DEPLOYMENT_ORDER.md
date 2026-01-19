@@ -35,8 +35,13 @@ This document provides comprehensive deployment instructions for the Rolyat Stoc
 | `dbo.ETB_PAB_AUTO` | Primary demand/supply data source |
 | `dbo.IV00300` | Inventory lot master |
 | `dbo.IV00101` | Item master |
-| `dbo.Rolyat_Site_Config` | Site configuration (WFQ/RMQTY locations) |
-| `dbo.Rolyat_PO_Detail` | Purchase order details |
+
+### Stub Views (Replace with actual data sources)
+
+| View | Description |
+|------|-------------|
+| `dbo.Rolyat_Site_Config` | Site configuration (WFQ/RMQTY locations) - stub view |
+| `dbo.Rolyat_PO_Detail` | Purchase order details - stub view |
 
 ### Configuration Function
 
@@ -121,16 +126,22 @@ Views must be deployed in dependency order:
 
 | Order | View Name | Dependencies |
 |-------|-----------|--------------|
-| 1 | `dbo.Rolyat_Cleaned_Base_Demand_1` | ETB_PAB_AUTO |
-| 2 | `dbo.Rolyat_WC_Inventory` | Rolyat_Cleaned_Base_Demand_1 |
-| 3 | `dbo.Rolyat_WFQ_5` | IV00300, IV00101, Rolyat_Site_Config |
-| 4 | `dbo.Rolyat_Unit_Price_4` | IV00300, IV00101 |
-| 5 | `dbo.Rolyat_WC_Allocation_Effective_2` | Rolyat_Cleaned_Base_Demand_1, Rolyat_WC_Inventory |
-| 6 | `dbo.Rolyat_Final_Ledger_3` | Rolyat_WC_Allocation_Effective_2, Rolyat_PO_Detail, Rolyat_WFQ_5 |
-| 7 | `dbo.Rolyat_StockOut_Analysis_v2` | Rolyat_Final_Ledger_3, Rolyat_WFQ_5 |
-| 8 | `dbo.Rolyat_Rebalancing_Layer` | Rolyat_Final_Ledger_3, Rolyat_PO_Detail, Rolyat_WFQ_5 |
-| 9 | `dbo.Rolyat_Consumption_Detail_v1` | Rolyat_Final_Ledger_3 |
-| 10 | `dbo.Rolyat_Consumption_SSRS_v1` | Rolyat_Final_Ledger_3 |
+| 1 | `dbo.Rolyat_Site_Config` | None (stub view) |
+| 2 | `dbo.Rolyat_PO_Detail` | None (stub view) |
+| 3 | `dbo.Rolyat_Config_Global` | None |
+| 4 | `dbo.Rolyat_Config_Clients` | None |
+| 5 | `dbo.Rolyat_Config_Items` | None |
+| 6 | `dbo.Rolyat_Cleaned_Base_Demand_1` | ETB_PAB_AUTO |
+| 7 | `dbo.Rolyat_WC_Inventory` | Rolyat_Cleaned_Base_Demand_1 |
+| 8 | `dbo.Rolyat_WFQ_5` | IV00300, IV00101, Rolyat_Site_Config |
+| 9 | `dbo.Rolyat_Unit_Price_4` | IV00300, IV00101 |
+| 10 | `dbo.Rolyat_WC_Allocation_Effective_2` | Rolyat_Cleaned_Base_Demand_1, Rolyat_WC_Inventory |
+| 11 | `dbo.Rolyat_Final_Ledger_3` | Rolyat_WC_Allocation_Effective_2, Rolyat_PO_Detail, Rolyat_WFQ_5 |
+| 12 | `dbo.Rolyat_StockOut_Analysis_v2` | Rolyat_Final_Ledger_3, Rolyat_WFQ_5 |
+| 13 | `dbo.Rolyat_Rebalancing_Layer` | Rolyat_Final_Ledger_3, Rolyat_PO_Detail, Rolyat_WFQ_5 |
+| 14 | `dbo.Rolyat_Consumption_Detail_v1` | Rolyat_Final_Ledger_3 |
+| 15 | `dbo.Rolyat_Consumption_SSRS_v1` | Rolyat_Final_Ledger_3 |
+| 16 | `dbo.Rolyat_Net_Requirements_v1` | Rolyat_Rebalancing_Layer |
 
 ---
 
