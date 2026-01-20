@@ -61,7 +61,7 @@ SELECT
         demand.BEG_BAL
         + COALESCE(supply.Released_PO_Supply, 0)
         + COALESCE(wfq.Eligible_RMQTY, 0)
-        - demand.effective_demand  -- WC-SUPPRESSED demand
+        - demand.suppressed_demand  -- WC-SUPPRESSED demand
     ) OVER (
         PARTITION BY demand.ITEMNMBR, demand.Client_ID
         ORDER BY demand.Date_Expiry, demand.SortPriority, demand.ORDERNUMBER
@@ -76,7 +76,7 @@ SELECT
         demand.BEG_BAL
         + COALESCE(supply.Released_PO_Supply, 0)
         + COALESCE(wfq.Eligible_RMQTY, 0)
-        - demand.effective_demand
+        - demand.suppressed_demand
     ) OVER (
         PARTITION BY demand.ITEMNMBR, demand.Client_ID
         ORDER BY demand.Date_Expiry, demand.SortPriority, demand.ORDERNUMBER
@@ -90,7 +90,7 @@ SELECT
     -- Stock_Out_Flag: ATP balance goes negative
     CASE
         WHEN SUM(
-            demand.BEG_BAL + COALESCE(supply.Released_PO_Supply, 0) + COALESCE(wfq.Eligible_RMQTY, 0) - demand.effective_demand
+            demand.BEG_BAL + COALESCE(supply.Released_PO_Supply, 0) + COALESCE(wfq.Eligible_RMQTY, 0) - demand.suppressed_demand
         ) OVER (
             PARTITION BY demand.ITEMNMBR, demand.Client_ID
             ORDER BY demand.Date_Expiry, demand.SortPriority, demand.ORDERNUMBER
@@ -115,7 +115,7 @@ SELECT
 
     -- WC_Allocation_Applied_Flag: Demand was suppressed by WC allocation
     CASE
-        WHEN demand.IsActiveWindow = 1 AND demand.effective_demand < demand.Base_Demand
+        WHEN demand.IsActiveWindow = 1 AND demand.suppressed_demand < demand.Base_Demand
         THEN 1
         ELSE 0
     END AS WC_Allocation_Applied_Flag
