@@ -458,24 +458,24 @@ SELECT
     -- ============================================================
     demand.ItemDescription,
     demand.UOMSCHDL,
-    demand.Status_Description,
+    demand.STSDESCR AS Status_Description,
     demand.MRPTYPE,
     demand.VendorItem,
     demand.INCLUDE_MRP,
     demand.BEG_BAL,
-    demand.Item_Lead_Time_Days,
-    demand.Item_Safety_Stock,
+    demand.PLANNING_LT AS Item_Lead_Time_Days,
+    demand.SAFETY_STOCK AS Item_Safety_Stock,
     demand.ORDER_POINT_QTY,
     demand.PLANNING_LT,
     demand.PRIME_VNDR,
-    demand.Original_Deductions,
-    demand.Original_Expiry,
-    demand.Original_POs,
-    demand.Original_Running_Balance,
+    demand.Deductions AS Original_Deductions,
+    demand.Expiry AS Original_Expiry,
+    demand.POs AS Original_POs,
+    demand.Running_Balance AS Original_Running_Balance,
     demand.MRP_IssueDate,
     demand.WCID_From_MO,
-    demand.MRP_Issued_Qty,
-    demand.MRP_Remaining_Qty,
+    demand.Issued AS MRP_Issued_Qty,
+    demand.Remaining AS MRP_Remaining_Qty,
     demand.Has_Issued,
     demand.IssueDate_Mismatch,
     demand.Early_Issue_Flag
@@ -483,7 +483,7 @@ SELECT
 FROM dbo.Rolyat_Cleaned_Base_Demand_1 demand
 LEFT JOIN dbo.Rolyat_WC_Inventory wc
     ON wc.ITEMNMBR = demand.ITEMNMBR
-    AND wc.Client_ID = demand.Client_ID      -- Client match required
-    AND wc.Site_ID = demand.Site_ID          -- Site match required
-    AND wc.Available_Qty > 0           -- Only batches with available qty
+    AND wc.Client_ID = demand.Construct      -- Client match required
+    AND wc.Site_ID = demand.SITE             -- Site match required
+    AND wc.Available_Qty > 0                 -- Only batches with available qty
     AND demand.IsActiveWindow = 1            -- Only allocate within active window
