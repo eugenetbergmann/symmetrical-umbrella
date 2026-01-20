@@ -456,7 +456,6 @@ SELECT
     -- ============================================================
     -- Pass-through columns from demand
     -- ============================================================
-    demand.ItemDescription,
     demand.UOMSCHDL,
     demand.STSDESCR AS Status_Description,
     demand.MRPTYPE,
