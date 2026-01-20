@@ -42,6 +42,7 @@ SELECT
     -- ============================================================
     TRIM(COALESCE(WCID_From_MO, '')) AS WCID_From_MO,
     TRIM(COALESCE(Construct, '')) AS Construct,
+    TRIM(COALESCE(Construct, '')) AS Client_ID,
     TRIM(COALESCE(FG, '')) AS FG,
     TRIM(COALESCE([FG Desc], '')) AS FG_Desc,
     TRIM(COALESCE(ItemDescription, '')) AS ItemDescription,
@@ -55,6 +56,7 @@ SELECT
     TRIM(COALESCE(VendorItem, '')) AS VendorItem,
     TRIM(COALESCE(INCLUDE_MRP, '')) AS INCLUDE_MRP,
     TRIM(COALESCE(SITE, '')) AS SITE,
+    TRIM(COALESCE(SITE, '')) AS Site_ID,
     TRIM(COALESCE(PRIME_VNDR, '')) AS PRIME_VNDR,
 
     -- ============================================================

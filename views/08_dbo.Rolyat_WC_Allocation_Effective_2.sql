@@ -469,7 +469,7 @@ SELECT
 FROM dbo.Rolyat_Cleaned_Base_Demand_1 demand
 LEFT JOIN dbo.Rolyat_WC_Inventory wc
     ON wc.ITEMNMBR = demand.ITEMNMBR
-    AND wc.Client_ID = demand.Construct      -- Client match required
-    AND wc.Site_ID = demand.SITE             -- Site match required
+    AND wc.Client_ID = demand.Client_ID      -- Client match required
+    AND wc.Site_ID = demand.Site_ID          -- Site match required
     AND wc.Available_Qty > 0                 -- Only batches with available qty
     AND demand.IsActiveWindow = 1            -- Only allocate within active window
