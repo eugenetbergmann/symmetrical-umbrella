@@ -52,8 +52,8 @@ SELECT
     -- ============================================================
     -- Running Balances (business-friendly names)
     -- ============================================================
-    fl.Forecast_Running_Balance AS Forecast_Balance,
-    fl.ATP_Running_Balance AS ATP_Balance,
+    fl.Original_Running_Balance AS Forecast_Balance,
+    fl.effective_demand AS ATP_Balance,
     
     -- ============================================================
     -- Status Fields (business-friendly names)

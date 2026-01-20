@@ -65,8 +65,8 @@ SELECT
     -- ============================================================
     -- Running Balances
     -- ============================================================
-    fl.Forecast_Running_Balance,
-    fl.ATP_Running_Balance,
+    fl.Original_Running_Balance,
+    fl.effective_demand,
     
     -- ============================================================
     -- Allocation and Status

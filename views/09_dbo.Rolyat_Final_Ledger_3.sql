@@ -49,7 +49,7 @@ SELECT
         PARTITION BY demand.ITEMNMBR
         ORDER BY demand.Date_Expiry, demand.SortPriority, demand.ORDERNUMBER
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-    ) AS Forecast_Running_Balance,
+    ) AS Original_Running_Balance,
 
     -- ============================================================
     -- ATP Running Balance (Conservative)
@@ -66,7 +66,7 @@ SELECT
         PARTITION BY demand.ITEMNMBR, demand.Client_ID
         ORDER BY demand.Date_Expiry, demand.SortPriority, demand.ORDERNUMBER
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-    ) AS ATP_Running_Balance,
+    ) AS effective_demand,
 
     -- ============================================================
     -- Legacy Adjusted Balance (matches ATP logic)

@@ -53,7 +53,7 @@ FROM (
         -- Amount suppressed by WC allocation
         Base_Demand - effective_demand AS Suppressed_Demand,
         -- Absolute ATP deficit (for replenishment calculation)
-        ABS(ATP_Running_Balance) AS ATP_Deficit
+        ABS(effective_demand) AS ATP_Deficit
     FROM dbo.Rolyat_Final_Ledger_3
 ) AS demand
 
@@ -99,7 +99,7 @@ LEFT JOIN (
         SELECT
             *,
             Base_Demand - effective_demand AS Suppressed_Demand,
-            ABS(ATP_Running_Balance) AS ATP_Deficit
+            ABS(effective_demand) AS ATP_Deficit
         FROM dbo.Rolyat_Final_Ledger_3
     ) AS demand_inner
     LEFT JOIN dbo.Rolyat_PO_Detail po
