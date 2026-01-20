@@ -40,7 +40,7 @@ SELECT
     WCID_From_MO AS WC_Batch_ID,
     
     -- Available quantity
-    MRP_Remaining_Qty AS Available_Qty,
+    Remaining AS Available_Qty,
     
     -- Receipt date (issue date)
     MRP_IssueDate AS Batch_Receipt_Date,
@@ -55,24 +55,24 @@ SELECT
             (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = wc.Construct AND Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
             (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
         ) AS INT),
-        MRP_IssueDate
+        wc.MRP_IssueDate
     ) AS Batch_Expiry_Date,
 
     -- ============================================================
     -- Age Calculation for Degradation
     -- Days since issue date
     -- ============================================================
-    DATEDIFF(DAY, MRP_IssueDate, GETDATE()) AS Batch_Age_Days,
+    DATEDIFF(DAY, wc.MRP_IssueDate, GETDATE()) AS Batch_Age_Days,
 
     -- Row type identifier
     'WC_BATCH' AS Row_Type
 
-FROM dbo.Rolyat_Cleaned_Base_Demand_1
+FROM dbo.Rolyat_Cleaned_Base_Demand_1 wc
 WHERE
     -- Valid WC batch ID required
     WCID_From_MO IS NOT NULL
     AND WCID_From_MO <> ''
     -- Remaining quantity must be positive
-    AND MRP_Remaining_Qty > 0
+    AND Remaining > 0
     -- Partial issuance indicates WC batch in progress
     AND Has_Issued = 'YES'
