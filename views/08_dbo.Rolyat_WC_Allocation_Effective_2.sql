@@ -138,7 +138,7 @@ SELECT
     demand.Deductions AS Original_Deductions,
     demand.Expiry AS Original_Expiry,
     demand.POs AS Original_POs,
-    demand.Running_Balance AS Original_Running_Balance,
+    demand.Running_Balance AS Raw_Running_Balance,
     demand.Issued AS MRP_Issued_Qty,
     demand.Remaining AS MRP_Remaining_Qty
 
