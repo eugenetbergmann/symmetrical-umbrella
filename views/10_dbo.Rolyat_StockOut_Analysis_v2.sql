@@ -25,7 +25,44 @@ Business Rules:
 
 
 SELECT
-    fl.*,
+    fl.ORDERNUMBER,
+    fl.CleanOrder,
+    fl.ITEMNMBR,
+    fl.CleanItem,
+    fl.WCID_From_MO,
+    fl.Construct,
+    fl.Client_ID,
+    fl.FG,
+    fl.FG_Desc,
+    fl.ItemDescription,
+    fl.UOMSCHDL,
+    fl.STSDESCR,
+    fl.MRPTYPE,
+    fl.VendorItem,
+    fl.INCLUDE_MRP,
+    fl.Site_ID,
+    fl.PRIME_VN,
+    fl.BEG_BAL,
+    fl.Base_Demand,
+    fl.effective_demand,
+    fl.Date_Expiry,
+    fl.SortPriority,
+    fl.IsActiveWindow,
+    fl.ATP_Running_Balance,
+    fl.Forecast_Running_Balance,
+    fl.Adjusted_Running_Balance,
+    fl.Stock_Out_Flag,
+    fl.Potential_Deficit_Flag,
+    fl.WC_Allocation_Applied_Flag,
+    fl.Status_Description,
+    fl.Item_Lead_Time_Days,
+    fl.Item_Safety_Stock,
+    fl.Original_Deductions,
+    fl.Original_Expiry,
+    fl.Original_POs,
+    fl.Original_Running_Balance,
+    fl.MRP_Issued_Qty,
+    fl.MRP_Remaining_Qty,
 
     -- ============================================================
     -- Alternate Stock Quantities
@@ -95,9 +132,9 @@ LEFT JOIN (
     SELECT
         ITEMNMBR AS Item_Number,
         -- WFQ quantity (quarantine)
-        SUM(CASE WHEN SITE = 'WF-Q' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY,
+        SUM(CASE WHEN Site_ID = 'WF-Q' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY,
         -- RMQTY quantity (restricted material)
-        SUM(CASE WHEN SITE = 'RMQTY' THEN QTY_ON_HAND ELSE 0 END) AS RMQTY_QTY,
+        SUM(CASE WHEN Site_ID = 'RMQTY' THEN QTY_ON_HAND ELSE 0 END) AS RMQTY_QTY,
         -- Total alternate stock
         SUM(QTY_ON_HAND) AS Alternate_Stock
     FROM dbo.Rolyat_WFQ_5
