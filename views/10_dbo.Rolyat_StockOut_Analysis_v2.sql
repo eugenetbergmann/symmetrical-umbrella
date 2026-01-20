@@ -22,24 +22,7 @@ Business Rules:
 ================================================================================
 */
 
-CREATE OR ALTER VIEW dbo.Rolyat_StockOut_Analysis_v2
-AS
 
--- ============================================================
--- CTE: Aggregate Alternate Stock per Item
--- ============================================================
-WITH AlternateStock AS (
-    SELECT
-        Item_Number,
-        -- WFQ quantity (quarantine)
-        SUM(CASE WHEN SITE = 'WF-Q' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY,
-        -- RMQTY quantity (restricted material)
-        SUM(CASE WHEN SITE = 'RMQTY' THEN QTY_ON_HAND ELSE 0 END) AS RMQTY_QTY,
-        -- Total alternate stock
-        SUM(QTY_ON_HAND) AS Alternate_Stock
-    FROM dbo.Rolyat_WFQ_5
-    GROUP BY Item_Number
-)
 
 SELECT
     fl.*,
@@ -108,5 +91,16 @@ SELECT
     END AS Updated_QC_Flag
 
 FROM dbo.Rolyat_Final_Ledger_3 AS fl
-LEFT JOIN AlternateStock AS asq
+LEFT JOIN (
+    SELECT
+        Item_Number,
+        -- WFQ quantity (quarantine)
+        SUM(CASE WHEN SITE = 'WF-Q' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY,
+        -- RMQTY quantity (restricted material)
+        SUM(CASE WHEN SITE = 'RMQTY' THEN QTY_ON_HAND ELSE 0 END) AS RMQTY_QTY,
+        -- Total alternate stock
+        SUM(QTY_ON_HAND) AS Alternate_Stock
+    FROM dbo.Rolyat_WFQ_5
+    GROUP BY Item_Number
+) AS asq
     ON fl.CleanItem = asq.Item_Number

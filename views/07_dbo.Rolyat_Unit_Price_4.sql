@@ -21,8 +21,6 @@ Business Rules:
 ================================================================================
 */
 
-CREATE OR ALTER VIEW dbo.Rolyat_Unit_Price_4
-AS
 SELECT
     -- Item identifier
     TRIM(inv.ITEMNMBR) AS Item_Number,
