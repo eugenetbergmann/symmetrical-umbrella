@@ -81,19 +81,19 @@ SELECT
     END AS Action_Tag,
 
     -- ============================================================
-    -- Updated QC Flag
-    -- Adds alternate stock awareness to QC review condition
+    -- QC Flag
+    -- Flags items needing review when no WC available and ATP negative
     -- ============================================================
     CASE
-        WHEN fl.ATP_Running_Balance < 0 AND COALESCE(asq.Alternate_Stock, 0.0) <= 0 
+        WHEN fl.ATP_Running_Balance < 0 AND COALESCE(asq.Alternate_Stock, 0.0) <= 0
             THEN 'REVIEW_NO_WC_AVAILABLE'
-        ELSE fl.QC_Flag
-    END AS Updated_QC_Flag
+        ELSE NULL
+    END AS QC_Flag
 
 FROM dbo.Rolyat_Final_Ledger_3 AS fl
 LEFT JOIN (
     SELECT
-        Item_Number,
+        ITEMNMBR AS Item_Number,
         -- WFQ quantity (quarantine)
         SUM(CASE WHEN SITE = 'WF-Q' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY,
         -- RMQTY quantity (restricted material)
@@ -101,6 +101,6 @@ LEFT JOIN (
         -- Total alternate stock
         SUM(QTY_ON_HAND) AS Alternate_Stock
     FROM dbo.Rolyat_WFQ_5
-    GROUP BY Item_Number
+    GROUP BY ITEMNMBR
 ) AS asq
     ON fl.CleanItem = asq.Item_Number
