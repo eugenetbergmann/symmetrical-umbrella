@@ -95,9 +95,9 @@ LEFT JOIN (
     SELECT
         ITEMNMBR AS Item_Number,
         -- WFQ quantity (quarantine)
-        SUM(CASE WHEN LOCNCODE = 'WF-Q' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY,
+        SUM(CASE WHEN Site_ID = 'WF-Q' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY,
         -- RMQTY quantity (restricted material)
-        SUM(CASE WHEN LOCNCODE = 'RMQTY' THEN QTY_ON_HAND ELSE 0 END) AS RMQTY_QTY,
+        SUM(CASE WHEN Site_ID = 'RMQTY' THEN QTY_ON_HAND ELSE 0 END) AS RMQTY_QTY,
         -- Total alternate stock
         SUM(QTY_ON_HAND) AS Alternate_Stock
     FROM dbo.Rolyat_WFQ_5
