@@ -98,7 +98,7 @@ LEFT JOIN (
     FROM (
         SELECT
             *,
-            Base_Demand - effective_demand AS Suppressed_Demand,
+            Base_Demand - effective_demand AS ATP_Suppressed_Demand,
             ABS(effective_demand) AS ATP_Deficit
         FROM dbo.Rolyat_Final_Ledger_3
     ) AS demand_inner
@@ -149,7 +149,7 @@ LEFT JOIN (
         SELECT
             *,
             Base_Demand - effective_demand AS Suppressed_Demand,
-            ABS(ATP_Running_Balance) AS ATP_Deficit
+            ABS(effective_demand) AS ATP_Deficit
         FROM dbo.Rolyat_Final_Ledger_3
     ) AS demand_inner
     LEFT JOIN dbo.Rolyat_WFQ_5 wfq
@@ -187,8 +187,8 @@ LEFT JOIN (
     FROM (
         SELECT
             *,
-            Base_Demand - effective_demand AS Suppressed_Demand,
-            ABS(ATP_Running_Balance) AS ATP_Deficit
+            Base_Demand - effective_demand AS ATP_Suppressed_Demand,
+            ABS(effective_demand) AS ATP_Deficit
         FROM dbo.Rolyat_Final_Ledger_3
     ) AS demand_inner
     LEFT JOIN dbo.Rolyat_WFQ_5 rmqty
