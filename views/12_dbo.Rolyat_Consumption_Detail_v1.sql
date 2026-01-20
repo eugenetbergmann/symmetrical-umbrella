@@ -19,8 +19,6 @@ Usage:
 ================================================================================
 */
 
-CREATE OR ALTER VIEW dbo.Rolyat_Consumption_Detail_v1
-AS
 SELECT
     -- ============================================================
     -- Item and Order Identifiers
