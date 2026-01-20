@@ -20,29 +20,6 @@ Notes:
 ===============================================================================
 */
 
-CREATE OR ALTER VIEW dbo.Rolyat_Net_Requirements_v1 AS
-
-WITH Rebalanced_Inventory AS (
-    SELECT
-        ITEMNMBR,
-        Client_ID,
-        SUM(Rebalanced_Qty) AS Total_Available_Qty,
-        MAX(AsOfDate) AS AsOfDate
-    FROM dbo.Rolyat_Rebalancing_Layer
-    GROUP BY ITEMNMBR, Client_ID
-),
-
-Demand_Forecast AS (
-    SELECT
-        ITEMNMBR,
-        Client_ID,
-        SUM(Forecast_Balance) AS Total_Forecast_Demand,
-        MAX(DUEDATE) AS Latest_Demand_Date
-    FROM dbo.Rolyat_StockOut_Analysis_v2
-    WHERE DUEDATE >= GETDATE()
-    GROUP BY ITEMNMBR, Client_ID
-)
-
 SELECT
     ri.ITEMNMBR,
     ri.Client_ID,
@@ -64,5 +41,22 @@ SELECT
         (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = ri.Client_ID AND Config_Key = 'Safety_Stock_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
         (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'Safety_Stock_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
     ) AS Safety_Stock_Days_Config
-FROM Rebalanced_Inventory ri
-LEFT JOIN Demand_Forecast df ON ri.ITEMNMBR = df.ITEMNMBR AND ri.Client_ID = df.Client_ID;
+FROM (
+    SELECT
+        ITEMNMBR,
+        Client_ID,
+        SUM(Rebalanced_Qty) AS Total_Available_Qty,
+        MAX(AsOfDate) AS AsOfDate
+    FROM dbo.Rolyat_Rebalancing_Layer
+    GROUP BY ITEMNMBR, Client_ID
+) AS ri
+LEFT JOIN (
+    SELECT
+        ITEMNMBR,
+        Client_ID,
+        SUM(Forecast_Balance) AS Total_Forecast_Demand,
+        MAX(DUEDATE) AS Latest_Demand_Date
+    FROM dbo.Rolyat_StockOut_Analysis_v2
+    WHERE DUEDATE >= GETDATE()
+    GROUP BY ITEMNMBR, Client_ID
+) AS df ON ri.ITEMNMBR = df.ITEMNMBR AND ri.Client_ID = df.Client_ID
