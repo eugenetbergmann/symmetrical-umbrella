@@ -454,30 +454,17 @@ SELECT
     END AS WC_Coverage_Status,
 
     -- ============================================================
-    -- Pass-through columns from demand
+    -- Additional columns with aliases
     -- ============================================================
-    demand.UOMSCHDL,
     demand.STSDESCR AS Status_Description,
-    demand.MRPTYPE,
-    demand.VendorItem,
-    demand.INCLUDE_MRP,
-    demand.BEG_BAL,
     demand.PLANNING_LT AS Item_Lead_Time_Days,
     demand.SAFETY_STOCK AS Item_Safety_Stock,
-    demand.ORDER_POINT_QTY,
-    demand.PLANNING_LT,
-    demand.PRIME_VNDR,
     demand.Deductions AS Original_Deductions,
     demand.Expiry AS Original_Expiry,
     demand.POs AS Original_POs,
     demand.Running_Balance AS Original_Running_Balance,
-    demand.MRP_IssueDate,
-    demand.WCID_From_MO,
     demand.Issued AS MRP_Issued_Qty,
-    demand.Remaining AS MRP_Remaining_Qty,
-    demand.Has_Issued,
-    demand.IssueDate_Mismatch,
-    demand.Early_Issue_Flag
+    demand.Remaining AS MRP_Remaining_Qty
 
 FROM dbo.Rolyat_Cleaned_Base_Demand_1 demand
 LEFT JOIN dbo.Rolyat_WC_Inventory wc
