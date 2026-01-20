@@ -31,7 +31,7 @@ SELECT
     TRIM(inv.ITEMNMBR) AS ITEMNMBR,
     TRIM(inv.LOCNCODE) AS Site_ID,
     'WFQ' AS Inventory_Type,
-    TRIM(inv.RCTSEQNM) AS Batch_ID,
+    CAST(inv.RCTSEQNM AS VARCHAR(50)) AS Batch_ID,
     SUM(inv.QTYRECVD - inv.QTYSOLD) AS QTY_ON_HAND,
     MAX(CAST(inv.DATERECD AS DATE)) AS Receipt_Date,
     MAX(CAST(inv.EXPNDATE AS DATE)) AS Expiry_Date,
@@ -98,7 +98,7 @@ WHERE
 GROUP BY
     TRIM(inv.ITEMNMBR),
     TRIM(inv.LOCNCODE),
-    TRIM(inv.RCTSEQNM),
+    CAST(inv.RCTSEQNM AS VARCHAR(50)),
     TRIM(itm.UOMSCHDL)
 HAVING
     (SUM(inv.QTYRECVD - inv.QTYSOLD) <> 0)
@@ -112,7 +112,7 @@ SELECT
     TRIM(inv.ITEMNMBR) AS ITEMNMBR,
     TRIM(inv.LOCNCODE) AS Site_ID,
     'RMQTY' AS Inventory_Type,
-    TRIM(inv.RCTSEQNM) AS Batch_ID,
+    CAST(inv.RCTSEQNM AS VARCHAR(50)) AS Batch_ID,
     SUM(inv.QTYRECVD - inv.QTYSOLD) AS QTY_ON_HAND,
     MAX(CAST(inv.DATERECD AS DATE)) AS Receipt_Date,
     MAX(CAST(inv.EXPNDATE AS DATE)) AS Expiry_Date,
@@ -179,7 +179,7 @@ WHERE
 GROUP BY
     TRIM(inv.ITEMNMBR),
     TRIM(inv.LOCNCODE),
-    TRIM(inv.RCTSEQNM),
+    CAST(inv.RCTSEQNM AS VARCHAR(50)),
     TRIM(itm.UOMSCHDL)
 HAVING
     (SUM(inv.QTYRECVD - inv.QTYSOLD) <> 0)
