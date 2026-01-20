@@ -2,8 +2,12 @@
 ================================================================================
 View: dbo.Rolyat_StockOut_Analysis_v2
 Description: Stock-out intelligence with action tags and alternate stock awareness
-Version: 2.0.0
-Last Modified: 2026-01-16
+Version: 2.0.1 (CORRECTED)
+Last Modified: 2026-01-20
+Changes: 
+  - Fixed ATP_Running_Balance → effective_demand (balance AFTER allocation)
+  - Fixed Forecast_Running_Balance → Original_Running_Balance (balance BEFORE allocation)
+  - IsActiveWindow already correct (no change)
 Dependencies: 
   - dbo.Rolyat_Final_Ledger_3
   - dbo.Rolyat_WFQ_5
@@ -15,6 +19,8 @@ Purpose:
   - Provides QC flags for planner review
 
 Business Rules:
+  - ATP = Available after WC batch allocation (effective_demand)
+  - Forecast = Original running balance before allocation
   - Action tags prioritize urgency: URGENT_PURCHASE > URGENT_TRANSFER > URGENT_EXPEDITE
   - Alternate stock (WFQ + RMQTY) triggers REVIEW_ALTERNATE_STOCK tag
   - QC flag REVIEW_NO_WC_AVAILABLE only when no alternate stock exists
@@ -36,44 +42,46 @@ SELECT
 
     -- ============================================================
     -- Deficit Calculations
-    -- Negative balance indicates stock-out; deficit = absolute value
+    -- CORRECTED: ATP = effective_demand (after allocation)
     -- ============================================================
     CASE
-        WHEN fl.ATP_Running_Balance < 0 THEN ABS(fl.ATP_Running_Balance)
+        WHEN fl.effective_demand < 0 THEN ABS(fl.effective_demand)
         ELSE 0.0
     END AS Deficit_ATP,
     
+    -- CORRECTED: Forecast = Original_Running_Balance (before allocation)
     CASE
-        WHEN fl.Forecast_Running_Balance < 0 THEN ABS(fl.Forecast_Running_Balance)
+        WHEN fl.Original_Running_Balance < 0 THEN ABS(fl.Original_Running_Balance)
         ELSE 0.0
     END AS Deficit_Forecast,
 
     -- ============================================================
     -- Action Tags for Planners
-    -- Based on urgency rules and alternate stock availability
+    -- CORRECTED: ATP = effective_demand, Forecast = Original_Running_Balance
     -- ============================================================
     CASE
-        -- ATP constrained but Forecast OK: supply timing issue
-        WHEN fl.ATP_Running_Balance < 0 AND fl.Forecast_Running_Balance >= 0 
+        -- ATP constrained but Forecast OK: allocation/batch timing issue
+        -- (Would be fine without batch constraints, but batches create shortage)
+        WHEN fl.effective_demand < 0 AND fl.Original_Running_Balance >= 0 
             THEN 'ATP_CONSTRAINED'
         
         -- ATP deficit within active window: urgent action required
-        WHEN fl.ATP_Running_Balance < 0 AND fl.IsActiveWindow = 1 THEN
+        WHEN fl.effective_demand < 0 AND fl.IsActiveWindow = 1 THEN
             CASE
                 -- Large deficit: purchase required
-                WHEN ABS(fl.ATP_Running_Balance) >= 100 THEN 'URGENT_PURCHASE'
+                WHEN ABS(fl.effective_demand) >= 100 THEN 'URGENT_PURCHASE'
                 -- Medium deficit: transfer from alternate location
-                WHEN ABS(fl.ATP_Running_Balance) >= 50 THEN 'URGENT_TRANSFER'
+                WHEN ABS(fl.effective_demand) >= 50 THEN 'URGENT_TRANSFER'
                 -- Small deficit: expedite existing orders
                 ELSE 'URGENT_EXPEDITE'
             END
         
         -- ATP deficit with alternate stock available: review options
-        WHEN fl.ATP_Running_Balance < 0 AND COALESCE(asq.Alternate_Stock, 0.0) > 0 
+        WHEN fl.effective_demand < 0 AND COALESCE(asq.Alternate_Stock, 0.0) > 0 
             THEN 'REVIEW_ALTERNATE_STOCK'
         
         -- ATP deficit with no alternate stock: stock-out
-        WHEN fl.ATP_Running_Balance < 0 
+        WHEN fl.effective_demand < 0 
             THEN 'STOCK_OUT'
         
         -- No deficit: normal status
@@ -82,10 +90,10 @@ SELECT
 
     -- ============================================================
     -- QC Flag
-    -- Flags items needing review when no WC available and ATP negative
+    -- CORRECTED: Using effective_demand (ATP)
     -- ============================================================
     CASE
-        WHEN fl.ATP_Running_Balance < 0 AND COALESCE(asq.Alternate_Stock, 0.0) <= 0
+        WHEN fl.effective_demand < 0 AND COALESCE(asq.Alternate_Stock, 0.0) <= 0
             THEN 'REVIEW_NO_WC_AVAILABLE'
         ELSE NULL
     END AS QC_Flag
