@@ -73,7 +73,7 @@ SELECT
             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ))
         ELSE demand.Base_Demand
-    END AS effective_demand,
+    END AS suppressed_demand,
 
     -- ============================================================
     -- Allocation Status Flags
