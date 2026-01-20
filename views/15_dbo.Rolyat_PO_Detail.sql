@@ -26,6 +26,8 @@ SELECT
     COALESCE(TRY_CAST([PO's] AS DECIMAL(18, 5)), 0.0) AS PO_Qty,
     -- Open PO quantity (assuming not fully received)
     COALESCE(TRY_CAST([PO's] AS DECIMAL(18, 5)), 0.0) AS Open_PO_Qty,
+    -- PO due date
+    TRY_CONVERT(DATE, [Date + Expiry]) AS PO_Due_Date,
     -- Assuming all POs are released for now
     1 AS Is_Released,
     -- Assuming no POs are fully received for now
