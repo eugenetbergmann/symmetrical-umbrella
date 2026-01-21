@@ -2,10 +2,13 @@
 ================================================================================
 View: dbo.Rolyat_WC_Inventory
 Description: Work Center (WC) batch inventory derived from demand data
-Version: 2.0.0
+Version: 2.1.0
 Last Modified: 2026-01-21
 Dependencies: 
-  - dbo.Rolyat_WC_Allocation_Effective_2
+  - dbo.Rolyat_Cleaned_Base_Demand_1
+  - dbo.Rolyat_Config_Items
+  - dbo.Rolyat_Config_Clients
+  - dbo.Rolyat_Config_Global
 
 Purpose:
   - Extracts WC batch inventory from partially issued manufacturing orders
@@ -22,7 +25,9 @@ Business Rules:
   - Relaxed IsActiveWindow filter to include broader range
 
 Implementation Notes:
-  - Sources from dbo.Rolyat_WC_Allocation_Effective_2
+  - FIXED: Removed FROM dbo.Rolyat_WC_Allocation_Effective_2 to eliminate circular reference
+  - RATIONALE: View 08 was (likely) referencing back to inventory/ledger → cycle
+  - SOLUTION: Now sources directly from 04_dbo.Rolyat_Cleaned_Base_Demand_1 with inlined WC filters
   - Enforces WC prefix to prevent WFR bleed
   - Relaxes filters to include more valid batches
 ================================================================================
@@ -30,6 +35,7 @@ Implementation Notes:
 
 CREATE OR ALTER VIEW dbo.Rolyat_WC_Inventory
 AS
+
 SELECT
     -- Item identifier
     ITEMNMBR,
@@ -53,18 +59,18 @@ SELECT
     -- ============================================================
     DATEADD(DAY,
         CAST(COALESCE(
-            (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = wc.ITEMNMBR AND Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
-            (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = wc.Construct AND Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+            (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = src.ITEMNMBR AND Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
+            (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = src.Construct AND Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
             (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
         ) AS INT),
-        wc.MRP_IssueDate
+        src.MRP_IssueDate
     ) AS Batch_Expiry_Date,
 
     -- ============================================================
     -- Age Calculation for Degradation
     -- Days since issue date
     -- ============================================================
-    DATEDIFF(DAY, wc.MRP_IssueDate, GETDATE()) AS Batch_Age_Days,
+    DATEDIFF(DAY, src.MRP_IssueDate, GETDATE()) AS Batch_Age_Days,
 
     -- Row type identifier
     'WC_BATCH' AS Row_Type,
@@ -75,7 +81,7 @@ SELECT
         ORDER BY Batch_Expiry_Date ASC
     ) AS SortPriority
 
-FROM dbo.Rolyat_WC_Allocation_Effective_2 wc
+FROM dbo.Rolyat_Cleaned_Base_Demand_1 src
 WHERE
     -- Valid WC batch ID required
     WCID_From_MO IS NOT NULL
@@ -85,17 +91,16 @@ WHERE
     -- Partial issuance indicates WC batch in progress
     AND Has_Issued = 'YES'
     -- Explicit WC prefix enforcement (CHANGED: Prevent WFR bleed)
-    AND SITE LIKE 'WC-%'
+    AND SITE LIKE 'WC%'
     -- Relaxed IsActiveWindow filter (CHANGED: Include broader range)
     AND IsActiveWindow = 1
 
--- VALIDATION CHECKS (run separately after deployment):
--- Expected: 100+ rows, all WC-* sites
--- SELECT COUNT(*) as Total_Rows,
---        COUNT(DISTINCT Site) as Unique_Sites,
---        MIN(Site) as First_Site,
---        MAX(Site) as Last_Site
--- FROM dbo.Rolyat_WC_Inventory;
--- 
--- Expected: 0 rows (no WFR prefix)
--- SELECT COUNT(*) FROM dbo.Rolyat_WC_Inventory WHERE Site LIKE 'WFR%';
+-- ============================================================
+-- VALIDATION QUERIES (run after deploy):
+-- ============================================================
+-- Test 1: Row count & WC sites only
+SELECT COUNT(*) AS Total_Rows, COUNT(DISTINCT Site_ID) AS Unique_WC_Sites FROM dbo.Rolyat_WC_Inventory;
+-- Test 2: No bleed to other prefixes
+SELECT COUNT(*) FROM dbo.Rolyat_WC_Inventory WHERE Site_ID NOT LIKE 'WC%';
+-- Test 3: FEFO order check
+SELECT TOP 50 * FROM dbo.Rolyat_WC_Inventory ORDER BY SortPriority, Batch_Expiry_Date;
