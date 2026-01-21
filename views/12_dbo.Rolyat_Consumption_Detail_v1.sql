@@ -27,53 +27,51 @@ SELECT
     fl.CleanItem,
     fl.Client_ID,
     fl.ORDERNUMBER,
-    
+
     -- ============================================================
     -- Date Fields
     -- ============================================================
     fl.DUEDATE,
     fl.Date_Expiry,
-    
+
     -- ============================================================
     -- Event Ordering
     -- ============================================================
     fl.SortPriority,
     fl.Row_Type,
-    
+
     -- ============================================================
     -- Demand Quantities
     -- ============================================================
     fl.Base_Demand,
-    fl.Effective_Demand,
-    
+    fl.suppressed_demand AS Effective_Demand,
+
     -- ============================================================
     -- Supply Quantities
     -- ============================================================
     fl.BEG_BAL,
-    fl.POs,
-    fl.Released_PO_Qty,
-    fl.WFQ_QTY,
-    fl.RMQTY_QTY,
-    fl.RMQTY_Eligible_Qty,
-    
+    fl.Total_PO_Supply AS POs,
+    fl.Released_PO_Supply AS Released_PO_Qty,
+    fl.Total_WFQ AS WFQ_QTY,
+    fl.Eligible_RMQTY AS RMQTY_QTY,
+
     -- ============================================================
     -- Supply Events (for running balance calculation)
     -- ============================================================
-    fl.Forecast_Supply_Event,
-    fl.ATP_Supply_Event,
-    
+    -- Removed invalid columns: Forecast_Supply_Event, ATP_Supply_Event
+
     -- ============================================================
     -- Running Balances
     -- ============================================================
     fl.Original_Running_Balance,
     fl.effective_demand,
-    
+
     -- ============================================================
     -- Allocation and Status
     -- ============================================================
-    fl.ATP_Suppression_Qty,
-    fl.wc_allocation_status,
-    fl.QC_Flag,
+    -- Removed invalid column: ATP_Suppression_Qty
+    fl.Allocation_Status AS wc_allocation_status,
+    fl.Stock_Out_Flag AS QC_Flag,
     fl.IsActiveWindow
 
 FROM dbo.Rolyat_Final_Ledger_3 AS fl
