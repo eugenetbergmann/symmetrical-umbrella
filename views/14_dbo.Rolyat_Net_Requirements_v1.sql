@@ -45,8 +45,8 @@ FROM (
     SELECT
         ITEMNMBR,
         Client_ID,
-        SUM(Rebalanced_Qty) AS Total_Available_Qty,
-        MAX(AsOfDate) AS AsOfDate
+        SUM(Total_Timed_Hope_Supply) AS Total_Available_Qty,
+        MAX(DUEDATE) AS AsOfDate
     FROM dbo.Rolyat_Rebalancing_Layer
     GROUP BY ITEMNMBR, Client_ID
 ) AS ri
@@ -54,7 +54,7 @@ LEFT JOIN (
     SELECT
         ITEMNMBR,
         Client_ID,
-        SUM(Forecast_Balance) AS Total_Forecast_Demand,
+        SUM(Base_Demand) AS Total_Forecast_Demand,
         MAX(DUEDATE) AS Latest_Demand_Date
     FROM dbo.Rolyat_StockOut_Analysis_v2
     WHERE DUEDATE >= GETDATE()
