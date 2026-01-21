@@ -35,6 +35,19 @@ SELECT
     COALESCE(wfq.Eligible_RMQTY, 0) AS Eligible_RMQTY,
 
     -- ============================================================
+    -- Row Type Identifier
+    -- ============================================================
+    'DEMAND_EVENT' AS Row_Type,
+
+    -- ============================================================
+    -- Aliases for backward compatibility
+    -- ============================================================
+    COALESCE(supply.Released_PO_Supply, 0) AS Released_PO_Qty,
+    COALESCE(wfq.Total_WFQ, 0) AS WFQ_QTY,
+    COALESCE(wfq.Eligible_RMQTY, 0) AS RMQTY_QTY,
+    COALESCE(wfq.Eligible_RMQTY, 0) AS RMQTY_Eligible_Qty,
+
+    -- ============================================================
     -- Forecast Running Balance (Optimistic)
     -- Includes: BEG_BAL + All POs + WFQ + RMQTY - Base_Demand
     -- Partitioned by ITEMNMBR only (global view)
@@ -118,7 +131,34 @@ SELECT
         WHEN demand.IsActiveWindow = 1 AND demand.suppressed_demand < demand.Base_Demand
         THEN 1
         ELSE 0
-    END AS WC_Allocation_Applied_Flag
+    END AS WC_Allocation_Applied_Flag,
+
+    -- ============================================================
+    -- Supply Event Flags
+    -- ============================================================
+    CASE
+        WHEN COALESCE(supply.Total_PO_Supply, 0) + COALESCE(wfq.Total_WFQ, 0) + COALESCE(wfq.Eligible_RMQTY, 0) > 0
+        THEN 1
+        ELSE 0
+    END AS Forecast_Supply_Event,
+
+    CASE
+        WHEN COALESCE(supply.Released_PO_Supply, 0) + COALESCE(wfq.Eligible_RMQTY, 0) > 0
+        THEN 1
+        ELSE 0
+    END AS ATP_Supply_Event,
+
+    -- ============================================================
+    -- Suppression and Status
+    -- ============================================================
+    demand.Base_Demand - demand.suppressed_demand AS ATP_Suppression_Qty,
+    CASE
+        WHEN demand.IsActiveWindow = 1 AND demand.suppressed_demand < demand.Base_Demand
+        THEN 1
+        ELSE 0
+    END AS wc_allocation_status,
+
+    Stock_Out_Flag AS QC_Flag
 
 FROM dbo.Rolyat_WC_Allocation_Effective_2 demand
 LEFT JOIN (
