@@ -26,40 +26,29 @@ SELECT
     fl.ITEMNMBR,
     fl.CleanItem,
     fl.Client_ID,
-    
+
     -- ============================================================
     -- Date Fields
     -- ============================================================
     fl.DUEDATE,
-    
-    -- ============================================================
-    -- Event Type
-    -- ============================================================
-    fl.Row_Type,
-    
+
     -- ============================================================
     -- Demand Quantities (business-friendly names)
     -- ============================================================
     fl.Base_Demand AS Demand_Qty,
-    fl.Effective_Demand AS ATP_Demand_Qty,
-    
-    -- ============================================================
-    -- Supply Events
-    -- ============================================================
-    fl.Forecast_Supply_Event,
-    fl.ATP_Supply_Event,
-    
+    fl.suppressed_demand AS ATP_Demand_Qty,
+
     -- ============================================================
     -- Running Balances (business-friendly names)
     -- ============================================================
     fl.Original_Running_Balance AS Forecast_Balance,
     fl.effective_demand AS ATP_Balance,
-    
+
     -- ============================================================
     -- Status Fields (business-friendly names)
     -- ============================================================
-    fl.wc_allocation_status AS Allocation_Status,
-    fl.QC_Flag AS QC_Status,
+    fl.Allocation_Status AS Allocation_Status,
+    fl.Stock_Out_Flag AS QC_Status,
     fl.IsActiveWindow
 
 FROM dbo.Rolyat_Final_Ledger_3 AS fl
