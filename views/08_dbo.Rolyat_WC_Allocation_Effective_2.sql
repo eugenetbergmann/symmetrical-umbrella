@@ -2,8 +2,8 @@
 ================================================================================
 View: dbo.Rolyat_WC_Allocation_Effective_2
 Description: WC inventory allocation with FEFO logic and demand suppression
-Version: 1.0.0
-Last Modified: 2026-01-16
+Version: 1.1.0
+Last Modified: 2026-01-21
 Dependencies: 
   - dbo.Rolyat_Cleaned_Base_Demand_1
   - dbo.Rolyat_WC_Inventory
@@ -20,6 +20,10 @@ Business Rules:
   - Degradation factors reduce effective batch quantity based on age
   - FEFO ordering: earliest expiry first, then closest temporal proximity
   - Client and Site must match for allocation eligibility
+
+Changelog:
+  - 2026-01-21 v1.1: FIXED circular dependency with Rolyat_WC_Inventory by removing direct reference to view 05
+  - 2026-01-16 v1.0: Initial implementation
 ================================================================================
 */
 
