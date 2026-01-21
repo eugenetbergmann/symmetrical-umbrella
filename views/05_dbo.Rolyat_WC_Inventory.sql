@@ -38,20 +38,20 @@ AS
 
 SELECT
     -- Item identifier
-    ITEMNMBR,
+    src.ITEMNMBR,
     
     -- Client/Site identifiers
-    Construct AS Client_ID,
-    SITE AS Site_ID,
+    src.Construct AS Client_ID,
+    src.SITE AS Site_ID,
     
     -- Batch identifier
-    WCID_From_MO AS WC_Batch_ID,
+    src.WCID_From_MO AS WC_Batch_ID,
     
     -- Available quantity
-    Remaining AS Available_Qty,
+    src.Remaining AS Available_Qty,
     
     -- Receipt date (issue date)
-    MRP_IssueDate AS Batch_Receipt_Date,
+    src.MRP_IssueDate AS Batch_Receipt_Date,
 
     -- ============================================================
     -- Batch Expiry Calculation
@@ -59,9 +59,9 @@ SELECT
     -- ============================================================
     DATEADD(DAY,
         CAST(COALESCE(
-            (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = src.ITEMNMBR AND Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
-            (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = src.Construct AND Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
-            (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'WC_Batch_Shelf_Life_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
+            (SELECT Config_Value FROM dbo.Rolyat_Config_Items ci WHERE ci.ITEMNMBR = src.ITEMNMBR AND ci.Config_Key = 'WC_Batch_Shelf_Life_Days' AND ci.Effective_Date <= GETDATE() AND (ci.Expiry_Date IS NULL OR ci.Expiry_Date > GETDATE())),
+            (SELECT Config_Value FROM dbo.Rolyat_Config_Clients cc WHERE cc.Client_ID = src.Construct AND cc.Config_Key = 'WC_Batch_Shelf_Life_Days' AND cc.Effective_Date <= GETDATE() AND (cc.Expiry_Date IS NULL OR cc.Expiry_Date > GETDATE())),
+            (SELECT Config_Value FROM dbo.Rolyat_Config_Global cg WHERE cg.Config_Key = 'WC_Batch_Shelf_Life_Days' AND cg.Effective_Date <= GETDATE() AND (cg.Expiry_Date IS NULL OR cg.Expiry_Date > GETDATE()))
         ) AS INT),
         src.MRP_IssueDate
     ) AS Batch_Expiry_Date,
@@ -77,23 +77,23 @@ SELECT
     
     -- Sort priority for FEFO ordering
     ROW_NUMBER() OVER (
-        PARTITION BY ITEMNMBR
+        PARTITION BY src.ITEMNMBR
         ORDER BY Batch_Expiry_Date ASC
     ) AS SortPriority
 
 FROM dbo.Rolyat_Cleaned_Base_Demand_1 src
 WHERE
     -- Valid WC batch ID required
-    WCID_From_MO IS NOT NULL
-    AND WCID_From_MO <> ''
+    src.WCID_From_MO IS NOT NULL
+    AND src.WCID_From_MO <> ''
     -- Remaining quantity must be positive (relaxed threshold)
-    AND Remaining > 0
+    AND src.Remaining > 0
     -- Partial issuance indicates WC batch in progress
-    AND Has_Issued = 'YES'
+    AND src.Has_Issued = 'YES'
     -- Explicit WC prefix enforcement (CHANGED: Prevent WFR bleed)
-    AND SITE LIKE 'WC%'
+    AND src.SITE LIKE 'WC%'
     -- Relaxed IsActiveWindow filter (CHANGED: Include broader range)
-    AND IsActiveWindow = 1
+    AND src.IsActiveWindow = 1
 
 -- ============================================================
 -- VALIDATION QUERIES (run after deploy):
