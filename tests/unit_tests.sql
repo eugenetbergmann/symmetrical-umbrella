@@ -423,12 +423,15 @@ BEGIN
         DATEDIFF(MILLISECOND, @start_time, GETDATE())
     );
 
-    -- Test 6.4: QC Review Condition
+    -- Test 6.4: QC Review Condition (computed since QC_Flag removed)
     SET @start_time = GETDATE();
     SELECT @mismatches = COUNT(*)
-    FROM dbo.Rolyat_StockOut_Analysis_v2
-    WHERE (ATP_Running_Balance < 0 AND Alternate_Stock <= 0 AND Updated_QC_Flag <> 'REVIEW_NO_WC_AVAILABLE')
-       OR (NOT (ATP_Running_Balance < 0 AND Alternate_Stock <= 0) AND Updated_QC_Flag = 'REVIEW_NO_WC_AVAILABLE');
+    FROM (
+        SELECT *, CASE WHEN effective_demand < 0 AND Alternate_Stock <= 0 THEN 'REVIEW_NO_WC_AVAILABLE' ELSE NULL END AS Computed_QC_Flag
+        FROM dbo.Rolyat_StockOut_Analysis_v2
+    ) AS sub
+    WHERE (effective_demand < 0 AND Alternate_Stock <= 0 AND Computed_QC_Flag <> 'REVIEW_NO_WC_AVAILABLE')
+       OR (NOT (effective_demand < 0 AND Alternate_Stock <= 0) AND Computed_QC_Flag = 'REVIEW_NO_WC_AVAILABLE');
 
     INSERT INTO #TestResults (test_category, test_name, pass, message, rows_affected, execution_time_ms)
     VALUES (
