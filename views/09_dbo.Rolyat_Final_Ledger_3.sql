@@ -28,7 +28,16 @@ Business Rules:
 -- Separates total PO supply from released-only supply
 -- ============================================================
 SELECT
-    demand.*,
+    demand.ITEMNMBR,
+    demand.Client_ID,
+    demand.Date_Expiry,
+    demand.SortPriority,
+    demand.ORDERNUMBER,
+    demand.BEG_BAL,
+    demand.Base_Demand,
+    demand.suppressed_demand,
+    demand.IsActiveWindow,
+    demand.Site_ID,
     COALESCE(supply.Total_PO_Supply, 0) AS Total_PO_Supply,
     COALESCE(supply.Released_PO_Supply, 0) AS Released_PO_Supply,
     COALESCE(wfq.Total_WFQ, 0) AS Total_WFQ,
