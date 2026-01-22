@@ -31,7 +31,10 @@ Business Rules:
 
 
 SELECT
-    fl.*,
+    fl.effective_demand,
+    fl.Original_Running_Balance,
+    fl.IsActiveWindow,
+    fl.CleanItem,
 
     -- ============================================================
     -- Alternate Stock Quantities
@@ -48,7 +51,7 @@ SELECT
         WHEN fl.effective_demand < 0 THEN ABS(fl.effective_demand)
         ELSE 0.0
     END AS Deficit_ATP,
-    
+
     -- CORRECTED: Forecast = Original_Running_Balance (before allocation)
     CASE
         WHEN fl.Original_Running_Balance < 0 THEN ABS(fl.Original_Running_Balance)
@@ -62,9 +65,9 @@ SELECT
     CASE
         -- ATP constrained but Forecast OK: allocation/batch timing issue
         -- (Would be fine without batch constraints, but batches create shortage)
-        WHEN fl.effective_demand < 0 AND fl.Original_Running_Balance >= 0 
+        WHEN fl.effective_demand < 0 AND fl.Original_Running_Balance >= 0
             THEN 'ATP_CONSTRAINED'
-        
+
         -- ATP deficit within active window: urgent action required
         WHEN fl.effective_demand < 0 AND fl.IsActiveWindow = 1 THEN
             CASE
@@ -75,15 +78,15 @@ SELECT
                 -- Small deficit: expedite existing orders
                 ELSE 'URGENT_EXPEDITE'
             END
-        
+
         -- ATP deficit with alternate stock available: review options
-        WHEN fl.effective_demand < 0 AND COALESCE(asq.Alternate_Stock, 0.0) > 0 
+        WHEN fl.effective_demand < 0 AND COALESCE(asq.Alternate_Stock, 0.0) > 0
             THEN 'REVIEW_ALTERNATE_STOCK'
-        
+
         -- ATP deficit with no alternate stock: stock-out
-        WHEN fl.effective_demand < 0 
+        WHEN fl.effective_demand < 0
             THEN 'STOCK_OUT'
-        
+
         -- No deficit: normal status
         ELSE 'NORMAL'
     END AS Action_Tag,
