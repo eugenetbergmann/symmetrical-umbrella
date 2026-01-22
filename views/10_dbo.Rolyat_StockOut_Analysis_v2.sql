@@ -13,18 +13,16 @@ Dependencies:
   - dbo.Rolyat_WFQ_5
 
 Purpose:
-  - Identifies stock-out conditions from ATP and Forecast balances
-  - Calculates deficit quantities for planning
-  - Assigns action tags based on urgency and alternate stock availability
-  - Provides QC flags for planner review
+   - Identifies stock-out conditions from ATP and Forecast balances
+   - Calculates deficit quantities for planning
+   - Assigns action tags based on urgency and alternate stock availability
 
 Business Rules:
-  - ATP = Available after WC batch allocation (effective_demand)
-  - Forecast = Original running balance before allocation
-  - Action tags prioritize urgency: URGENT_PURCHASE > URGENT_TRANSFER > URGENT_EXPEDITE
-  - Alternate stock (WFQ + RMQTY) triggers REVIEW_ALTERNATE_STOCK tag
-  - QC flag REVIEW_NO_WC_AVAILABLE only when no alternate stock exists
-  - Deficit thresholds: >=100 (PURCHASE), >=50 (TRANSFER), <50 (EXPEDITE)
+   - ATP = Available after WC batch allocation (effective_demand)
+   - Forecast = Original running balance before allocation
+   - Action tags prioritize urgency: URGENT_PURCHASE > URGENT_TRANSFER > URGENT_EXPEDITE
+   - Alternate stock (WFQ + RMQTY) triggers REVIEW_ALTERNATE_STOCK tag
+   - Deficit thresholds: >=100 (PURCHASE), >=50 (TRANSFER), <50 (EXPEDITE)
 ================================================================================
 */
 
@@ -33,7 +31,6 @@ Business Rules:
 SELECT
     fl.effective_demand,
     fl.Original_Running_Balance,
-    fl.IsActiveWindow,
     fl.CleanItem,
 
     -- ============================================================
@@ -91,15 +88,6 @@ SELECT
         ELSE 'NORMAL'
     END AS Action_Tag,
 
-    -- ============================================================
-    -- QC Flag
-    -- CORRECTED: Using effective_demand (ATP)
-    -- ============================================================
-    CASE
-        WHEN fl.effective_demand < 0 AND COALESCE(asq.Alternate_Stock, 0.0) <= 0
-            THEN 'REVIEW_NO_WC_AVAILABLE'
-        ELSE NULL
-    END AS QC_Flag
 
 FROM dbo.Rolyat_Final_Ledger_3 AS fl
 LEFT JOIN (

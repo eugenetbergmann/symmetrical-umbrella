@@ -336,16 +336,16 @@ BEGIN
     -- Sample failing data
     PRINT '';
     PRINT 'Sample Problem Data:';
-    SELECT TOP 10 
-        'Problem Data' AS note, 
+    SELECT TOP 10
+        'Problem Data' AS note,
         ITEMNMBR,
         Client_ID,
         Action_Tag,
-        Updated_QC_Flag,
+        CASE WHEN effective_demand < 0 AND Alternate_Stock <= 0 THEN 'REVIEW_NO_WC_AVAILABLE' ELSE NULL END AS Computed_QC_Flag,
         Deficit_ATP
     FROM dbo.Rolyat_StockOut_Analysis_v2
-    WHERE Action_Tag LIKE 'URGENT_%' 
-       OR Updated_QC_Flag = 'REVIEW_NO_WC_AVAILABLE';
+    WHERE Action_Tag LIKE 'URGENT_%'
+       OR (effective_demand < 0 AND Alternate_Stock <= 0);
 
     -- Balance anomalies
     PRINT '';
