@@ -150,3 +150,13 @@ WHERE
     AND TRIM(ITEMNMBR) NOT LIKE '70.%'
     -- Exclude partially received orders
     AND TRIM(COALESCE(STSDESCR, '')) <> 'Partially Received'
+
+/*
+Diagnostic queries for Task 1: Diagnose Upstream PAB Auto → Cleaned_Base_Demand_1 PO Flow
+-- Check PO events in upstream cleansing
+SELECT TOP 20 * FROM Rolyat_Cleaned_Base_Demand_1 WHERE SortPriority = 2 ORDER BY DUEDATE DESC;
+-- Sample running balance impact from POs
+SELECT ITEMNMBR AS Item, Base_Demand, SortPriority FROM Rolyat_Cleaned_Base_Demand_1 WHERE SortPriority = 2;
+-- Raw PAB Auto PO source sample (adjusted to ETB_PAB_AUTO)
+SELECT TOP 20 ORDERNUMBER, ITEMNMBR, [PO's] AS Qty, DUEDATE AS DueDate FROM dbo.ETB_PAB_AUTO WHERE STSDESCR <> 'Partially Received';
+*/
