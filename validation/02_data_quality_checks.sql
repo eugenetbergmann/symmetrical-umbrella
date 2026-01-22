@@ -59,9 +59,9 @@ SELECT 'Rolyat_Cleaned_Base_Demand_1 - DUEDATE in future' AS Check_Name, COUNT(*
 FROM dbo.Rolyat_Cleaned_Base_Demand_1
 WHERE DUEDATE > GETDATE()
 UNION ALL
-SELECT 'Rolyat_WC_Inventory - EXPIREDATE before today', COUNT(*)
+SELECT 'Rolyat_WC_Inventory - Batch_Expiry_Date before today', COUNT(*)
 FROM dbo.Rolyat_WC_Inventory
-WHERE EXPIREDATE < GETDATE()
+WHERE Batch_Expiry_Date < GETDATE()
 UNION ALL
 SELECT 'Rolyat_Final_Ledger_3 - Negative ATP_Balance', COUNT(*)
 FROM dbo.Rolyat_Final_Ledger_3
@@ -70,9 +70,9 @@ WHERE ATP_Balance < 0;
 -- Check 3: Data type consistency (quantities should be positive)
 PRINT 'Checking for invalid quantity values...';
 
-SELECT 'Rolyat_WC_Inventory - Negative QTYONHND', COUNT(*)
+SELECT 'Rolyat_WC_Inventory - Negative Available_Qty', COUNT(*)
 FROM dbo.Rolyat_WC_Inventory
-WHERE QTYONHND < 0
+WHERE Available_Qty < 0
 UNION ALL
 SELECT 'Rolyat_Cleaned_Base_Demand_1 - Negative Base_Demand', COUNT(*)
 FROM dbo.Rolyat_Cleaned_Base_Demand_1

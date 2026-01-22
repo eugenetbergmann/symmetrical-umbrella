@@ -78,7 +78,11 @@ WITH WC_Batches AS (
         inv.Bin AS Bin_Location,
         
         -- FIXED: Handle potential NULL from TRIM
-        ISNULL(TRIM(bt.[Bin Type ID]), 'UNKNOWN') AS Bin_Type
+        ISNULL(TRIM(bt.[Bin Type ID]), 'UNKNOWN') AS Bin_Type,
+
+        -- Degradation placeholders (not implemented yet)
+        0 AS Degraded_Qty,
+        inv.QTY_Available AS Usable_Qty
 
     FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE inv
     LEFT OUTER JOIN dbo.EXT_BINTYPE bt 
@@ -101,6 +105,8 @@ SELECT
     Row_Type,
     Bin_Location,
     Bin_Type,
+    Degraded_Qty,
+    Usable_Qty,
     ROW_NUMBER() OVER (
         PARTITION BY ITEMNMBR
         ORDER BY Batch_Expiry_Date ASC, Batch_Receipt_Date ASC
