@@ -26,12 +26,7 @@ OrderedEvents AS (
         EventDate,
         BEG_BAL_clean,
         POs_clean,
-        CASE
-            WHEN Remaining_clean > 0 THEN Remaining_clean
-            WHEN Deductions_clean > 0 THEN Deductions_clean
-            WHEN Expiry_clean > 0 THEN Expiry_clean
-            ELSE 0.0
-        END AS Base_Demand,
+        bd.Base_Demand,
         Source_Running_Balance,
         ROW_NUMBER() OVER (
             PARTITION BY ITEMNMBR
@@ -47,6 +42,14 @@ OrderedEvents AS (
                 ORDERNUMBER
         ) AS EventSequence
     FROM CleanedData
+    CROSS APPLY (
+        SELECT CASE
+            WHEN Remaining_clean > 0 THEN Remaining_clean
+            WHEN Deductions_clean > 0 THEN Deductions_clean
+            WHEN Expiry_clean > 0 THEN Expiry_clean
+            ELSE 0.0
+        END AS Base_Demand
+    ) AS bd
 ),
 CalculatedBalance AS (
     SELECT
