@@ -1,42 +1,52 @@
 CREATE OR ALTER VIEW dbo.Rolyat_PO_Atomicity_Integrity_Test
 AS
-WITH OrderedEvents AS (
+WITH CleanedData AS (
     SELECT
         ITEMNMBR,
         DUEDATE,
-        TRY_CONVERT(DATE, DUEDATE) AS EventDate,
-        COALESCE(TRY_CAST(BEG_BAL AS DECIMAL(18, 5)), 0.0) AS BEG_BAL,
-        COALESCE(TRY_CAST([PO's] AS DECIMAL(18, 5)), 0.0) AS POs,
-        CASE
-            WHEN COALESCE(TRY_CAST(Remaining AS DECIMAL(18, 5)), 0.0) > 0
-                THEN COALESCE(TRY_CAST(Remaining AS DECIMAL(18, 5)), 0.0)
-            WHEN COALESCE(TRY_CAST(Deductions AS DECIMAL(18, 5)), 0.0) > 0
-                THEN COALESCE(TRY_CAST(Deductions AS DECIMAL(18, 5)), 0.0)
-            WHEN COALESCE(TRY_CAST(Expiry AS DECIMAL(18, 5)), 0.0) > 0
-                THEN COALESCE(TRY_CAST(Expiry AS DECIMAL(18, 5)), 0.0)
-            ELSE 0.0
-        END AS Base_Demand,
-        COALESCE(TRY_CAST(Running_Balance AS DECIMAL(18, 5)), 0.0) AS Source_Running_Balance,
         ORDERNUMBER,
-        ROW_NUMBER() OVER (
-            PARTITION BY ITEMNMBR
-            ORDER BY
-                TRY_CONVERT(DATE, DUEDATE),
-                CASE
-                    WHEN COALESCE(TRY_CAST(BEG_BAL AS DECIMAL(18, 5)), 0.0) > 0 THEN 1
-                    WHEN COALESCE(TRY_CAST([PO's] AS DECIMAL(18, 5)), 0.0) > 0 THEN 2
-                    WHEN COALESCE(TRY_CAST(Remaining AS DECIMAL(18, 5)), 0.0) > 0
-                         OR COALESCE(TRY_CAST(Deductions AS DECIMAL(18, 5)), 0.0) > 0 THEN 3
-                    WHEN COALESCE(TRY_CAST(Expiry AS DECIMAL(18, 5)), 0.0) > 0 THEN 4
-                    ELSE 5
-                END,
-                ORDERNUMBER
-        ) AS EventSequence
+        TRY_CONVERT(DATE, DUEDATE) AS EventDate,
+        COALESCE(TRY_CAST(BEG_BAL AS DECIMAL(18, 5)), 0.0) AS BEG_BAL_clean,
+        COALESCE(TRY_CAST([PO's] AS DECIMAL(18, 5)), 0.0) AS POs_clean,
+        COALESCE(TRY_CAST(Remaining AS DECIMAL(18, 5)), 0.0) AS Remaining_clean,
+        COALESCE(TRY_CAST(Deductions AS DECIMAL(18, 5)), 0.0) AS Deductions_clean,
+        COALESCE(TRY_CAST(Expiry AS DECIMAL(18, 5)), 0.0) AS Expiry_clean,
+        COALESCE(TRY_CAST(Running_Balance AS DECIMAL(18, 5)), 0.0) AS Source_Running_Balance
     FROM dbo.ETB_PAB_AUTO
     WHERE TRY_CONVERT(DATE, DUEDATE) IS NOT NULL
         AND TRIM(ITEMNMBR) NOT LIKE '60.%'
         AND TRIM(ITEMNMBR) NOT LIKE '70.%'
         AND TRIM(COALESCE(STSDESCR, '')) <> 'Partially Received'
+),
+OrderedEvents AS (
+    SELECT
+        ITEMNMBR,
+        DUEDATE,
+        ORDERNUMBER,
+        EventDate,
+        BEG_BAL_clean,
+        POs_clean,
+        CASE
+            WHEN Remaining_clean > 0 THEN Remaining_clean
+            WHEN Deductions_clean > 0 THEN Deductions_clean
+            WHEN Expiry_clean > 0 THEN Expiry_clean
+            ELSE 0.0
+        END AS Base_Demand,
+        Source_Running_Balance,
+        ROW_NUMBER() OVER (
+            PARTITION BY ITEMNMBR
+            ORDER BY
+                EventDate,
+                CASE
+                    WHEN BEG_BAL_clean > 0 THEN 1
+                    WHEN POs_clean > 0 THEN 2
+                    WHEN Remaining_clean > 0 OR Deductions_clean > 0 THEN 3
+                    WHEN Expiry_clean > 0 THEN 4
+                    ELSE 5
+                END,
+                ORDERNUMBER
+        ) AS EventSequence
+    FROM CleanedData
 ),
 CalculatedBalance AS (
     SELECT
@@ -44,7 +54,7 @@ CalculatedBalance AS (
         ORDERNUMBER,
         EventSequence,
         Source_Running_Balance,
-        SUM(BEG_BAL + POs - Base_Demand) OVER (
+        SUM(BEG_BAL_clean + POs_clean - Base_Demand) OVER (
             PARTITION BY ITEMNMBR
             ORDER BY EventSequence
             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
