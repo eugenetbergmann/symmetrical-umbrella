@@ -7,7 +7,7 @@ WITH CleanedData AS (
         ORDERNUMBER,
         TRY_CONVERT(DATE, DUEDATE) AS EventDate,
         COALESCE(TRY_CAST(BEG_BAL AS DECIMAL(18,5)), 0.0) AS BEG_BAL_clean,
-        COALESCE(TRY_CAST([PO's] AS DECIMAL(18,5)), 0.0) AS POs_clean,
+        COALESCE(TRY_CAST("PO's" AS DECIMAL(18,5)), 0.0) AS POs_clean,
         COALESCE(TRY_CAST(Remaining AS DECIMAL(18,5)), 0.0) AS Remaining_clean,
         COALESCE(TRY_CAST(Deductions AS DECIMAL(18,5)), 0.0) AS Deductions_clean,
         COALESCE(TRY_CAST(Expiry AS DECIMAL(18,5)), 0.0) AS Expiry_clean,
