@@ -26,8 +26,8 @@ SELECT
     COALESCE(TRY_CAST([PO's] AS DECIMAL(18, 5)), 0.0) AS PO_Qty,
     -- Open PO quantity (assuming not fully received)
     COALESCE(TRY_CAST([PO's] AS DECIMAL(18, 5)), 0.0) AS Open_PO_Qty,
-    -- PO due date
-    TRY_CONVERT(DATE, [Date + Expiry]) AS PO_Due_Date,
+    -- PO due date (parse from JSON)
+    TRY_CONVERT(DATE, JSON_VALUE([Date + Expiry], '$.date')) AS PO_Due_Date,
     -- Assuming all POs are released for now
     1 AS Is_Released,
     -- Assuming no POs are fully received for now
@@ -37,8 +37,9 @@ FROM dbo.ETB_PAB_AUTO
 WHERE
     -- Valid PO quantity
     TRY_CAST([PO's] AS DECIMAL(18, 5)) > 0
-    -- Exclude invalid dates
-    AND TRY_CONVERT(DATE, [Date + Expiry]) IS NOT NULL
+    -- Exclude invalid JSON or missing date
+    AND ISJSON([Date + Expiry]) = 1
+    AND TRY_CONVERT(DATE, JSON_VALUE([Date + Expiry], '$.date')) IS NOT NULL
     -- Exclude specific item prefixes
     AND TRIM(ITEMNMBR) NOT LIKE '60.%'
     AND TRIM(ITEMNMBR) NOT LIKE '70.%'
