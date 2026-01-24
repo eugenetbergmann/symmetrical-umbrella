@@ -2,15 +2,16 @@
 ================================================================================
 View: dbo.Rolyat_StockOut_Analysis_v2
 Description: Stock-out intelligence with action tags and alternate stock awareness
-Version: 2.0.1 (CORRECTED)
-Last Modified: 2026-01-20
-Changes: 
+Version: 2.1.0
+Last Modified: 2026-01-24
+Changes:
   - Fixed ATP_Running_Balance → effective_demand (balance AFTER allocation)
   - Fixed Forecast_Running_Balance → Original_Running_Balance (balance BEFORE allocation)
   - IsActiveWindow already correct (no change)
-Dependencies: 
+  - Updated to use ETB2_Inventory_Unified_v1 instead of Rolyat_WFQ_5
+Dependencies:
   - dbo.Rolyat_Final_Ledger_3
-  - dbo.Rolyat_WFQ_5
+  - dbo.ETB2_Inventory_Unified_v1 (replaces Rolyat_WFQ_5)
 
 Purpose:
    - Identifies stock-out conditions from ATP and Forecast balances
@@ -94,12 +95,12 @@ LEFT JOIN (
     SELECT
         ITEMNMBR AS Item_Number,
         -- WFQ quantity (quarantine)
-        SUM(CASE WHEN Site_ID = 'WF-Q' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY,
+        SUM(CASE WHEN Inventory_Type = 'WFQ_BATCH' THEN QTY_ON_HAND ELSE 0 END) AS WFQ_QTY,
         -- RMQTY quantity (restricted material)
-        SUM(CASE WHEN Site_ID = 'RMQTY' THEN QTY_ON_HAND ELSE 0 END) AS RMQTY_QTY,
+        SUM(CASE WHEN Inventory_Type = 'RMQTY_BATCH' THEN QTY_ON_HAND ELSE 0 END) AS RMQTY_QTY,
         -- Total alternate stock
-        SUM(QTY_ON_HAND) AS Alternate_Stock
-    FROM dbo.Rolyat_WFQ_5
+        SUM(CASE WHEN Inventory_Type IN ('WFQ_BATCH', 'RMQTY_BATCH') THEN QTY_ON_HAND ELSE 0 END) AS Alternate_Stock
+    FROM dbo.ETB2_Inventory_Unified_v1
     GROUP BY ITEMNMBR
 ) AS asq
     ON fl.CleanItem = asq.Item_Number

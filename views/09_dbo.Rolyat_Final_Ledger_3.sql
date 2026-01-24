@@ -2,12 +2,12 @@
 ================================================================================
 View: dbo.Rolyat_Final_Ledger_3
 Description: Final ledger with running balances, supply aggregation, and QC flags
-Version: 1.0.0
-Last Modified: 2026-01-16
-Dependencies: 
+Version: 1.1.0
+Last Modified: 2026-01-24
+Dependencies:
   - dbo.Rolyat_WC_Allocation_Effective_2
   - dbo.Rolyat_PO_Detail
-  - dbo.Rolyat_WFQ_5
+  - dbo.ETB2_Inventory_Unified_v1 (replaces Rolyat_WFQ_5)
 
 Purpose:
   - Aggregates supply events (POs, WFQ, RMQTY) per item/site
@@ -150,27 +150,27 @@ LEFT JOIN (
     ON supply.ITEMNMBR = demand.ITEMNMBR
     AND supply.Site_ID = demand.Site_ID
 LEFT JOIN (
-    SELECT
-        ITEMNMBR,
-        Site_ID,
-        -- Total WFQ (quarantine - for Forecast only)
-        SUM(
-            CASE 
-                WHEN Inventory_Type = 'WFQ' 
-                THEN QTY_ON_HAND 
-                ELSE 0 
-            END
-        ) AS Total_WFQ,
-        -- Eligible RMQTY (for both Forecast and ATP)
-        SUM(
-            CASE 
-                WHEN Inventory_Type = 'RMQTY' AND Is_Eligible_For_Release = 1 
-                THEN QTY_ON_HAND 
-                ELSE 0 
-            END
-        ) AS Eligible_RMQTY
-    FROM dbo.Rolyat_WFQ_5
-    GROUP BY ITEMNMBR, Site_ID
+   SELECT
+       ITEMNMBR,
+       Site_ID,
+       -- Total WFQ (quarantine - for Forecast only)
+       SUM(
+           CASE
+               WHEN Inventory_Type = 'WFQ_BATCH'
+               THEN QTY_ON_HAND
+               ELSE 0
+           END
+       ) AS Total_WFQ,
+       -- Eligible RMQTY (for both Forecast and ATP)
+       SUM(
+           CASE
+               WHEN Inventory_Type = 'RMQTY_BATCH' AND Is_Eligible_For_Release = 1
+               THEN QTY_ON_HAND
+               ELSE 0
+           END
+       ) AS Eligible_RMQTY
+   FROM dbo.ETB2_Inventory_Unified_v1
+   GROUP BY ITEMNMBR, Site_ID
 ) wfq
-    ON wfq.ITEMNMBR = demand.ITEMNMBR
-    AND wfq.Site_ID = demand.Site_ID
+   ON wfq.ITEMNMBR = demand.ITEMNMBR
+   AND wfq.Site_ID = demand.Site_ID

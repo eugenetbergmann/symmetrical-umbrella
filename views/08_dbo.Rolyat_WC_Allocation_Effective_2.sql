@@ -2,11 +2,11 @@
 ================================================================================
 View: dbo.Rolyat_WC_Allocation_Effective_2
 Description: WC inventory allocation with FEFO logic and demand suppression
-Version: 1.1.0
-Last Modified: 2026-01-21
-Dependencies: 
+Version: 1.2.0
+Last Modified: 2026-01-24
+Dependencies:
   - dbo.Rolyat_Cleaned_Base_Demand_1
-  - dbo.Rolyat_WC_Inventory
+  - dbo.ETB2_Inventory_Unified_v1 (replaces Rolyat_WC_Inventory)
   - dbo.fn_GetConfig (configuration function)
 
 Purpose:
@@ -33,32 +33,32 @@ Changelog:
 -- ============================================================
 SELECT
     demand.*,
-    wc.WC_Batch_ID,
-    wc.Available_Qty AS WC_Available_Qty,
-    wc.Batch_Expiry_Date,
-    wc.Batch_Receipt_Date,
-    wc.Batch_Age_Days,
+    wc.Batch_ID AS WC_Batch_ID,
+    wc.QTY_ON_HAND AS WC_Available_Qty,
+    wc.Expiry_Date AS Batch_Expiry_Date,
+    wc.Receipt_Date AS Batch_Receipt_Date,
+    wc.Age_Days AS Batch_Age_Days,
     
     -- Simplified: No degradation for performance
     1.0 AS Degradation_Factor,
     
     -- Simplified: No degradation
-    wc.Available_Qty AS Effective_Batch_Qty,
+    wc.QTY_ON_HAND AS Effective_Batch_Qty,
     
     -- FEFO ordering: earliest expiry, then closest temporal proximity
     ROW_NUMBER() OVER (
         PARTITION BY demand.ITEMNMBR, demand.ORDERNUMBER
         ORDER BY
-            wc.Batch_Expiry_Date ASC,
-            ABS(DATEDIFF(DAY, wc.Batch_Receipt_Date, demand.DUEDATE)) ASC
+            wc.Expiry_Date ASC,
+            ABS(DATEDIFF(DAY, wc.Receipt_Date, demand.DUEDATE)) ASC
     ) AS FEFO_Priority,
 
     -- Calculate Cumulative WC Availability
-    SUM(wc.Available_Qty) OVER (
+    SUM(wc.QTY_ON_HAND) OVER (
         PARTITION BY demand.ITEMNMBR, demand.ORDERNUMBER
         ORDER BY
-            wc.Batch_Expiry_Date ASC,
-            ABS(DATEDIFF(DAY, wc.Batch_Receipt_Date, demand.DUEDATE)) ASC
+            wc.Expiry_Date ASC,
+            ABS(DATEDIFF(DAY, wc.Receipt_Date, demand.DUEDATE)) ASC
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
     ) AS Cumulative_WC_Available,
 
@@ -69,11 +69,11 @@ SELECT
     -- ============================================================
     CASE
         WHEN demand.IsActiveWindow = 1
-        THEN GREATEST(0, demand.Base_Demand - SUM(wc.Available_Qty) OVER (
+        THEN GREATEST(0, demand.Base_Demand - SUM(wc.QTY_ON_HAND) OVER (
             PARTITION BY demand.ITEMNMBR, demand.ORDERNUMBER
             ORDER BY
-                wc.Batch_Expiry_Date ASC,
-                ABS(DATEDIFF(DAY, wc.Batch_Receipt_Date, demand.DUEDATE)) ASC
+                wc.Expiry_Date ASC,
+                ABS(DATEDIFF(DAY, wc.Receipt_Date, demand.DUEDATE)) ASC
             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ))
         ELSE demand.Base_Demand
@@ -83,19 +83,19 @@ SELECT
     -- Allocation Status Flags
     -- ============================================================
     CASE
-        WHEN demand.IsActiveWindow = 1 AND SUM(wc.Available_Qty) OVER (
+        WHEN demand.IsActiveWindow = 1 AND SUM(wc.QTY_ON_HAND) OVER (
             PARTITION BY demand.ITEMNMBR, demand.ORDERNUMBER
             ORDER BY
-                wc.Batch_Expiry_Date ASC,
-                ABS(DATEDIFF(DAY, wc.Batch_Receipt_Date, demand.DUEDATE)) ASC
+                wc.Expiry_Date ASC,
+                ABS(DATEDIFF(DAY, wc.Receipt_Date, demand.DUEDATE)) ASC
             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ) > 0
         THEN 'WC_ALLOCATED'
-        WHEN demand.IsActiveWindow = 1 AND SUM(wc.Available_Qty) OVER (
+        WHEN demand.IsActiveWindow = 1 AND SUM(wc.QTY_ON_HAND) OVER (
             PARTITION BY demand.ITEMNMBR, demand.ORDERNUMBER
             ORDER BY
-                wc.Batch_Expiry_Date ASC,
-                ABS(DATEDIFF(DAY, wc.Batch_Receipt_Date, demand.DUEDATE)) ASC
+                wc.Expiry_Date ASC,
+                ABS(DATEDIFF(DAY, wc.Receipt_Date, demand.DUEDATE)) ASC
             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ) = 0
         THEN 'NO_WC_AVAILABLE'
@@ -105,28 +105,28 @@ SELECT
     CASE
         WHEN demand.IsActiveWindow = 1
              AND demand.Base_Demand > 0
-             AND SUM(wc.Available_Qty) OVER (
+             AND SUM(wc.QTY_ON_HAND) OVER (
                 PARTITION BY demand.ITEMNMBR, demand.ORDERNUMBER
                 ORDER BY
-                    wc.Batch_Expiry_Date ASC,
-                    ABS(DATEDIFF(DAY, wc.Batch_Receipt_Date, demand.DUEDATE)) ASC
+                    wc.Expiry_Date ASC,
+                    ABS(DATEDIFF(DAY, wc.Receipt_Date, demand.DUEDATE)) ASC
                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             ) >= demand.Base_Demand
         THEN 'FULLY_COVERED'
         WHEN demand.IsActiveWindow = 1
              AND demand.Base_Demand > 0
-             AND SUM(wc.Available_Qty) OVER (
+             AND SUM(wc.QTY_ON_HAND) OVER (
                 PARTITION BY demand.ITEMNMBR, demand.ORDERNUMBER
                 ORDER BY
-                    wc.Batch_Expiry_Date ASC,
-                    ABS(DATEDIFF(DAY, wc.Batch_Receipt_Date, demand.DUEDATE)) ASC
+                    wc.Expiry_Date ASC,
+                    ABS(DATEDIFF(DAY, wc.Receipt_Date, demand.DUEDATE)) ASC
                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             ) > 0
-            AND SUM(wc.Available_Qty) OVER (
+            AND SUM(wc.QTY_ON_HAND) OVER (
                 PARTITION BY demand.ITEMNMBR, demand.ORDERNUMBER
                 ORDER BY
-                    wc.Batch_Expiry_Date ASC,
-                    ABS(DATEDIFF(DAY, wc.Batch_Receipt_Date, demand.DUEDATE)) ASC
+                    wc.Expiry_Date ASC,
+                    ABS(DATEDIFF(DAY, wc.Receipt_Date, demand.DUEDATE)) ASC
                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             ) < demand.Base_Demand
         THEN 'PARTIALLY_COVERED'
@@ -147,9 +147,10 @@ SELECT
     demand.Remaining AS MRP_Remaining_Qty
 
 FROM dbo.Rolyat_Cleaned_Base_Demand_1 demand
-LEFT JOIN dbo.Rolyat_WC_Inventory wc
+LEFT JOIN dbo.ETB2_Inventory_Unified_v1 wc
     ON wc.ITEMNMBR = demand.ITEMNMBR
     AND LTRIM(RTRIM(wc.Client_ID)) = demand.Client_ID      -- Client match required
     AND LTRIM(RTRIM(wc.Site_ID)) = demand.Site_ID          -- Site match required
-    AND wc.Available_Qty > 0                 -- Only batches with available qty
+    AND wc.QTY_ON_HAND > 0                   -- Only batches with available qty
+    AND wc.Inventory_Type = 'WC_BATCH'       -- Only WC batches
     AND demand.IsActiveWindow = 1            -- Only allocate within active window

@@ -2,12 +2,12 @@
 ================================================================================
 View: dbo.Rolyat_Rebalancing_Layer
 Description: Rebalancing analysis with timed hope sources and net replenishment needs
-Version: 1.0.0
-Last Modified: 2026-01-16
-Dependencies: 
+Version: 1.1.0
+Last Modified: 2026-01-24
+Dependencies:
   - dbo.Rolyat_Final_Ledger_3
   - dbo.Rolyat_PO_Detail
-  - dbo.Rolyat_WFQ_5
+  - dbo.ETB2_Inventory_Unified_v1 (replaces Rolyat_WFQ_5)
 
 Purpose:
   - Calculates suppression amounts and ATP deficits per demand row
@@ -152,10 +152,10 @@ LEFT JOIN (
             ABS(effective_demand) AS ATP_Deficit
         FROM dbo.Rolyat_Final_Ledger_3
     ) AS demand_inner
-    LEFT JOIN dbo.Rolyat_WFQ_5 wfq
+    LEFT JOIN dbo.ETB2_Inventory_Unified_v1 wfq
         ON wfq.ITEMNMBR = demand_inner.ITEMNMBR
         AND wfq.Site_ID = demand_inner.Site_ID
-        AND wfq.Inventory_Type = 'WFQ'
+        AND wfq.Inventory_Type = 'WFQ_BATCH'
 
     GROUP BY
         demand_inner.ITEMNMBR, demand_inner.Client_ID, demand_inner.Site_ID,
@@ -191,10 +191,10 @@ LEFT JOIN (
             ABS(effective_demand) AS ATP_Deficit
         FROM dbo.Rolyat_Final_Ledger_3
     ) AS demand_inner
-    LEFT JOIN dbo.Rolyat_WFQ_5 rmqty
+    LEFT JOIN dbo.ETB2_Inventory_Unified_v1 rmqty
         ON rmqty.ITEMNMBR = demand_inner.ITEMNMBR
         AND rmqty.Site_ID = demand_inner.Site_ID
-        AND rmqty.Inventory_Type = 'RMQTY'
+        AND rmqty.Inventory_Type = 'RMQTY_BATCH'
 
     GROUP BY
         demand_inner.ITEMNMBR, demand_inner.Client_ID, demand_inner.Site_ID,
