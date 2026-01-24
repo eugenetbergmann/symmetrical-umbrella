@@ -2,11 +2,11 @@
 ================================================================================
 View: dbo.Rolyat_Supply_Planner_Action_List
 Description: Prioritized action list for supply planners (7 columns max)
-Version: 1.0.0
+Version: 1.1.0
 Last Modified: 2026-01-24
-Dependencies: 
+Dependencies:
   - dbo.Rolyat_StockOut_Analysis_v2
-  - dbo.Rolyat_WC_Inventory
+  - dbo.ETB2_Inventory_Unified_v1 (replaces Rolyat_WC_Inventory)
   - dbo.Rolyat_PO_Detail
   - dbo.ETB2_PAB_EventLedger_v1
 
@@ -73,14 +73,15 @@ SELECT
     ExpiringBatches.Client_ID
 
 FROM (
-    SELECT 
+    SELECT
         ITEMNMBR,
         Batch_ID,
         SUM(QTY_ON_HAND) AS Batch_Qty,
         Client_ID,
-        AVG(Unit_Cost) AS Unit_Cost
-    FROM dbo.Rolyat_WC_Inventory
-    WHERE DATEDIFF(day, GETDATE(), Expiry_Date) <= 30
+        0 AS Unit_Cost  -- Unit cost not available in unified view
+    FROM dbo.ETB2_Inventory_Unified_v1
+    WHERE Inventory_Type = 'WC_BATCH'
+      AND DATEDIFF(day, GETDATE(), Expiry_Date) <= 30
       AND DATEDIFF(day, GETDATE(), Expiry_Date) >= 0
     GROUP BY ITEMNMBR, Batch_ID, Client_ID
 ) ExpiringBatches

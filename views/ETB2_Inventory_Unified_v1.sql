@@ -5,8 +5,7 @@ Description: Unified inventory view consolidating WC, WFQ, and RMQTY batches
 Version: 1.0.0
 Last Modified: 2026-01-24
 Dependencies:
-   - dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE (WC batch data)
-   - dbo.EXT_BINTYPE (bin type information)
+   - dbo.Prosenthal_INV_BIN_QTY (WC batch data)
    - dbo.IV00300 (inventory lot master)
    - dbo.IV00101 (item master)
    - dbo.Rolyat_Site_Config (site configuration)
@@ -39,145 +38,126 @@ CREATE OR ALTER VIEW dbo.ETB2_Inventory_Unified_v1
 AS
 
 WITH WC_Batches AS (
-  -- WC inventory from bin quantities
+  -- WC inventory from bin quantities (View 05 logic)
   SELECT 
-    inv.Item_Number AS ITEMNMBR,
-    LEFT(inv.SITE, CASE 
-      WHEN CHARINDEX('-', inv.SITE) > 0 THEN CHARINDEX('-', inv.SITE) - 1
-      ELSE LEN(inv.SITE)
-    END) AS Client_ID,
-    inv.SITE AS Site_ID,
-    CONCAT(inv.LOT_Number, '_', inv.Bin) AS Batch_ID,
-    inv.QTY_Available AS QTY_ON_HAND,
+    BQ.ITEMNMBR,
+    BQ.Client_ID,
+    BQ.LOCNCODE AS Site_ID,
+    BQ.BIN AS Bin_Location,
+    BQ.Bin_Type,
+    BQ.QTY_ON_HAND,
     'WC_BATCH' AS Inventory_Type,
-    CAST(inv.DATERECD AS DATE) AS Receipt_Date,
+    
+    -- Expiry date logic (View 05 has this)
     COALESCE(
-      CAST(inv.EXPNDATE AS DATE),
-      DATEADD(DAY, ISNULL(CFG.WC_Batch_Shelf_Life_Days, 180), CAST(inv.DATERECD AS DATE))
+      CAST(BQ.EXPNDATE AS date),  -- Explicit expiry if available
+      DATEADD(DAY, ISNULL(CFG.Shelf_Life_Days, 180), CAST(R.DATERECD AS date))  -- Receipt + shelf life
     ) AS Expiry_Date,
-    DATEDIFF(DAY, CAST(inv.DATERECD AS DATE), CAST(GETDATE() AS DATE)) AS Age_Days,
-    CAST(GETDATE() AS DATE) AS Projected_Release_Date,
+    
+    CAST(R.DATERECD AS date) AS Receipt_Date,
+    
+    DATEDIFF(DAY, CAST(R.DATERECD AS date), CAST(GETDATE() AS date)) AS Age_Days,
+    
+    -- No hold period for WC
+    CAST(GETDATE() AS date) AS Projected_Release_Date,
     0 AS Days_Until_Release,
-    1 AS Is_Eligible_For_Release,
-    inv.Bin AS Bin_Location,
-    ISNULL(TRIM(bt.[Bin Type ID]), 'UNKNOWN') AS Bin_Type,
-    TRIM(inv.UOFM) AS UOM,
-    1 AS SortPriority,
-    ROW_NUMBER() OVER (
-      PARTITION BY inv.Item_Number
-      ORDER BY COALESCE(CAST(inv.EXPNDATE AS DATE), DATEADD(DAY, ISNULL(CFG.WC_Batch_Shelf_Life_Days, 180), CAST(inv.DATERECD AS DATE))) ASC, 
-               CAST(inv.DATERECD AS DATE) ASC
-    ) AS FEFO_Rank
-  FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE inv
-  LEFT OUTER JOIN dbo.EXT_BINTYPE bt 
-    ON inv.Bin = bt.Bin 
-   AND inv.SITE = bt.[Location Code]
-  LEFT JOIN dbo.ETB2_Config_Engine_v1 CFG
-    ON inv.Item_Number = CFG.ITEMNMBR
-  WHERE inv.SITE LIKE 'WC[_-]%'
-    AND inv.QTY_Available > 0
-    AND inv.LOT_Number IS NOT NULL
-    AND inv.LOT_Number <> ''
+    1 AS Is_Eligible_For_Release,  -- WC always eligible
+    
+    BQ.UOFM AS UOM,
+    1 AS SortPriority,  -- WC first in allocation
+    
+    -- Batch ID for uniqueness
+    CONCAT('WC-', BQ.LOCNCODE, '-', BQ.BIN, '-', BQ.ITEMNMBR, '-', CONVERT(VARCHAR(10), R.DATERECD, 112)) AS Batch_ID
+    
+  FROM Prosenthal_INV_BIN_QTY BQ WITH (NOLOCK)
+  INNER JOIN IV00300 R WITH (NOLOCK)
+    ON BQ.ITEMNMBR = R.ITEMNMBR
+   AND BQ.LOCNCODE = R.LOCNCODE
+   AND BQ.RCPTNMBR = R.RCPTNMBR  -- Match to receipt
+  LEFT JOIN ETB2_Config_Engine_v1 CFG
+    ON BQ.ITEMNMBR = CFG.ITEMNMBR
+  WHERE BQ.QTY_ON_HAND > 0
 ),
 
 WFQ_Batches AS (
-  -- WFQ inventory (quarantine)
+  -- WFQ inventory (View 06 WFQ portion)
   SELECT 
-    TRIM(inv.ITEMNMBR) AS ITEMNMBR,
-    NULL AS Client_ID,
-    TRIM(inv.LOCNCODE) AS Site_ID,
-    CAST(inv.RCTSEQNM AS VARCHAR(50)) AS Batch_ID,
-    SUM(inv.QTYRECVD - inv.QTYSOLD) AS QTY_ON_HAND,
+    I.ITEMNMBR,
+    NULL AS Client_ID,  -- Not tracked for WFQ
+    I.LOCNCODE AS Site_ID,
+    NULL AS Bin_Location,  -- WFQ not in bins
+    NULL AS Bin_Type,
+    I.ATYALLOC AS QTY_ON_HAND,
     'WFQ_BATCH' AS Inventory_Type,
-    MAX(CAST(inv.DATERECD AS DATE)) AS Receipt_Date,
-    MAX(CAST(inv.EXPNDATE AS DATE)) AS Expiry_Date,
-    DATEDIFF(DAY, MAX(CAST(inv.DATERECD AS DATE)), CAST(GETDATE() AS DATE)) AS Age_Days,
-    DATEADD(DAY, ISNULL(CFG.WFQ_Hold_Days, 14), MAX(CAST(inv.DATERECD AS DATE))) AS Projected_Release_Date,
-    ISNULL(CFG.WFQ_Hold_Days, 14) - DATEDIFF(DAY, MAX(CAST(inv.DATERECD AS DATE)), CAST(GETDATE() AS DATE)) AS Days_Until_Release,
+    
+    -- No expiry for WFQ (or derive from receipt if needed)
+    NULL AS Expiry_Date,
+    
+    CAST(R.DATERECD AS date) AS Receipt_Date,
+    
+    DATEDIFF(DAY, CAST(R.DATERECD AS date), CAST(GETDATE() AS date)) AS Age_Days,
+    
+    -- WFQ hold period (14 days default from config)
+    DATEADD(DAY, ISNULL(CFG.WFQ_Hold_Days, 14), CAST(R.DATERECD AS date)) AS Projected_Release_Date,
+    ISNULL(CFG.WFQ_Hold_Days, 14) - DATEDIFF(DAY, CAST(R.DATERECD AS date), CAST(GETDATE() AS date)) AS Days_Until_Release,
     CASE 
-      WHEN DATEDIFF(DAY, MAX(CAST(inv.DATERECD AS DATE)), CAST(GETDATE() AS DATE)) >= ISNULL(CFG.WFQ_Hold_Days, 14)
+      WHEN DATEDIFF(DAY, CAST(R.DATERECD AS date), CAST(GETDATE() AS date)) >= ISNULL(CFG.WFQ_Hold_Days, 14)
       THEN 1 ELSE 0 
     END AS Is_Eligible_For_Release,
-    NULL AS Bin_Location,
-    NULL AS Bin_Type,
-    TRIM(itm.UOMSCHDL) AS UOM,
-    2 AS SortPriority,
-    ROW_NUMBER() OVER (
-      PARTITION BY TRIM(inv.ITEMNMBR)
-      ORDER BY MAX(CAST(inv.DATERECD AS DATE)) ASC
-    ) AS FEFO_Rank
-  FROM dbo.IV00300 inv
-  LEFT OUTER JOIN dbo.IV00101 itm
-    ON inv.ITEMNMBR = itm.ITEMNMBR
-  LEFT JOIN dbo.ETB2_Config_Engine_v1 CFG
-    ON TRIM(inv.ITEMNMBR) = CFG.ITEMNMBR
-  WHERE (inv.QTYRECVD - inv.QTYSOLD <> 0)
-    AND TRIM(inv.LOCNCODE) IN (
-      SELECT LOCNCODE
-      FROM dbo.Rolyat_Site_Config
-      WHERE Site_Type = 'WFQ' AND Active = 1
-    )
-    AND (inv.EXPNDATE IS NULL
-      OR inv.EXPNDATE > DATEADD(DAY, ISNULL(CFG.WFQ_Expiry_Filter_Days, 90), CAST(GETDATE() AS DATE))
-    )
-  GROUP BY
-    TRIM(inv.ITEMNMBR),
-    TRIM(inv.LOCNCODE),
-    CAST(inv.RCTSEQNM AS VARCHAR(50)),
-    TRIM(itm.UOMSCHDL),
-    CFG.WFQ_Hold_Days,
-    CFG.WFQ_Expiry_Filter_Days
-  HAVING (SUM(inv.QTYRECVD - inv.QTYSOLD) <> 0)
+    
+    I.UOMSCHDL AS UOM,
+    2 AS SortPriority,  -- WFQ second in allocation
+    
+    CONCAT('WFQ-', I.LOCNCODE, '-', I.ITEMNMBR, '-', CONVERT(VARCHAR(10), R.DATERECD, 112)) AS Batch_ID
+    
+  FROM IV00102 I WITH (NOLOCK)
+  LEFT JOIN IV00300 R WITH (NOLOCK)
+    ON I.ITEMNMBR = R.ITEMNMBR
+   AND I.LOCNCODE = R.LOCNCODE
+  LEFT JOIN ETB2_Config_Engine_v1 CFG
+    ON I.ITEMNMBR = CFG.ITEMNMBR
+  WHERE I.ATYALLOC > 0
+    AND I.LOCNCODE IN (SELECT Site_ID FROM ETB2_Config_Engine_v1 WHERE WFQ_Locations IS NOT NULL)  -- WFQ sites only
 ),
 
 RMQTY_Batches AS (
-  -- RMQTY inventory (restricted material)
+  -- RMQTY inventory (View 06 RMQTY portion)
   SELECT 
-    TRIM(inv.ITEMNMBR) AS ITEMNMBR,
+    I.ITEMNMBR,
     NULL AS Client_ID,
-    TRIM(inv.LOCNCODE) AS Site_ID,
-    CAST(inv.RCTSEQNM AS VARCHAR(50)) AS Batch_ID,
-    SUM(inv.QTYRECVD - inv.QTYSOLD) AS QTY_ON_HAND,
-    'RMQTY_BATCH' AS Inventory_Type,
-    MAX(CAST(inv.DATERECD AS DATE)) AS Receipt_Date,
-    MAX(CAST(inv.EXPNDATE AS DATE)) AS Expiry_Date,
-    DATEDIFF(DAY, MAX(CAST(inv.DATERECD AS DATE)), CAST(GETDATE() AS DATE)) AS Age_Days,
-    DATEADD(DAY, ISNULL(CFG.RMQTY_Hold_Days, 7), MAX(CAST(inv.DATERECD AS DATE))) AS Projected_Release_Date,
-    ISNULL(CFG.RMQTY_Hold_Days, 7) - DATEDIFF(DAY, MAX(CAST(inv.DATERECD AS DATE)), CAST(GETDATE() AS DATE)) AS Days_Until_Release,
-    CASE 
-      WHEN DATEDIFF(DAY, MAX(CAST(inv.DATERECD AS DATE)), CAST(GETDATE() AS DATE)) >= ISNULL(CFG.RMQTY_Hold_Days, 7)
-      THEN 1 ELSE 0 
-    END AS Is_Eligible_For_Release,
+    I.LOCNCODE AS Site_ID,
     NULL AS Bin_Location,
     NULL AS Bin_Type,
-    TRIM(itm.UOMSCHDL) AS UOM,
-    3 AS SortPriority,
-    ROW_NUMBER() OVER (
-      PARTITION BY TRIM(inv.ITEMNMBR)
-      ORDER BY MAX(CAST(inv.DATERECD AS DATE)) ASC
-    ) AS FEFO_Rank
-  FROM dbo.IV00300 inv
-  LEFT OUTER JOIN dbo.IV00101 itm
-    ON inv.ITEMNMBR = itm.ITEMNMBR
-  LEFT JOIN dbo.ETB2_Config_Engine_v1 CFG
-    ON TRIM(inv.ITEMNMBR) = CFG.ITEMNMBR
-  WHERE (inv.QTYRECVD - inv.QTYSOLD <> 0)
-    AND TRIM(inv.LOCNCODE) IN (
-      SELECT LOCNCODE
-      FROM dbo.Rolyat_Site_Config
-      WHERE Site_Type = 'RMQTY' AND Active = 1
-    )
-    AND (inv.EXPNDATE IS NULL
-      OR inv.EXPNDATE > DATEADD(DAY, ISNULL(CFG.RMQTY_Expiry_Filter_Days, 90), CAST(GETDATE() AS DATE))
-    )
-  GROUP BY
-    TRIM(inv.ITEMNMBR),
-    TRIM(inv.LOCNCODE),
-    CAST(inv.RCTSEQNM AS VARCHAR(50)),
-    TRIM(itm.UOMSCHDL),
-    CFG.RMQTY_Hold_Days,
-    CFG.RMQTY_Expiry_Filter_Days
-  HAVING (SUM(inv.QTYRECVD - inv.QTYSOLD) <> 0)
+    I.QTY_RM_I AS QTY_ON_HAND,
+    'RMQTY_BATCH' AS Inventory_Type,
+    
+    NULL AS Expiry_Date,
+    
+    CAST(R.DATERECD AS date) AS Receipt_Date,
+    
+    DATEDIFF(DAY, CAST(R.DATERECD AS date), CAST(GETDATE() AS date)) AS Age_Days,
+    
+    -- RMQTY hold period (7 days default)
+    DATEADD(DAY, ISNULL(CFG.RMQTY_Hold_Days, 7), CAST(R.DATERECD AS date)) AS Projected_Release_Date,
+    ISNULL(CFG.RMQTY_Hold_Days, 7) - DATEDIFF(DAY, CAST(R.DATERECD AS date), CAST(GETDATE() AS date)) AS Days_Until_Release,
+    CASE 
+      WHEN DATEDIFF(DAY, CAST(R.DATERECD AS date), CAST(GETDATE() AS date)) >= ISNULL(CFG.RMQTY_Hold_Days, 7)
+      THEN 1 ELSE 0 
+    END AS Is_Eligible_For_Release,
+    
+    I.UOMSCHDL AS UOM,
+    3 AS SortPriority,  -- RMQTY third in allocation
+    
+    CONCAT('RM-', I.LOCNCODE, '-', I.ITEMNMBR, '-', CONVERT(VARCHAR(10), R.DATERECD, 112)) AS Batch_ID
+    
+  FROM IV00102 I WITH (NOLOCK)
+  LEFT JOIN IV00300 R WITH (NOLOCK)
+    ON I.ITEMNMBR = R.ITEMNMBR
+   AND I.LOCNCODE = R.LOCNCODE
+  LEFT JOIN ETB2_Config_Engine_v1 CFG
+    ON I.ITEMNMBR = CFG.ITEMNMBR
+  WHERE I.QTY_RM_I > 0
+    AND I.LOCNCODE IN (SELECT Site_ID FROM ETB2_Config_Engine_v1 WHERE RMQTY_Locations IS NOT NULL)
 )
 
 -- Union all inventory types
@@ -197,8 +177,7 @@ SELECT
   Bin_Location,
   Bin_Type,
   UOM,
-  SortPriority,
-  FEFO_Rank
+  SortPriority
 FROM WC_Batches
 
 UNION ALL
@@ -219,8 +198,7 @@ SELECT
   Bin_Location,
   Bin_Type,
   UOM,
-  SortPriority,
-  FEFO_Rank
+  SortPriority
 FROM WFQ_Batches
 
 UNION ALL
@@ -241,6 +219,5 @@ SELECT
   Bin_Location,
   Bin_Type,
   UOM,
-  SortPriority,
-  FEFO_Rank
+  SortPriority
 FROM RMQTY_Batches;
