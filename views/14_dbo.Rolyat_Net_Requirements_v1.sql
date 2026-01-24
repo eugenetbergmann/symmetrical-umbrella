@@ -36,11 +36,10 @@ SELECT
     END AS Requirements_Status,
     ri.AsOfDate,
     df.Latest_Demand_Date,
-    COALESCE(
-        (SELECT Config_Value FROM dbo.Rolyat_Config_Items WHERE ITEMNMBR = ri.ITEMNMBR AND Config_Key = 'Safety_Stock_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
-        (SELECT Config_Value FROM dbo.Rolyat_Config_Clients WHERE Client_ID = ri.Client_ID AND Config_Key = 'Safety_Stock_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())),
-        (SELECT Config_Value FROM dbo.Rolyat_Config_Global WHERE Config_Key = 'Safety_Stock_Days' AND Effective_Date <= GETDATE() AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE()))
-    ) AS Safety_Stock_Days_Config
+    (SELECT Safety_Stock_Days FROM dbo.ETB2_Config_Engine_v1
+     WHERE ITEMNMBR = ri.ITEMNMBR AND Client_ID = ri.Client_ID
+     ORDER BY Effective_Priority ASC
+     OFFSET 0 ROWS FETCH NEXT 1 ROW ONLY) AS Safety_Stock_Days_Config
 FROM (
     SELECT
         ITEMNMBR,
