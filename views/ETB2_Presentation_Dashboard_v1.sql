@@ -2,7 +2,7 @@
 ===============================================================================
 View: dbo.ETB2_Presentation_Dashboard_v1
 Description: Unified dashboard consolidating stock-out, expiry, and action views
-Version: 1.0.0
+Version: 2.0.0
 Last Modified: 2026-01-24
 Dependencies:
    - dbo.Rolyat_StockOut_Analysis_v2 (stock-out analysis)
@@ -34,6 +34,22 @@ USAGE:
    - Executive view: Filter WHERE Dashboard_Type = 'STOCKOUT_RISK'
    - Planner view: Filter WHERE Dashboard_Type = 'PLANNER_ACTIONS'
    - Expiry view: Filter WHERE Dashboard_Type = 'BATCH_EXPIRY'
+
+FILTERING EXAMPLES:
+   -- Executive dashboard (stock-out risk only)
+   SELECT * FROM dbo.ETB2_Presentation_Dashboard_v1
+   WHERE Dashboard_Type = 'STOCKOUT_RISK'
+   ORDER BY Action_Priority, Item_Number;
+
+   -- Planner action list (prioritized by urgency)
+   SELECT * FROM dbo.ETB2_Presentation_Dashboard_v1
+   WHERE Dashboard_Type = 'PLANNER_ACTIONS'
+   ORDER BY Action_Priority, Item_Number;
+
+   -- Expiry risk dashboard (batch-level visibility)
+   SELECT * FROM dbo.ETB2_Presentation_Dashboard_v1
+   WHERE Dashboard_Type = 'BATCH_EXPIRY'
+   ORDER BY Days_Until_Expiry, Item_Number;
 ===============================================================================
 */
 
@@ -48,6 +64,7 @@ SELECT
   1 AS Display_Priority,
   soa.CleanItem AS Item_Number,
   soa.Client_ID,
+  NULL AS Site_ID,
   soa.effective_demand AS Current_ATP_Balance,
   CASE 
     WHEN soa.effective_demand <= 0 THEN 'CRITICAL_STOCKOUT'
@@ -63,6 +80,8 @@ SELECT
   END AS Recommended_Action,
   soa.Alternate_Stock AS Available_Alternate_Stock_Qty,
   soa.Original_Running_Balance AS Forecast_Balance_Before_Allocation,
+  soa.WFQ_QTY,
+  soa.RMQTY_QTY,
   NULL AS Batch_ID,
   NULL AS Batch_Type,
   NULL AS Days_Until_Expiry,
@@ -96,6 +115,7 @@ SELECT
   2 AS Display_Priority,
   inv.ITEMNMBR AS Item_Number,
   inv.Client_ID,
+  inv.Site_ID,
   inv.QTY_ON_HAND AS Current_ATP_Balance,
   CASE 
     WHEN DATEDIFF(DAY, CAST(GETDATE() AS DATE), inv.Expiry_Date) < 0 THEN 'EXPIRED'
@@ -114,6 +134,8 @@ SELECT
   END AS Recommended_Action,
   NULL AS Available_Alternate_Stock_Qty,
   NULL AS Forecast_Balance_Before_Allocation,
+  NULL AS WFQ_QTY,
+  NULL AS RMQTY_QTY,
   inv.Batch_ID,
   inv.Inventory_Type AS Batch_Type,
   DATEDIFF(DAY, CAST(GETDATE() AS DATE), inv.Expiry_Date) AS Days_Until_Expiry,
@@ -139,24 +161,28 @@ SELECT
 
 FROM dbo.ETB2_Inventory_Unified_v1 inv
 
-WHERE DATEDIFF(DAY, CAST(GETDATE() AS DATE), inv.Expiry_Date) <= 90
+WHERE inv.Expiry_Date IS NOT NULL
+  AND DATEDIFF(DAY, CAST(GETDATE() AS DATE), inv.Expiry_Date) <= 90
 
 UNION ALL
 
 -- ============================================================
 -- SUPPLY PLANNER ACTION LIST (Operational View)
--- ============================================================
 -- Priority 1: Critical stock-outs
+-- ============================================================
 SELECT
   'PLANNER_ACTIONS' AS Dashboard_Type,
   3 AS Display_Priority,
-  soa.ITEMNMBR AS Item_Number,
+  soa.CleanItem AS Item_Number,
   soa.Client_ID,
-  soa.Current_ATP_Balance,
+  NULL AS Site_ID,
+  soa.effective_demand AS Current_ATP_Balance,
   'CRITICAL_STOCKOUT' AS Risk_Level,
   'URGENT_PURCHASE' AS Recommended_Action,
   NULL AS Available_Alternate_Stock_Qty,
   NULL AS Forecast_Balance_Before_Allocation,
+  NULL AS WFQ_QTY,
+  NULL AS RMQTY_QTY,
   NULL AS Batch_ID,
   NULL AS Batch_Type,
   NULL AS Days_Until_Expiry,
@@ -167,7 +193,7 @@ SELECT
 
 FROM dbo.Rolyat_StockOut_Analysis_v2 soa
 
-WHERE soa.Current_ATP_Balance <= 0
+WHERE soa.effective_demand <= 0
 
 UNION ALL
 
@@ -175,13 +201,16 @@ UNION ALL
 SELECT
   'PLANNER_ACTIONS' AS Dashboard_Type,
   3 AS Display_Priority,
-  soa.ITEMNMBR AS Item_Number,
+  soa.CleanItem AS Item_Number,
   soa.Client_ID,
-  soa.Current_ATP_Balance,
+  NULL AS Site_ID,
+  soa.effective_demand AS Current_ATP_Balance,
   'HIGH_RISK_STOCK' AS Risk_Level,
   'EXPEDITE_OPEN_POS' AS Recommended_Action,
   NULL AS Available_Alternate_Stock_Qty,
   NULL AS Forecast_Balance_Before_Allocation,
+  NULL AS WFQ_QTY,
+  NULL AS RMQTY_QTY,
   NULL AS Batch_ID,
   NULL AS Batch_Type,
   NULL AS Days_Until_Expiry,
@@ -192,9 +221,8 @@ SELECT
 
 FROM dbo.Rolyat_StockOut_Analysis_v2 soa
 
-WHERE soa.Current_ATP_Balance > 0 
-  AND soa.Current_ATP_Balance < 50
-  AND soa.Days_of_Cover_ATP <= 7
+WHERE soa.effective_demand > 0 
+  AND soa.effective_demand < 50
 
 UNION ALL
 
@@ -204,11 +232,14 @@ SELECT
   3 AS Display_Priority,
   inv.ITEMNMBR AS Item_Number,
   inv.Client_ID,
+  inv.Site_ID,
   inv.QTY_ON_HAND AS Current_ATP_Balance,
   'CRITICAL_EXPIRY' AS Risk_Level,
   'USE_FIRST' AS Recommended_Action,
   NULL AS Available_Alternate_Stock_Qty,
   NULL AS Forecast_Balance_Before_Allocation,
+  NULL AS WFQ_QTY,
+  NULL AS RMQTY_QTY,
   inv.Batch_ID,
   inv.Inventory_Type AS Batch_Type,
   DATEDIFF(DAY, CAST(GETDATE() AS DATE), inv.Expiry_Date) AS Days_Until_Expiry,
@@ -223,4 +254,34 @@ SELECT
 
 FROM dbo.ETB2_Inventory_Unified_v1 inv
 
-WHERE DATEDIFF(DAY, CAST(GETDATE() AS DATE), inv.Expiry_Date) BETWEEN 0 AND 30;
+WHERE inv.Expiry_Date IS NOT NULL
+  AND DATEDIFF(DAY, CAST(GETDATE() AS DATE), inv.Expiry_Date) BETWEEN 0 AND 30
+
+UNION ALL
+
+-- Priority 4: Past due POs
+SELECT
+  'PLANNER_ACTIONS' AS Dashboard_Type,
+  3 AS Display_Priority,
+  po.ITEMNMBR AS Item_Number,
+  NULL AS Client_ID,
+  po.Site_ID,
+  po.Open_PO_Qty AS Current_ATP_Balance,
+  'PAST_DUE_PO' AS Risk_Level,
+  'FOLLOW_UP' AS Recommended_Action,
+  NULL AS Available_Alternate_Stock_Qty,
+  NULL AS Forecast_Balance_Before_Allocation,
+  NULL AS WFQ_QTY,
+  NULL AS RMQTY_QTY,
+  NULL AS Batch_ID,
+  NULL AS Batch_Type,
+  NULL AS Days_Until_Expiry,
+  NULL AS Expiry_Risk_Tier,
+  po.Open_PO_Qty AS Batch_Qty,
+  'MEDIUM' AS Business_Impact,
+  4 AS Action_Priority
+
+FROM dbo.Rolyat_PO_Detail po
+
+WHERE po.PO_Due_Date < CAST(GETDATE() AS DATE)
+  AND po.Open_PO_Qty > 0;
