@@ -1,12 +1,12 @@
--- [T-008] Expiring Batch Rebalancing Opportunities
--- Purpose: Identifies rebalancing opportunities by matching expiring eligible batches (Days_Until_Expiry <=90 and >0)
---          with items facing stockout risk (Unmet_Demand >0 from future horizon).
---          - Recommended transfer quantity capped by batch remaining and item unmet demand
---          - Priority 1-4 based on expiry urgency and risk level
---          - Rebalancing_Type and Business_Impact per documented matrix
---          - Matches on Item_Number only (company-wide opportunities; adjust join if Client/Site grain needed)
---          - Uses current eligible Quantity_On_Hand as Remaining_Qty proxy (no prior allocation in simplified chain)
---          Sorted by Transfer_Priority ASC, then Days_Until_Expiry ASC for urgent actions first.
+-- ============================================================================
+-- ETB2 Query: Planning_Rebalancing_Opportunities
+-- Purpose: Expiry-driven inventory transfer recommendations
+-- Grain: Batch-to-Item Opportunity
+-- Rolyat Source: New analytics (no legacy equivalent)
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
+-- Dependencies: None (fully self-contained)
+-- Last Updated: 2026-01-25
+-- ============================================================================
 
 WITH
 

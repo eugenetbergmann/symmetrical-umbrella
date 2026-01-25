@@ -1,11 +1,15 @@
--- [T-002] Cleaned Base Demand – Exact Rolyat Preservation
--- Purpose: Returns cleaned, prioritized base demand records ready for planners or downstream allocation.
---          Exact replication of original Rolyat_Cleaned_Base_Demand_1 logic:
---          - Excludes 60.x / 70.x items and partially received orders
---          - Prioritizes Remaining > Deductions > Expiry for Base_Demand_Qty
---          - Flags records within ±21 day active planning window
---          - Cleans order numbers and standardizes dates/quantities
---          Sorted by Due_Date ASC, then Base_Demand_Qty DESC for immediate usability in Excel.
+-- ============================================================================
+-- ETB2 Query: Demand_Cleaned_Base
+-- Purpose: Cleaned base demand excluding partial/invalid orders
+-- Grain: Order Line
+-- Rolyat Source: Rolyat_Cleaned_Base_Demand_1 (100% logic preserved)
+--   - Excludes: 60.x/70.x order types, partial receives
+--   - Priority: Remaining > Deductions > Expiry
+--   - Window: ±21 days from GETDATE()
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
+-- Dependencies: None (fully self-contained)
+-- Last Updated: 2026-01-25
+-- ============================================================================
 
 WITH RawDemand AS (
     SELECT 

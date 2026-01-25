@@ -1,16 +1,17 @@
--- [T-003] Work Center Inventory – Exact Rolyat Preservation
--- Purpose: Returns current Work Center (WC) batch inventory exactly as in original Rolyat_WC_Inventory.
---          - Only WC sites (LOCNCODE LIKE 'WC[_-]%')
---          - Positive available quantity only
---          - FEFO sorting: Expiry_Date ASC, then Receipt_Date ASC
---          - Expiry fallback: if no EXPNDATE, use Receipt_Date + Shelf_Life_Days (default 180 from global config)
---          - Client_ID extracted from SITE (before first '-' or '_')
---          - Batch_Age_Days = DATEDIFF(DAY, DATERECD, GETDATE())
---          - No hold period (WC batches always eligible)
---          - Degradation not yet implemented (Degraded_Qty = 0, Usable_Qty = Available_Qty)
---          - Bin type optional (defaults to 'UNKNOWN')
---          - All columns renamed to planner-friendly names
---          - Sorted by Item_Number → Expiry_Date ASC → Receipt_Date ASC for immediate FEFO visibility in Excel
+-- ============================================================================
+-- ETB2 Query: Inventory_WC_Batches
+-- Purpose: Work Center batch inventory with FEFO ordering
+-- Grain: WC Batch
+-- Rolyat Source: Rolyat_WC_Inventory (100% logic preserved)
+--   - Site: LOCNCODE LIKE 'WC[_-]%'
+--   - FEFO: Expiry_Date ASC → Receipt_Date ASC
+--   - Shelf Life: 180-day fallback if no EXPNDATE
+--   - Eligibility: Always (no hold period)
+--   - Client_ID: Extracted from LOCNCODE
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
+-- Dependencies: None (fully self-contained)
+-- Last Updated: 2026-01-25
+-- ============================================================================
 
 WITH
 

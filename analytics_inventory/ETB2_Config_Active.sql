@@ -1,8 +1,12 @@
--- [T-001] Unified Active Configuration
--- Purpose: Returns one row per relevant Item/Client/Site combination with the effective configuration parameters
---          after applying the priority hierarchy: Item-specific > Client-specific > Global defaults.
---          Only includes currently active records (Effective_Date <= GETDATE() and Expiry_Date is null or > GETDATE()).
---          All columns are human-readable for planners. Sorted for easy Excel filtering.
+-- ============================================================================
+-- ETB2 Query: Config_Active
+-- Purpose: Multi-tier configuration hierarchy (Item > Client > Global)
+-- Grain: Item / Client / Site
+-- Rolyat Source: New framework (no legacy equivalent)
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
+-- Dependencies: None (fully self-contained)
+-- Last Updated: 2026-01-25
+-- ============================================================================
 
 WITH
 

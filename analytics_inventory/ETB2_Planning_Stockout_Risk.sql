@@ -1,13 +1,12 @@
--- [T-006] Unified Eligible Inventory Snapshot
--- Purpose: Combines all eligible inventory across WC (always eligible), WFQ, and RMQTY (only after hold period elapsed)
---          into one consistent table for planners and downstream allocation/rebalancing.
---          - Positive quantity only
---          - WC: shelf life fallback 180 days
---          - WFQ/RMQTY: no expiry filter (per ETB2 unified logic - differs from preserved T-004)
---          - Allocation_Sort_Priority: WC first (priority 1), then WFQ (2), then RMQTY (3), then by Expiry_Date ASC
---          - Only includes eligible batches (WC always, WFQ/RMQTY after hold)
---          - Unified human-readable columns and consistent Batch_ID format
---          Sorted by Item_Number, then Allocation_Sort_Priority for direct FEFO view in Excel.
+-- ============================================================================
+-- ETB2 Query: Planning_Stockout_Risk
+-- Purpose: ATP balance and shortage risk analysis
+-- Grain: Item
+-- Rolyat Source: New analytics (no legacy equivalent)
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
+-- Dependencies: None (fully self-contained)
+-- Last Updated: 2026-01-25
+-- ============================================================================
 
 WITH
 
