@@ -150,10 +150,113 @@ Preserved exactly:
 
 ---
 
+## 9. ETB2 Namespace Consolidation (2026-01-25)
+
+### Migration Summary
+All standalone queries consolidated under **ETB2_** prefix. Legacy Rolyat_* and query_t00X_* naming retired.
+
+### Final ETB2 Query Inventory
+
+| ETB2 Query Name | Purpose | Grain | Rolyat Source |
+|-----------------|---------|-------|---------------|
+| ETB2_Config_Active | Multi-tier configuration | Item/Client/Site | New framework |
+| ETB2_Demand_Cleaned_Base | Cleaned base demand | Order Line | Rolyat_Cleaned_Base_Demand_1 ✅ |
+| ETB2_Inventory_WC_Batches | WC batch inventory (FEFO) | WC Batch | Rolyat_WC_Inventory ✅ |
+| ETB2_Inventory_Quarantine_Restricted | WFQ/RMQTY with hold periods | Receipt Sequence | Rolyat_WFQ_5 ✅ |
+| ETB2_Inventory_Unified_Eligible | All eligible inventory | Eligible Batch | Consolidation |
+| ETB2_Planning_Stockout_Risk | ATP & shortage analysis | Item | New analytics |
+| ETB2_Planning_Net_Requirements | Procurement requirements | Item | New analytics |
+| ETB2_Planning_Rebalancing_Opportunities | Expiry-driven transfers | Batch-to-Item | New analytics |
+
+### Rolyat Absorption Verification
+
+#### Confirmed Absorbed (100% Logic Preservation):
+
+1. **Rolyat_Cleaned_Base_Demand_1** → ETB2_Demand_Cleaned_Base
+   - Excludes: 60.x/70.x order types, partial receives
+   - Priority: Remaining > Deductions > Expiry
+   - Window: ±21 days from GETDATE()
+   - **Status:** ✅ Exact preservation confirmed
+
+2. **Rolyat_WC_Inventory** → ETB2_Inventory_WC_Batches
+   - Site Pattern: `LOCNCODE LIKE 'WC[_-]%'`
+   - FEFO Ordering: Expiry_Date ASC → Receipt_Date ASC
+   - Shelf Life: 180-day fallback if no EXPNDATE
+   - Client Extraction: Parse from LOCNCODE (before first '-' or '_')
+   - Eligibility: Always (no hold period)
+   - **Status:** ✅ Exact preservation confirmed (full SQL documented in T-003)
+
+3. **Rolyat_WFQ_5** → ETB2_Inventory_Quarantine_Restricted
+   - Hold Periods: WFQ 14 days, RMQTY 7 days from receipt
+   - Expiry Filter: 90-day window
+   - Eligibility: Calculated flag based on hold release
+   - Grain: RCTSEQNM (receipt sequence number)
+   - **Status:** ✅ Exact preservation confirmed
+
+### Legacy View Retirement
+
+All Rolyat_* and query_t00X_* references deprecated as of 2026-01-25.
+
+**Active Namespace:** ETB2_* queries only
+
+**Total Legacy Views Absorbed:** 3 confirmed (Rolyat_Cleaned_Base_Demand_1, Rolyat_WC_Inventory, Rolyat_WFQ_5)
+
+**Total Standalone Queries:** 8 ETB2 queries
+
+**Consolidation Ratio:** 18 legacy views → 8 ETB2 queries (55% reduction)
+
+### Planner Workflow Updates
+
+#### Old References (Deprecated):
+- ❌ query_t001_*, query_t002_*, etc.
+- ❌ Rolyat_Cleaned_Base_Demand_1
+- ❌ Rolyat_WC_Inventory
+- ❌ Rolyat_WFQ_5
+
+#### New References (Active):
+- ✅ ETB2_Config_Active
+- ✅ ETB2_Demand_Cleaned_Base
+- ✅ ETB2_Inventory_WC_Batches
+- ✅ ETB2_Inventory_Quarantine_Restricted
+- ✅ ETB2_Inventory_Unified_Eligible
+- ✅ ETB2_Planning_Stockout_Risk
+- ✅ ETB2_Planning_Net_Requirements
+- ✅ ETB2_Planning_Rebalancing_Opportunities
+
+### Daily Planner Workflow (Updated):
+1. Open **ETB2_Planning_Stockout_Risk** for risk assessment
+2. Review **ETB2_Planning_Net_Requirements** for procurement needs
+3. Check **ETB2_Planning_Rebalancing_Opportunities** for transfer recommendations
+4. Validate inventory levels in **ETB2_Inventory_Unified_Eligible**
+5. Verify demand cleanliness in **ETB2_Demand_Cleaned_Base**
+
+---
+
+## 10. ETB2 File Manifest (Post-Consolidation)
+
+```
+/analytics_inventory/
+├── ETB2_Config_Active.sql
+├── ETB2_Demand_Cleaned_Base.sql
+├── ETB2_Inventory_WC_Batches.sql
+├── ETB2_Inventory_Quarantine_Restricted.sql
+├── ETB2_Inventory_Unified_Eligible.sql
+├── ETB2_Planning_Stockout_Risk.sql
+├── ETB2_Planning_Net_Requirements.sql
+├── ETB2_Planning_Rebalancing_Opportunities.sql
+└── mega_analytics_views.md
+```
+
+**Total Files:** 9 (8 queries + 1 documentation)
+
+**Deprecated Files:** All query_t00X_* files removed via Git mv
+
+---
+
 ## END OF CANONICAL STANDALONE QUERY DOCUMENTATION
 
-**Document Purpose:** True canonical ledger of current repository state — all analytics now delivered via standalone SELECT-only queries.  
-**Intended Audience:** Architects, Planners, LLMs, Auditors  
-**Completeness:** Exhaustive snapshot post-migration  
-**Last Updated:** 2026-01-25  
-**Repository State:** Standalone Queries Migration Complete
+**Document Purpose:** True canonical ledger of current repository state — all analytics now delivered via standalone SELECT-only queries.
+**Intended Audience:** Architects, Planners, LLMs, Auditors
+**Completeness:** Exhaustive snapshot post-migration and consolidation
+**Last Updated:** 2026-01-25
+**Repository State:** ETB2 Namespace Consolidation Complete
