@@ -1,25 +1,33 @@
 /*******************************************************************************
 * View Name:    ETB2_Campaign_Risk_Adequacy
 * Deploy Order: 14 of 17 ⚠️ DEPLOY AFTER FILE 17 (EventLedger)
+* Status:       🔴 NOT YET DEPLOYED
 * 
 * Purpose:      Inventory adequacy assessment vs collision buffer requirements
 * Grain:        One row per campaign per item
 * 
-* Dependencies:
-*   ✓ dbo.ETB2_Inventory_Unified_Eligible (view 07)
+* Dependencies (MUST exist - verify first):
+*   ✅ ETB2_Config_Lead_Times (deployed)
+*   ✅ ETB2_Config_Part_Pooling (deployed)
+*   ✅ ETB2_Config_Active (deployed)
+*   ✓ dbo.ETB2_Inventory_Unified_Eligible (view 07 - deploy first)
 *   ✓ dbo.ETB2_PAB_EventLedger_v1 (view 17 - MUST BE DEPLOYED FIRST)
-*   ✓ dbo.ETB2_Demand_Cleaned_Base (view 04)
-*   ✓ dbo.ETB2_Campaign_Collision_Buffer (view 13)
+*   ✓ dbo.ETB2_Demand_Cleaned_Base (view 04 - deploy first)
+*   ✓ dbo.ETB2_Campaign_Collision_Buffer (view 13 - deploy first)
 *
-* DEPLOYMENT:
-* 1. SSMS Object Explorer → Right-click "Views" → "New View..."
-* 2. Query Designer menu → "Pane" → "SQL" (show SQL pane only)
-* 3. Copy SELECT statement below (between markers)
-* 4. Paste into SQL pane
-* 5. Execute (!) to test
-* 6. Save as: dbo.ETB2_Campaign_Risk_Adequacy
+* ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
+* 1. Object Explorer → Right-click "Views" → "New View..."
+* 2. IMMEDIATELY: Menu → Query Designer → Pane → SQL
+* 3. Delete default SQL
+* 4. Copy SELECT below (between markers)
+* 5. Paste into SQL pane
+* 6. Execute (!) to test
+* 7. Save as: dbo.ETB2_Campaign_Risk_Adequacy
+* 8. Refresh Views folder
 *
-* Validation: SELECT COUNT(*) FROM dbo.ETB2_Campaign_Risk_Adequacy
+* Validation: 
+*   SELECT COUNT(*) FROM dbo.ETB2_Campaign_Risk_Adequacy
+*   Expected: One row per campaign per item with adequacy assessment
 *******************************************************************************/
 
 -- ============================================================================
@@ -62,3 +70,34 @@ GROUP BY b.ITEMNMBR, b.Campaign_ID
 -- ============================================================================
 -- COPY TO HERE
 -- ============================================================================
+
+/*
+Post-Deployment Validation:
+
+1. Adequacy summary:
+   SELECT 
+       campaign_collision_risk,
+       COUNT(*) AS Campaigns,
+       AVG(Adequacy_Score) AS Avg_Adequacy
+   FROM dbo.ETB2_Campaign_Risk_Adequacy
+   GROUP BY campaign_collision_risk
+   ORDER BY campaign_collision_risk
+
+2. Urgent items:
+   SELECT TOP 10
+       Campaign_ID,
+       ITEMNMBR,
+       Available_Inventory,
+       Required_Buffer,
+       Recommendation
+   FROM dbo.ETB2_Campaign_Risk_Adequacy
+   WHERE Recommendation = 'URGENT_PROCUREMENT'
+   ORDER BY (Available_Inventory - Required_Buffer) ASC
+
+3. Adequacy score distribution:
+   SELECT 
+       MIN(Adequacy_Score) AS Min_Score,
+       AVG(Adequacy_Score) AS Avg_Score,
+       MAX(Adequacy_Score) AS Max_Score
+   FROM dbo.ETB2_Campaign_Risk_Adequacy
+*/

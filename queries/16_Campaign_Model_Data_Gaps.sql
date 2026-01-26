@@ -1,23 +1,29 @@
 /*******************************************************************************
 * View Name:    ETB2_Campaign_Model_Data_Gaps
 * Deploy Order: 16 of 17
+* Status:       🔴 NOT YET DEPLOYED
 * 
 * Purpose:      Data quality flags and confidence levels for model inputs
 * Grain:        One row per item from active configuration
 * 
-* Dependencies:
-*   ✓ dbo.ETB2_Config_Active (view 03)
-*   ✓ dbo.ETB2_Config_Part_Pooling (view 02)
+* Dependencies (MUST exist - verify first):
+*   ✅ ETB2_Config_Lead_Times (deployed)
+*   ✅ ETB2_Config_Part_Pooling (deployed)
+*   ✅ ETB2_Config_Active (deployed)
 *
-* DEPLOYMENT:
-* 1. SSMS Object Explorer → Right-click "Views" → "New View..."
-* 2. Query Designer menu → "Pane" → "SQL" (show SQL pane only)
-* 3. Copy SELECT statement below (between markers)
-* 4. Paste into SQL pane
-* 5. Execute (!) to test
-* 6. Save as: dbo.ETB2_Campaign_Model_Data_Gaps
+* ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
+* 1. Object Explorer → Right-click "Views" → "New View..."
+* 2. IMMEDIATELY: Menu → Query Designer → Pane → SQL
+* 3. Delete default SQL
+* 4. Copy SELECT below (between markers)
+* 5. Paste into SQL pane
+* 6. Execute (!) to test
+* 7. Save as: dbo.ETB2_Campaign_Model_Data_Gaps
+* 8. Refresh Views folder
 *
-* Validation: SELECT COUNT(*) FROM dbo.ETB2_Campaign_Model_Data_Gaps
+* Validation: 
+*   SELECT COUNT(*) FROM dbo.ETB2_Campaign_Model_Data_Gaps
+*   Expected: One row per active item
 *******************************************************************************/
 
 -- ============================================================================
@@ -72,3 +78,33 @@ FROM dbo.ETB2_Config_Active c
 -- ============================================================================
 -- COPY TO HERE
 -- ============================================================================
+
+/*
+Post-Deployment Validation:
+
+1. Gap summary:
+   SELECT 
+       Total_Gap_Count,
+       COUNT(*) AS Items,
+       COUNT(*) * 100.0 / (SELECT COUNT(*) FROM dbo.ETB2_Campaign_Model_Data_Gaps) AS Pct
+   FROM dbo.ETB2_Campaign_Model_Data_Gaps
+   GROUP BY Total_Gap_Count
+   ORDER BY Total_Gap_Count
+
+2. Items with gaps:
+   SELECT TOP 10
+       ITEMNMBR,
+       Total_Gap_Count,
+       Gap_Description,
+       Remediation_Priority
+   FROM dbo.ETB2_Campaign_Model_Data_Gaps
+   WHERE Total_Gap_Count > 0
+   ORDER BY Total_Gap_Count DESC, Remediation_Priority ASC
+
+3. Data confidence:
+   SELECT 
+       data_confidence,
+       COUNT(*) AS Items
+   FROM dbo.ETB2_Campaign_Model_Data_Gaps
+   GROUP BY data_confidence
+*/
