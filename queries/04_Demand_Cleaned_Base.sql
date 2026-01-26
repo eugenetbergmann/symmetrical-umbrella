@@ -35,12 +35,13 @@
 SELECT 
     d.ITEMNMBR,
     d.DUEDATE AS Demand_Date,
-    SUM(CAST(d.Deductions AS DECIMAL(18,2))) AS Quantity,  -- Deductions column represents demand quantity
+    SUM(TRY_CAST(d.Deductions AS DECIMAL(18,2))) AS Quantity,  -- Deductions column represents demand quantity
     COALESCE(d.Construct, 'UNKNOWN') AS Campaign_ID,  -- Campaign reference from Construct column
     'ETB_PAB_AUTO' AS Source_System,
     COUNT(*) AS Order_Line_Count  -- Line count for data quality check
 FROM dbo.ETB_PAB_AUTO d
-WHERE CAST(d.Deductions AS DECIMAL(18,2)) > 0            -- Only demand events (Deductions > 0)
+WHERE TRY_CAST(d.Deductions AS DECIMAL(18,2)) > 0            -- Only demand events (Deductions > 0)
+    AND TRY_CAST(d.Deductions AS DECIMAL(18,2)) IS NOT NULL   -- Exclude invalid numeric values
     AND d.MRPTYPE NOT IN (60, 70) -- Exclude partial/receive order types
 GROUP BY d.ITEMNMBR, d.DUEDATE, d.Construct
 
