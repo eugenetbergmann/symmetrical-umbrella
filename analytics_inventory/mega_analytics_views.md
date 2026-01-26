@@ -1,8 +1,8 @@
 # ETB2 Analytics Inventory: Comprehensive Standalone Query Documentation
 
-**Generated:** 2026-01-25  
-**Repository State:** Standalone Queries Migration Complete  
-**Total Standalone Queries Documented:** 8 (Optimized, Excel-Ready, SELECT-Only)
+**Generated:** 2026-01-26
+**Repository State:** Campaign-Based Risk Model Added
+**Total Views/Tables Documented:** 8 Standalone Queries + 9 Campaign Model Views + 2 Config Tables
 
 ---
 
@@ -82,14 +82,70 @@ Legacy Rolyat-prefixed views and ETB2 views have been retired and replaced by th
 **Notable Assumptions:** DAYS_OF_SUPPLY method; cascading shortage + safety logic preserved
 
 #### Query: `query_t008_expiry-driven-rebalancing-opportunities.sql`
-**Intended Persona:** Supply Planner, Inventory Manager  
-**Grain:** Batch-to-Item Opportunity  
-**Metrics Produced:** Recommended_Transfer_Quantity, Transfer_Priority, Rebalancing_Type, Business_Impact  
+**Intended Persona:** Supply Planner, Inventory Manager
+**Grain:** Batch-to-Item Opportunity
+**Metrics Produced:** Recommended_Transfer_Quantity, Transfer_Priority, Rebalancing_Type, Business_Impact
 **Notable Assumptions:** Matches expiring (<=90 days) eligible batches to unmet demand items; priority matrix preserved
 
 ---
 
-## 3. Metric Index (Key Preserved Metrics)
+## 3. ETB2 Campaign-Based Risk Model Views
+
+#### View: `ETB2_Campaign_Normalized_Demand`
+**Intended Persona:** Campaign Planner, Supply Chain Analyst
+**Grain:** Campaign
+**Metrics Produced:** campaign_consumption_unit (CCU), campaign_start_date, campaign_end_date
+**Notable Assumptions:** Campaign ID inferred from ORDERNUMBER; dates as point-in-time (Due_Date); LOW CONFIDENCE due to missing campaign data
+
+#### View: `ETB2_Campaign_Concurrency_Window`
+**Intended Persona:** Risk Analyst
+**Grain:** Item
+**Metrics Produced:** campaign_concurrency_window (CCW)
+**Notable Assumptions:** CCW defaulted to 1 (conservative) due to point-in-time campaign dates; actual concurrency unknown
+
+#### View: `ETB2_Campaign_Collision_Buffer`
+**Intended Persona:** Inventory Planner
+**Grain:** Item
+**Metrics Produced:** collision_buffer_qty
+**Notable Assumptions:** Replaces safety stock; formula = CCU × CCW × pooling_multiplier; pooling defaults to Dedicated (1.4)
+
+#### View: `ETB2_Campaign_Risk_Adequacy`
+**Intended Persona:** Executive, Supply Planner
+**Grain:** Item
+**Metrics Produced:** can_absorb_campaign_collision, campaign_collision_risk
+**Notable Assumptions:** Risk levels based on available inventory vs. buffer + commitments; avoids "stockout" terminology
+
+#### View: `ETB2_Classical_Benchmark_Metrics`
+**Intended Persona:** Analyst (benchmark only)
+**Grain:** Item
+**Metrics Produced:** EOQ, Classical_Safety_Stock, Reorder_Point (all NULL)
+**Notable Assumptions:** Continuous-demand assumptions rejected; values NULL with warning labels
+
+#### View: `ETB2_Campaign_Absorption_Capacity`
+**Intended Persona:** Executive
+**Grain:** Item
+**Metrics Produced:** absorbable_campaigns
+**Notable Assumptions:** Primary KPI = (On-Hand + Inbound) ÷ CCU; segmented by pooling class and lead time bucket
+
+#### View: `ETB2_Campaign_Model_Data_Gaps`
+**Intended Persona:** Data Steward
+**Grain:** Item
+**Metrics Produced:** Data quality flags and recommended actions
+**Notable Assumptions:** All items flagged due to missing campaign structure; human-readable gap report
+
+#### Table: `ETB2_Config_Lead_Times`
+**Purpose:** Configuration for total effective lead times
+**Defaults:** 30 days conservative estimate
+**Updates Required:** Populate with actual supplier lead times
+
+#### Table: `ETB2_Config_Part_Pooling`
+**Purpose:** Part pooling classification
+**Defaults:** Dedicated (most conservative)
+**Updates Required:** Classify by manufacturing engineering
+
+---
+
+## 5. Metric Index (Key Preserved Metrics)
 
 - **Base_Demand_Quantity** → T-002
 - **Quantity_On_Hand / Remaining_Quantity** → T-003, T-004, T-005, T-008
@@ -99,12 +155,16 @@ Legacy Rolyat-prefixed views and ETB2 views have been retired and replaced by th
 - **Net_Requirement_Quantity** → T-007
 - **Recommended_Transfer_Quantity** → T-008
 - Configuration parameters → T-001
+- **campaign_consumption_unit (CCU)** → Campaign Model
+- **collision_buffer_qty** → Campaign Model
+- **absorbable_campaigns** → Campaign Model
+- **campaign_collision_risk** → Campaign Model
 
-All original critical metrics preserved; extended values (pricing, financials) deferred for future standalone if needed.
+Original critical metrics preserved; campaign-based risk metrics added to replace daily-usage logic.
 
 ---
 
-## 4. Time & Calendar Logic Summary
+## 6. Time & Calendar Logic Summary
 Preserved exactly:
 - Active window ±21 days (T-002)
 - Hold periods: WFQ 14 days, RMQTY 7 days (T-004, T-005)
@@ -114,10 +174,12 @@ Preserved exactly:
 
 ---
 
-## 5. Planner / Persona Notes
+## 7. Planner / Persona Notes
 - **Daily Workflow:** Open T-006 (risk), T-007 (requirements), T-008 (rebalancing) in Excel
 - **Inventory Checks:** T-003 (WC only), T-004 (held), T-005 (eligible total)
 - **Demand Review:** T-002
+- **Campaign Risk Review:** ETB2_Campaign_Risk_Adequacy, ETB2_Campaign_Absorption_Capacity
+- **Data Quality:** ETB2_Campaign_Model_Data_Gaps
 - **Config Adjustments:** Edit VALUES in T-001
 
 ---
