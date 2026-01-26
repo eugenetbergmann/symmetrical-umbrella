@@ -1,209 +1,207 @@
-# ETB2 SQL Views - 17 Views for Supply Chain Planning
+# ETB2 SQL Views - Views 04-17 Deployment
 
-> **All Objects Are Views** - No tables to create  
-> **Method:** Copy-paste SELECT statements into SSMS Query Designer  
-> **Time:** 20-30 minutes for all 17 views
-
----
-
-## Quick Start
-
-### Prerequisites
-- SQL Server Management Studio (SSMS)
-- Connection to target database
-- CREATE VIEW permission
-- External tables exist (see `/reference/external_tables_required.md`)
+> ✅ **Views 01-03 already deployed successfully**  
+> 🔴 **Deploy views 04-17 using same method**  
+> ⏱️ **Estimated time:** 15-20 minutes
 
 ---
 
-## ⚠️ Deployment Order (CRITICAL)
+## Current Status
 
-Deploy in exact numerical order. Each view depends on previous ones.
+### ✅ Already Deployed (Foundation)
+- **01** - ETB2_Config_Lead_Times ✅
+- **02** - ETB2_Config_Part_Pooling ✅
+- **03** - ETB2_Config_Active ✅
 
-**Exception:** View 17 deploys BETWEEN files 13 and 14 (not at the end).
-
-### Correct Deployment Sequence:
-
-```
-01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 17 → 14 → 15 → 16
-          ↑                                                          ↑
-          |                                                          |
-     (Views only)                                              (DEPLOY HERE)
-```
-
-### Deployment Order Table:
-
-| # | File | View Name | Deploy After |
-|---|------|-----------|--------------|
-| 01 | `01_Config_Lead_Times.sql` | ETB2_Config_Lead_Times | - (first) |
-| 02 | `02_Config_Part_Pooling.sql` | ETB2_Config_Part_Pooling | 01 |
-| 03 | `03_Config_Active.sql` | ETB2_Config_Active | 01, 02 |
-| 04 | `04_Demand_Cleaned_Base.sql` | ETB2_Demand_Cleaned_Base | External only |
-| 05 | `05_Inventory_WC_Batches.sql` | ETB2_Inventory_WC_Batches | External only |
-| 06 | `06_Inventory_Quarantine_Restricted.sql` | ETB2_Inventory_Quarantine_Restricted | External only |
-| 07 | `07_Inventory_Unified_Eligible.sql` | ETB2_Inventory_Unified_Eligible | 05, 06 |
-| 08 | `08_Planning_Stockout_Risk.sql` | ETB2_Planning_Stockout_Risk | 04, 05 |
-| 09 | `09_Planning_Net_Requirements.sql` | ETB2_Planning_Net_Requirements | 04, 05 |
-| 10 | `10_Planning_Rebalancing_Opportunities.sql` | ETB2_Planning_Rebalancing_Opportunities | 04, 05, 06 |
-| 11 | `11_Campaign_Normalized_Demand.sql` | ETB2_Campaign_Normalized_Demand | 04 |
-| 12 | `12_Campaign_Concurrency_Window.sql` | ETB2_Campaign_Concurrency_Window | 11, 03 |
-| 13 | `13_Campaign_Collision_Buffer.sql` | ETB2_Campaign_Collision_Buffer | 11, 12, 02 |
-| **17** | **`17_PAB_EventLedger_v1.sql`** | **ETB2_PAB_EventLedger_v1** | **13 (DEPLOY NOW!)** |
-| 14 | `14_Campaign_Risk_Adequacy.sql` | ETB2_Campaign_Risk_Adequacy | 07, 17, 04, 13 |
-| 15 | `15_Campaign_Absorption_Capacity.sql` | ETB2_Campaign_Absorption_Capacity | 13, 14, 03, 02 |
-| 16 | `16_Campaign_Model_Data_Gaps.sql` | ETB2_Campaign_Model_Data_Gaps | 03, 02 |
+### 🔴 To Deploy (Data, Planning, Campaign layers)
+- **04** - Demand_Cleaned_Base ← **START HERE**
+- **05** - Inventory_WC_Batches
+- **06** - Inventory_Quarantine_Restricted
+- **07** - Inventory_Unified_Eligible
+- **08** - Planning_Stockout_Risk
+- **09** - Planning_Net_Requirements
+- **10** - Planning_Rebalancing_Opportunities
+- **11** - Campaign_Normalized_Demand
+- **12** - Campaign_Concurrency_Window
+- **13** - Campaign_Collision_Buffer
+- **17** - PAB_EventLedger_v1 ⚠️ Deploy here (before 14)
+- **14** - Campaign_Risk_Adequacy
+- **15** - Campaign_Absorption_Capacity
+- **16** - Campaign_Model_Data_Gaps
 
 ---
 
-## Deployment Process (Same for All 17 Views)
+## Deployment Method (Same as Views 1-3)
 
-**For each query file in order:**
+You've already done this 3 times successfully. Continue the same way:
 
-1. **Open New View in SSMS**
-   - Object Explorer → Right-click **Views** → **New View...**
+### For Each View (04-17):
 
-2. **Switch to SQL Pane**
-   - Menu: **Query Designer** → **Pane** → **SQL**
-   - (Hides diagram/grid, shows only SQL editor)
+1. **Open New View**
+   - Object Explorer → Right-click Views → New View...
 
-3. **Copy Query**
-   - Open query file (e.g., `01_Config_Lead_Times.sql`)
-   - Copy text between "COPY FROM HERE" and "COPY TO HERE" markers
+2. **Switch to SQL Pane** ⚠️
+   - Menu: Query Designer → Pane → SQL
+   - (Hides diagram/grid - same as before)
 
-4. **Paste & Test**
-   - Paste into SQL pane (delete any default SQL first)
-   - Click **Execute** (!) to test
-   - Verify results appear (no errors)
+3. **Paste Query**
+   - Open query file (e.g., `04_Demand_Cleaned_Base.sql`)
+   - Copy SELECT between markers
+   - Paste into SQL pane
 
-5. **Save View**
-   - Click **Save** (disk icon)
-   - Enter exact name from file header: `dbo.ETB2_Config_Lead_Times`
-   - Click OK
+4. **Test & Save**
+   - Execute (!) to test
+   - Save as: dbo.ETB2_[ViewName]
+   - Verify in Views folder
 
-6. **Verify**
-   - Refresh Views folder
-   - Confirm view appears
-
-7. **Next File**
+5. **Next File**
    - Move to next numbered file
-   - Repeat steps 1-6
 
 ---
 
-## What You're Building
+## Deployment Sequence
 
-### Configuration Layer (01-03)
-- **01_Config_Lead_Times:** 30-day lead time defaults per item
-- **02_Config_Part_Pooling:** Pooling classification (Dedicated/Semi-Pooled/Pooled)
-- **03_Config_Active:** Unified config with COALESCE logic
+**Phase 2: Data Foundation**
+- 04 → 05 → 06
 
-### Data Foundation (04-06)
-- **04_Demand_Cleaned_Base:** Cleaned demand (excludes partial/invalid orders)
-- **05_Inventory_WC_Batches:** Work center inventory (FEFO ordering)
-- **06_Inventory_Quarantine_Restricted:** Quarantine/restricted inventory (hold periods)
+**Phase 3: Unified Inventory**
+- 07
 
-### Unified Inventory (07)
-- **07_Inventory_Unified_Eligible:** All eligible inventory consolidated
+**Phase 4: Planning**
+- 08 → 09 → 10
 
-### Planning Core (08-10)
-- **08_Planning_Stockout_Risk:** ATP balances and stockout risk classification
-- **09_Planning_Net_Requirements:** Net procurement requirements
-- **10_Planning_Rebalancing_Opportunities:** Expiry-driven transfer recommendations
+**Phase 5: Campaign Foundation**
+- 11 → 12 → 13
 
-### Campaign Model (11-16)
-- **11_Campaign_Normalized_Demand:** Campaign consumption units (CCU)
-- **12_Campaign_Concurrency_Window:** Campaign concurrency windows (CCW)
-- **13_Campaign_Collision_Buffer:** Collision buffer calculations
-- **14_Campaign_Risk_Adequacy:** Risk adequacy assessment
-- **15_Campaign_Absorption_Capacity:** Absorption capacity KPI
-- **16_Campaign_Model_Data_Gaps:** Data quality flags
+**Phase 6: Event Ledger**
+- 17 ⚠️ Deploy here (not at end)
 
-### Event Ledger (17)
-- **17_PAB_EventLedger_v1:** Atomic event tracking (BEGIN_BAL, PO, DEMAND, EXPIRY)
-- ⚠️ **Deploy AFTER 13 but BEFORE 14**
+**Phase 7: Campaign Analytics**
+- 14 → 15 → 16
 
 ---
 
-## Validation
+## Dependencies Reference
 
-After deploying all 17 views:
+| View # | Depends On |
+|--------|------------|
+| 04 | Config views (✅), ETB_PAB_AUTO |
+| 05 | Prosenthal_INV_BIN_QTY_wQTYTYPE, EXT_BINTYPE |
+| 06 | IV00300, IV00101 |
+| 07 | Views 05, 06 |
+| 08 | Views 04, 05 |
+| 09 | Views 04, 05 |
+| 10 | Views 04, 05, 06 |
+| 11 | View 04 |
+| 12 | Views 11, 03 (✅) |
+| 13 | Views 11, 12, 02 (✅) |
+| 17 | View 04, POP tables, IV00102 |
+| 14 | Views 07, 17, 04, 13 |
+| 15 | Views 13, 14, 03 (✅), 02 (✅) |
+| 16 | Views 03 (✅), 02 (✅) |
+
+---
+
+## Progress Tracking
+
+After each deployment, check it off:
+
+**Data Foundation:**
+- [ ] 04 - Demand_Cleaned_Base
+- [ ] 05 - Inventory_WC_Batches
+- [ ] 06 - Inventory_Quarantine_Restricted
+
+**Unified Inventory:**
+- [ ] 07 - Inventory_Unified_Eligible
+
+**Planning:**
+- [ ] 08 - Planning_Stockout_Risk
+- [ ] 09 - Planning_Net_Requirements
+- [ ] 10 - Planning_Rebalancing_Opportunities
+
+**Campaign Foundation:**
+- [ ] 11 - Campaign_Normalized_Demand
+- [ ] 12 - Campaign_Concurrency_Window
+- [ ] 13 - Campaign_Collision_Buffer
+
+**Event Ledger:**
+- [ ] 17 - PAB_EventLedger_v1
+
+**Campaign Analytics:**
+- [ ] 14 - Campaign_Risk_Adequacy
+- [ ] 15 - Campaign_Absorption_Capacity
+- [ ] 16 - Campaign_Model_Data_Gaps
+
+---
+
+## Quick Validation After Deploying All
 
 ```sql
--- Check all views exist
-SELECT name AS ViewName
-FROM sys.views
-WHERE name LIKE 'ETB2_%'
-ORDER BY name;
--- Should return 17 rows
+-- Should return 17 total views
+SELECT COUNT(*) FROM sys.views WHERE name LIKE 'ETB2_%'
 
--- Quick data check
-SELECT 
-    'ETB2_Config_Lead_Times' AS ViewName, 
-    COUNT(*) AS RowCount 
-FROM dbo.ETB2_Config_Lead_Times
+-- List all deployed views
+SELECT name FROM sys.views 
+WHERE name LIKE 'ETB2_%'
+ORDER BY name
+
+-- Check key views have data
+SELECT 'Demand' AS Layer, COUNT(*) FROM dbo.ETB2_Demand_Cleaned_Base
 UNION ALL
-SELECT 'ETB2_Demand_Cleaned_Base', COUNT(*) FROM dbo.ETB2_Demand_Cleaned_Base
+SELECT 'Inventory', COUNT(*) FROM dbo.ETB2_Inventory_WC_Batches
 UNION ALL
-SELECT 'ETB2_Planning_Stockout_Risk', COUNT(*) FROM dbo.ETB2_Planning_Stockout_Risk;
--- All should return > 0 rows
+SELECT 'Planning', COUNT(*) FROM dbo.ETB2_Planning_Stockout_Risk
+UNION ALL
+SELECT 'Campaign', COUNT(*) FROM dbo.ETB2_Campaign_Collision_Buffer
 ```
+
+---
+
+## Important Notes
+
+### ETB_PAB_AUTO Quirks
+Many columns are stored as VARCHAR but contain numbers. All query files use safe conversion:
+```sql
+CASE 
+    WHEN ISNUMERIC(column) = 1 
+    THEN CAST(column AS DECIMAL(18,5))
+    ELSE 0 
+END
+```
+
+### File 17 Deploys Out of Order
+- File **17** (EventLedger) deploys BETWEEN files 13 and 14
+- This is because view 14 depends on view 17
+- Deploy sequence: 01→02→03→04→05→06→07→08→09→10→11→12→13→**17**→14→15→16
 
 ---
 
 ## Troubleshooting
 
 ### "Invalid object name 'dbo.ETB2_XXX'"
-**Problem:** Dependency view doesn't exist yet  
-**Fix:** Deploy in exact numerical order, create dependencies first
+**Cause:** Dependency view not deployed yet  
+**Fix:** Check deploy order, create dependencies first
 
-### "Invalid column name"
-**Problem:** Source table structure different than expected  
-**Fix:** Verify external table exists and has expected columns
+### View has 0 rows
+**Cause:** Source table empty or filters too restrictive  
+**Fix:** 
+- Check ETB_PAB_AUTO has data: `SELECT COUNT(*) FROM dbo.ETB_PAB_AUTO`
+- Review WHERE clause in view definition
 
-### View saves but returns 0 rows
-**Problem:** Source data empty or filters too restrictive  
-**Fix:** Check source tables have data, review WHERE clauses
-
-### "Incorrect syntax near 'GO'"
-**Problem:** Copied GO statement into view designer  
-**Fix:** Copy only SELECT statement (between markers), no GO
+### "Arithmetic overflow" error
+**Cause:** Missing ISNUMERIC check before CAST  
+**Fix:** Use query files as-is (they have safe conversion)
 
 ---
 
-## Deployment Checklist
+## What You're Building
 
-Print and check off as you go:
+**You've completed:** Configuration foundation  
+**Now building:**
+- Data foundation (demand, inventory)
+- Planning layer (risk, requirements, rebalancing)
+- Campaign model (CCU, CCW, collision buffers)
+- Event ledger (audit trail)
+- Campaign analytics (risk assessment, capacity)
 
-- [ ] 01 - Config_Lead_Times
-- [ ] 02 - Config_Part_Pooling
-- [ ] 03 - Config_Active
-- [ ] 04 - Demand_Cleaned_Base
-- [ ] 05 - Inventory_WC_Batches
-- [ ] 06 - Inventory_Quarantine_Restricted
-- [ ] 07 - Inventory_Unified_Eligible
-- [ ] 08 - Planning_Stockout_Risk
-- [ ] 09 - Planning_Net_Requirements
-- [ ] 10 - Planning_Rebalancing_Opportunities
-- [ ] 11 - Campaign_Normalized_Demand
-- [ ] 12 - Campaign_Concurrency_Window
-- [ ] 13 - Campaign_Collision_Buffer
-- [ ] 17 - PAB_EventLedger_v1 ⚠️ Deploy before 14
-- [ ] 14 - Campaign_Risk_Adequacy
-- [ ] 15 - Campaign_Absorption_Capacity
-- [ ] 16 - Campaign_Model_Data_Gaps
-
-**Validation:**
-- [ ] All 17 views exist
-- [ ] Spot-check views return data
-
-✅ **Done!**
-
----
-
-## Support Files
-
-- **DEPLOYMENT_ORDER.md** - Detailed dependency explanations
-- **docs/VIEW_DEFINITIONS.md** - Specs for each view
-- **docs/DEPENDENCY_MAP.md** - Visual dependency tree
-- **docs/TROUBLESHOOTING.md** - Common issues and solutions
-- **reference/external_tables_required.md** - Required external tables (10 total)
+**End goal:** Complete supply chain planning and analytics system

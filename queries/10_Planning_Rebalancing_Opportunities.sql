@@ -1,24 +1,32 @@
 /*******************************************************************************
 * View Name:    ETB2_Planning_Rebalancing_Opportunities
 * Deploy Order: 10 of 17
+* Status:       🔴 NOT YET DEPLOYED
 * 
-* Purpose:      Expiry-driven inventory transfer recommendations (≤90 days)
-* Grain:        One row per item per source location
+* Purpose:      Identify inventory rebalancing opportunities between work centers
+* Grain:        One row per item per surplus/deficit location pair
 * 
-* Dependencies:
-*   ✓ dbo.ETB2_Demand_Cleaned_Base (view 04)
-*   ✓ dbo.ETB2_Inventory_WC_Batches (view 05)
-*   ✓ dbo.ETB2_Inventory_Quarantine_Restricted (view 06)
+* Dependencies (MUST exist - verify first):
+*   ✅ ETB2_Config_Lead_Times (deployed)
+*   ✅ ETB2_Config_Part_Pooling (deployed)
+*   ✅ ETB2_Config_Active (deployed)
+*   ✓ dbo.ETB2_Demand_Cleaned_Base (view 04 - deploy first)
+*   ✓ dbo.ETB2_Inventory_WC_Batches (view 05 - deploy first)
+*   ✓ dbo.ETB2_Inventory_Quarantine_Restricted (view 06 - deploy first)
 *
-* DEPLOYMENT:
-* 1. SSMS Object Explorer → Right-click "Views" → "New View..."
-* 2. Query Designer menu → "Pane" → "SQL" (show SQL pane only)
-* 3. Copy SELECT statement below (between markers)
-* 4. Paste into SQL pane
-* 5. Execute (!) to test
-* 6. Save as: dbo.ETB2_Planning_Rebalancing_Opportunities
+* ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
+* 1. Object Explorer → Right-click "Views" → "New View..."
+* 2. IMMEDIATELY: Menu → Query Designer → Pane → SQL
+* 3. Delete default SQL
+* 4. Copy SELECT below (between markers)
+* 5. Paste into SQL pane
+* 6. Execute (!) to test
+* 7. Save as: dbo.ETB2_Planning_Rebalancing_Opportunities
+* 8. Refresh Views folder
 *
-* Validation: SELECT COUNT(*) FROM dbo.ETB2_Planning_Rebalancing_Opportunities
+* Validation: 
+*   SELECT COUNT(*) FROM dbo.ETB2_Planning_Rebalancing_Opportunities
+*   Expected: Transfer recommendations
 *******************************************************************************/
 
 -- ============================================================================
@@ -26,39 +34,64 @@
 -- ============================================================================
 
 SELECT 
-    i.ITEMNMBR,
-    i.Work_Center AS Source_Location,
-    -- Find locations with demand for this item
-    d.Demand_Date AS Target_Location_Date,
-    -- Transfer 50% of excess batch that expires soon
+    Surplus.ITEMNMBR,
+    Surplus.Source_WC AS From_Work_Center,
+    Surplus.Surplus_Qty,
+    Deficit.Target_WC AS To_Work_Center,
+    Deficit.Deficit_Qty,
+    -- Transfer quantity limited by smaller of surplus/deficit
     CASE 
-        WHEN i.Quantity > 100 AND i.Days_To_Expiry < 90 
-        THEN i.Quantity * 0.5 
-        ELSE 0 
-    END AS Recommended_Transfer_Qty,
-    i.Days_To_Expiry,
-    -- Savings potential: value of avoided waste
-    CASE 
-        WHEN i.Quantity > 100 AND i.Days_To_Expiry < 90 
-        THEN i.Quantity * 10  -- Placeholder for unit cost
-        ELSE 0 
-    END AS Savings_Potential,
-    CASE 
-        WHEN i.Quantity > 100 AND i.Days_To_Expiry < 90 THEN 'URGENT'
-        WHEN i.Days_To_Expiry < 120 THEN 'WATCH'
-        ELSE 'OK'
-    END AS Transfer_Priority,
-    -- Suggested action
-    CASE 
-        WHEN i.Quantity > 100 AND i.Days_To_Expiry < 90 THEN 'TRANSFER_HALF'
-        ELSE 'MONITOR'
-    END AS Recommended_Action
-FROM dbo.ETB2_Inventory_WC_Batches i
-CROSS JOIN dbo.ETB2_Demand_Cleaned_Base d
-WHERE i.ITEMNMBR = d.ITEMNMBR
-    AND i.FEFO_Rank > 3  -- Lower priority batches (not expiring soonest)
-    AND i.Days_To_Expiry IS NOT NULL
+        WHEN Surplus.Surplus_Qty < Deficit.Deficit_Qty 
+        THEN Surplus.Surplus_Qty 
+        ELSE Deficit.Deficit_Qty 
+    END AS Recommended_Transfer,
+    Surplus.Surplus_Qty - Deficit.Deficit_Qty AS Net_Position,
+    'TRANSFER' AS Rebalancing_Type,
+    GETDATE() AS Identified_Date
+FROM (
+    -- Identify surplus locations
+    SELECT 
+        ITEMNMBR,
+        LOCNID AS Source_WC,
+        SUM(QTY) AS Surplus_Qty
+    FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE
+    WHERE QTY > 0 AND LOCNCODE LIKE 'WC[_-]%'
+    GROUP BY ITEMNMBR, LOCNID
+) Surplus
+INNER JOIN (
+    -- Identify deficit locations (based on demand)
+    SELECT 
+        d.ITEMNMBR,
+        i.LOCNID AS Target_WC,
+        SUM(d.Quantity) - COALESCE(SUM(i.Quantity), 0) AS Deficit_Qty
+    FROM dbo.ETB2_Demand_Cleaned_Base d
+    LEFT JOIN dbo.ETB2_Inventory_WC_Batches i ON d.ITEMNMBR = i.ITEMNMBR
+    GROUP BY d.ITEMNMBR, i.LOCNID
+    HAVING SUM(d.Quantity) - COALESCE(SUM(i.Quantity), 0) > 0
+) Deficit ON Surplus.ITEMNMBR = Deficit.ITEMNMBR
 
 -- ============================================================================
 -- COPY TO HERE
 -- ============================================================================
+
+/*
+Post-Deployment Validation:
+
+1. Transfer summary:
+   SELECT COUNT(*) AS Transfer_Opportunities FROM dbo.ETB2_Planning_Rebalancing_Opportunities
+
+2. Top transfer volumes:
+   SELECT TOP 10
+       ITEMNMBR,
+       From_Work_Center,
+       To_Work_Center,
+       Recommended_Transfer
+   FROM dbo.ETB2_Planning_Rebalancing_Opportunities
+   ORDER BY Recommended_Transfer DESC
+
+3. Total rebalancing impact:
+   SELECT 
+       SUM(Recommended_Transfer) AS Total_Transfer_Qty,
+       COUNT(DISTINCT ITEMNMBR) AS Items_To_Transfer
+   FROM dbo.ETB2_Planning_Rebalancing_Opportunities
+*/
