@@ -1,21 +1,21 @@
 -- ============================================================================
--- ETB2 Query: Inventory_WC_Batches
+-- View: dbo.ETB2_Inventory_WC_Batches
 -- Purpose: Work Center batch inventory with FEFO ordering
 -- Grain: WC Batch
--- Rolyat Source: Rolyat_WC_Inventory (100% logic preserved)
 --   - Site: LOCNCODE LIKE 'WC[_-]%'
 --   - FEFO: Expiry_Date ASC → Receipt_Date ASC
 --   - Shelf Life: 180-day fallback if no EXPNDATE
 --   - Eligibility: Always (no hold period)
 --   - Client_ID: Extracted from LOCNCODE
 -- Excel-Ready: Yes (SELECT-only, human-readable columns)
--- Dependencies: None (fully self-contained)
+-- Dependencies: dbo.EXT_BINTYPE, dbo.ETB2_Config_Active
 -- Last Updated: 2026-01-25
 -- ============================================================================
 
+CREATE OR ALTER VIEW dbo.ETB2_Inventory_WC_Batches AS
+
 WITH
 
--- Inline global shelf life default (from Rolyat_Config_Global)
 GlobalShelfLife AS (
     SELECT 180 AS Default_WC_Shelf_Life_Days
 ),

@@ -2,7 +2,7 @@
 -- ETB2 Query: Inventory_Unified_Eligible
 -- Purpose: All eligible inventory (WC + released quarantine batches)
 -- Grain: Eligible Batch
--- Rolyat Source: Consolidation of ETB2_Inventory_WC_Batches + ETB2_Inventory_Quarantine_Restricted
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
 --   - Allocation Priority: WC first, then FEFO (Expiry → Receipt)
 --   - No expiry filter on WFQ/RMQTY (per ETB2 unification)
 -- Excel-Ready: Yes (SELECT-only, human-readable columns)

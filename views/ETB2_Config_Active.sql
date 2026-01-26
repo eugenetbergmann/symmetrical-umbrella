@@ -1,16 +1,17 @@
 -- ============================================================================
--- ETB2 Query: Config_Active
+-- View: dbo.ETB2_Config_Active
 -- Purpose: Multi-tier configuration hierarchy (Item > Client > Global)
 -- Grain: Item / Client / Site
--- Rolyat Source: New framework (no legacy equivalent)
 -- Excel-Ready: Yes (SELECT-only, human-readable columns)
 -- Dependencies: None (fully self-contained)
 -- Last Updated: 2026-01-25
 -- ============================================================================
 
+CREATE OR ALTER VIEW dbo.ETB2_Config_Active AS
+
 WITH
 
--- 1. Global defaults (static VALUES from Rolyat_Config_Global)
+-- 1. Global defaults (hardcoded values)
 GlobalConfig AS (
     SELECT
         'GLOBAL' AS Config_Source,
@@ -38,7 +39,7 @@ GlobalConfig AS (
     ) AS g(Config_Key, Config_Value)
 ),
 
--- 2. Client-specific overrides (from Rolyat_Config_Clients - currently placeholder/empty, but included for future)
+-- 2. Client-specific overrides (placeholder for future use)
 ClientConfigRaw AS (
     SELECT
         Client_ID,
@@ -56,7 +57,7 @@ ClientConfigRaw AS (
       AND Client_ID IS NOT NULL
 ),
 
--- 3. Item-specific overrides (from Rolyat_Config_Items - currently placeholder/empty)
+-- 3. Item-specific overrides (placeholder for future use)
 ItemConfigRaw AS (
     SELECT
         ITEMNMBR AS Item_Number,
@@ -74,7 +75,7 @@ ItemConfigRaw AS (
       AND ITEMNMBR IS NOT NULL
 ),
 
--- 4. Site configuration (from Rolyat_Site_Config - hardcoded locations/types)
+-- 4. Site configuration (hardcoded locations/types)
 SiteConfig AS (
     SELECT
         LOCNCODE AS Location_Code,

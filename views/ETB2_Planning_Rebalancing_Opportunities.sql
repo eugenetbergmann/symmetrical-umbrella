@@ -2,7 +2,7 @@
 -- ETB2 Query: Planning_Rebalancing_Opportunities
 -- Purpose: Expiry-driven inventory transfer recommendations
 -- Grain: Batch-to-Item Opportunity
--- Rolyat Source: New analytics (no legacy equivalent)
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
 -- Excel-Ready: Yes (SELECT-only, human-readable columns)
 -- Dependencies: None (fully self-contained)
 -- Last Updated: 2026-01-25

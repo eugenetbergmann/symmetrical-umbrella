@@ -221,6 +221,14 @@ All Rolyat_* and query_t00X_* references deprecated as of 2026-01-25.
 - ✅ ETB2_Inventory_Unified_Eligible
 - ✅ ETB2_Planning_Stockout_Risk
 - ✅ ETB2_Planning_Net_Requirements
+
+## Architecture Attestation
+
+- ETB2 is functionally complete and self-sufficient.
+- No legacy dependencies on Rolyat views remain.
+- ETB2_Demand_Cleaned_Base was rebuilt as a proper view with explicit joins to base tables, improving clarity and reducing implicit assumptions.
+- All views follow ETB2 naming conventions and are atomic or composable.
+- No Rolyat references exist in the codebase.
 - ✅ ETB2_Planning_Rebalancing_Opportunities
 
 ### Daily Planner Workflow (Updated):

@@ -1,19 +1,19 @@
 -- ============================================================================
--- ETB2 Query: Inventory_Quarantine_Restricted
+-- View: dbo.ETB2_Inventory_Quarantine_Restricted
 -- Purpose: WFQ/RMQTY inventory with hold period management
 -- Grain: Receipt Sequence (RCTSEQNM)
--- Rolyat Source: Rolyat_WFQ_5 (100% logic preserved)
 --   - Hold Periods: WFQ 14 days, RMQTY 7 days
 --   - Expiry Filter: 90-day window
 --   - Eligibility: Calculated from hold release date
 -- Excel-Ready: Yes (SELECT-only, human-readable columns)
--- Dependencies: None (fully self-contained)
+-- Dependencies: dbo.ETB2_Config_Active
 -- Last Updated: 2026-01-25
 -- ============================================================================
 
+CREATE OR ALTER VIEW dbo.ETB2_Inventory_Quarantine_Restricted AS
+
 WITH
 
--- Inline global config defaults (from Rolyat_Config_Global)
 GlobalConfig AS (
     SELECT
         14 AS WFQ_Hold_Days,
