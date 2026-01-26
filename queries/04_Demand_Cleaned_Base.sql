@@ -34,17 +34,15 @@
 
 SELECT 
     d.ITEMNMBR,
-    d.DUEDAT AS Demand_Date,
-    SUM(d.QTYORDER) AS Quantity,  -- Aggregated quantity per item per date
-    COALESCE(v.CUSTNMBR, 'UNKNOWN') AS Campaign_ID,  -- Campaign reference from vendor items
+    d.DUEDATE AS Demand_Date,
+    SUM(d.Deductions) AS Quantity,  -- Deductions column represents demand quantity
+    COALESCE(d.Construct, 'UNKNOWN') AS Campaign_ID,  -- Campaign reference from Construct column
     'ETB_PAB_AUTO' AS Source_System,
     COUNT(*) AS Order_Line_Count  -- Line count for data quality check
 FROM dbo.ETB_PAB_AUTO d
-LEFT JOIN dbo.Prosenthal_Vendor_Items v ON d.ITEMNMBR = v.ITEMNMBR
-WHERE d.POSTATUS <> 'CANCELLED'  -- Exclude cancelled orders
-    AND d.QTYORDER > 0            -- Exclude zero/negative quantities
-    AND d.SOPTYPE NOT IN (60, 70) -- Exclude partial/receive order types
-GROUP BY d.ITEMNMBR, d.DUEDAT, v.CUSTNMBR
+WHERE d.Deductions > 0            -- Only demand events (Deductions > 0)
+    AND d.MRPTYPE NOT IN (60, 70) -- Exclude partial/receive order types
+GROUP BY d.ITEMNMBR, d.DUEDATE, d.Construct
 
 -- ============================================================================
 -- COPY TO HERE
