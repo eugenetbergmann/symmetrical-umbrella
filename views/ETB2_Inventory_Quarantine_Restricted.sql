@@ -1,6 +1,8 @@
 -- ============================================================================
--- VIEW 3 of 6: ETB2_Inventory_Quarantine_Restricted
--- ENHANCEMENT: Add Item_Description from IV00101
+-- VIEW 2 of 6: ETB2_Inventory_Quarantine_Restricted
+-- PURPOSE: WFQ/RMQTY inventory with hold period management
+-- PLANNER QUESTION: "What's in quarantine and when can I use it?"
+-- SCREEN COLUMNS: 13 (fits 1920px)
 -- ============================================================================
 
 CREATE OR ALTER VIEW dbo.ETB2_Inventory_Quarantine_Restricted AS
@@ -54,19 +56,18 @@ ParsedWFQInventory AS (
         MAX(ITEMDESC) AS Item_Description,
         MAX(UOMSCHDL) AS Unit_Of_Measure,
         LOCNCODE,
-        RCTSEQNM,
         SUM(QTY_ON_HAND) AS Available_Quantity,
         MAX(CAST(DATERECD AS DATE)) AS Receipt_Date,
         MAX(TRY_CONVERT(DATE, EXPNDATE)) AS Expiry_Date,
-        DATEADD(DAY, (SELECT WFQ_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) AS Projected_Release_Date,
-        DATEDIFF(DAY, MAX(CAST(DATERECD AS DATE)), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
+        DATEADD(DAY, (SELECT WFQ_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) AS Release_Date,
+        DATEDIFF(DAY, MAX(CAST(DATERECD AS DATE)), CAST(GETDATE() AS DATE)) AS Age_Days,
         CASE
             WHEN DATEADD(DAY, (SELECT WFQ_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) <= GETDATE()
             THEN 1 ELSE 0
-        END AS Is_Eligible_For_Allocation,
-        'WFQ_BATCH' AS Inventory_Type
+        END AS Is_Released,
+        'WFQ' AS Hold_Type
     FROM RawWFQInventory
-    GROUP BY ITEMNMBR, LOCNCODE, RCTSEQNM
+    GROUP BY ITEMNMBR, LOCNCODE
     HAVING SUM(QTY_ON_HAND) <> 0
 ),
 
@@ -76,111 +77,95 @@ ParsedRMQTYInventory AS (
         MAX(ITEMDESC) AS Item_Description,
         MAX(UOMSCHDL) AS Unit_Of_Measure,
         LOCNCODE,
-        RCTSEQNM,
         SUM(QTY_ON_HAND) AS Available_Quantity,
         MAX(CAST(DATERECD AS DATE)) AS Receipt_Date,
         MAX(TRY_CONVERT(DATE, EXPNDATE)) AS Expiry_Date,
-        DATEADD(DAY, (SELECT RMQTY_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) AS Projected_Release_Date,
-        DATEDIFF(DAY, MAX(CAST(DATERECD AS DATE)), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
+        DATEADD(DAY, (SELECT RMQTY_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) AS Release_Date,
+        DATEDIFF(DAY, MAX(CAST(DATERECD AS DATE)), CAST(GETDATE() AS DATE)) AS Age_Days,
         CASE
             WHEN DATEADD(DAY, (SELECT RMQTY_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) <= GETDATE()
             THEN 1 ELSE 0
-        END AS Is_Eligible_For_Allocation,
-        'RMQTY_BATCH' AS Inventory_Type
+        END AS Is_Released,
+        'RMQTY' AS Hold_Type
     FROM RawRMQTYInventory
-    GROUP BY ITEMNMBR, LOCNCODE, RCTSEQNM
+    GROUP BY ITEMNMBR, LOCNCODE
     HAVING SUM(QTY_ON_HAND) <> 0
 )
 
 -- ============================================================
--- FINAL OUTPUT: Planner-optimized column order
+-- FINAL OUTPUT: 13 columns, planner-optimized order
 -- ============================================================
 SELECT
-    -- IDENTIFICATION (leftmost - what batch?)
-    CONCAT(Inventory_Type, '-', LOCNCODE, '-', ITEMNMBR, '-',
-           CONVERT(VARCHAR(10), Receipt_Date, 120)) AS Batch_ID,
-    ITEMNMBR                        AS Item_Number,
+    -- IDENTIFY (what item?) - 3 columns
+    ITEMNMBR                AS Item_Number,
     Item_Description,
     Unit_Of_Measure,
     
-    -- LOCATION (where is it held?)
-    NULL                            AS Client_ID,
-    LOCNCODE                        AS Location_Code,
-    NULL                            AS Bin_Location,
-    NULL                            AS Lot_Number,
-    'UNKNOWN'                       AS Bin_Type,
+    -- LOCATE (where is it?) - 2 columns
+    LOCNCODE                AS Site,
+    Hold_Type,
     
-    -- QUANTITIES (how much?)
-    Available_Quantity,
-    0                               AS Degraded_Quantity,
-    Available_Quantity              AS Usable_Quantity,
+    -- QUANTIFY (how much?) - 2 columns
+    Available_Quantity      AS Quantity,
+    Available_Quantity      AS Usable_Qty,
     
-    -- TIME DIMENSIONS (quarantine timing)
+    -- TIME (when relevant?) - 4 columns
     Receipt_Date,
-    Batch_Age_Days,
-    Projected_Release_Date,
-    DATEDIFF(DAY, GETDATE(), Projected_Release_Date) AS Days_Until_Release,
-    Expiry_Date,
-    CASE
-        WHEN Expiry_Date IS NOT NULL THEN DATEDIFF(DAY, GETDATE(), Expiry_Date)
-        ELSE NULL
-    END                             AS Days_Until_Expiry,
+    Age_Days,
+    Release_Date,
+    DATEDIFF(DAY, GETDATE(), Release_Date) AS Days_To_Release,
     
-    -- ALLOCATION LOGIC (eligibility and sort)
-    Is_Eligible_For_Allocation,
+    -- DECIDE (what action?) - 2 columns
+    Is_Released             AS Can_Allocate,
     ROW_NUMBER() OVER (
         PARTITION BY ITEMNMBR
-        ORDER BY Projected_Release_Date ASC, Receipt_Date ASC
-    ) AS FEFO_Sort_Priority,
-    Inventory_Type
+        ORDER BY Release_Date ASC, Receipt_Date ASC
+    ) AS Use_Sequence
 
 FROM ParsedWFQInventory
 
 UNION ALL
 
 SELECT
-    CONCAT(Inventory_Type, '-', LOCNCODE, '-', ITEMNMBR, '-',
-           CONVERT(VARCHAR(10), Receipt_Date, 120)) AS Batch_ID,
-    ITEMNMBR                        AS Item_Number,
+    ITEMNMBR                AS Item_Number,
     Item_Description,
     Unit_Of_Measure,
-    NULL                            AS Client_ID,
-    LOCNCODE                        AS Location_Code,
-    NULL                            AS Bin_Location,
-    NULL                            AS Lot_Number,
-    'UNKNOWN'                       AS Bin_Type,
-    Available_Quantity,
-    0                               AS Degraded_Quantity,
-    Available_Quantity              AS Usable_Quantity,
+    LOCNCODE                AS Site,
+    Hold_Type,
+    Available_Quantity      AS Quantity,
+    Available_Quantity      AS Usable_Qty,
     Receipt_Date,
-    Batch_Age_Days,
-    Projected_Release_Date,
-    DATEDIFF(DAY, GETDATE(), Projected_Release_Date) AS Days_Until_Release,
-    Expiry_Date,
-    CASE
-        WHEN Expiry_Date IS NOT NULL THEN DATEDIFF(DAY, GETDATE(), Expiry_Date)
-        ELSE NULL
-    END                             AS Days_Until_Expiry,
-    Is_Eligible_For_Allocation,
+    Age_Days,
+    Release_Date,
+    DATEDIFF(DAY, GETDATE(), Release_Date) AS Days_To_Release,
+    Is_Released             AS Can_Allocate,
     ROW_NUMBER() OVER (
         PARTITION BY ITEMNMBR
-        ORDER BY Projected_Release_Date ASC, Receipt_Date ASC
-    ) AS FEFO_Sort_Priority,
-    Inventory_Type
+        ORDER BY Release_Date ASC, Receipt_Date ASC
+    ) AS Use_Sequence
 
 FROM ParsedRMQTYInventory
 
 ORDER BY
     Item_Number ASC,
-    Projected_Release_Date ASC,
-    Receipt_Date ASC,
-    Batch_ID ASC;
+    Use_Sequence ASC;
 
 GO
 
--- ============================================================================
--- TEST QUERY: Verify enhancement
--- ============================================================================
--- SELECT TOP 100 * FROM dbo.ETB2_Inventory_Quarantine_Restricted
--- WHERE Item_Description IS NOT NULL
--- ORDER BY Item_Number, FEFO_Sort_Priority;
+-- ============================================================
+-- TEST QUERIES
+-- ============================================================
+/*
+-- Check release status distribution
+SELECT Hold_Type,
+       SUM(CASE WHEN Can_Allocate = 1 THEN 1 ELSE 0 END) AS Released_Batches,
+       SUM(CASE WHEN Can_Allocate = 0 THEN 1 ELSE 0 END) AS On_Hold_Batches,
+       SUM(Quantity) AS Total_Quantity
+FROM dbo.ETB2_Inventory_Quarantine_Restricted
+GROUP BY Hold_Type;
+
+-- Items releasing soon (next 7 days)
+SELECT * FROM dbo.ETB2_Inventory_Quarantine_Restricted
+WHERE Can_Allocate = 0 AND Days_To_Release <= 7
+ORDER BY Days_To_Release, Item_Number;
+*/

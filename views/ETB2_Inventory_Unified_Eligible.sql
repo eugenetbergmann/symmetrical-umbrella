@@ -1,274 +1,186 @@
 -- ============================================================================
--- ETB2 Query: Inventory_Unified_Eligible
--- Purpose: All eligible inventory (WC + released quarantine batches)
--- Grain: Eligible Batch
--- Excel-Ready: Yes (SELECT-only, human-readable columns)
---   - Allocation Priority: WC first, then FEFO (Expiry → Receipt)
---   - No expiry filter on WFQ/RMQTY (per ETB2 unification)
--- Excel-Ready: Yes (SELECT-only, human-readable columns)
--- Dependencies: None (fully self-contained, logic inlined via UNION ALL)
--- Last Updated: 2026-01-25
+-- VIEW 3 of 6: ETB2_Inventory_Unified_Eligible
+-- PURPOSE: All eligible inventory consolidated (WC + released holds)
+-- PLANNER QUESTION: "What can I allocate right now across all sites?"
+-- SCREEN COLUMNS: 12 (fits 1920px)
 -- ============================================================================
 
-WITH
+CREATE OR ALTER VIEW dbo.ETB2_Inventory_Unified_Eligible AS
 
--- Inline global config defaults
-GlobalConfig AS (
+WITH GlobalConfig AS (
     SELECT
         180 AS WC_Shelf_Life_Days,
         14 AS WFQ_Hold_Days,
-        7 AS RMQTY_Hold_Days,
-        90 AS Expiry_Filter_Days
+        7 AS RMQTY_Hold_Days
 ),
 
--- WC Inventory (from T-003 logic)
-RawWCInventory AS (
+-- WC Batches (always eligible)
+WCInventory AS (
     SELECT
-        pib.ITEMNMBR,
-        pib.LOT_NUMBER,
-        pib.BIN,
-        pib.LOCNCODE,
-        pib.QTY_Available,
-        pib.DATERECD,
-        pib.EXPNDATE,
-        ext.BINTYPE AS Bin_Type_Raw
+        pib.ITEMNMBR            AS Item_Number,
+        itm.ITEMDESC            AS Item_Description,
+        itm.UOMSCHDL            AS Unit_Of_Measure,
+        pib.LOCNCODE            AS Site,
+        'WC'                    AS Site_Type,
+        pib.QTY_Available       AS Quantity,
+        CAST(pib.DATERECD AS DATE) AS Receipt_Date,
+        COALESCE(
+            TRY_CONVERT(DATE, pib.EXPNDATE),
+            DATEADD(DAY, (SELECT WC_Shelf_Life_Days FROM GlobalConfig), CAST(pib.DATERECD AS DATE))
+        ) AS Expiry_Date,
+        1 AS Allocation_Priority  -- WC first
     FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE pib
-    LEFT JOIN dbo.EXT_BINTYPE ext
-        ON pib.BINTYPE = ext.BINTYPE
+    LEFT JOIN dbo.IV00101 itm WITH (NOLOCK)
+        ON LTRIM(RTRIM(pib.ITEMNMBR)) = LTRIM(RTRIM(itm.ITEMNMBR))
     WHERE pib.LOCNCODE LIKE 'WC[_-]%'
       AND pib.QTY_Available > 0
       AND pib.LOT_NUMBER IS NOT NULL
       AND pib.LOT_NUMBER <> ''
+      AND COALESCE(
+            TRY_CONVERT(DATE, pib.EXPNDATE),
+            DATEADD(DAY, (SELECT WC_Shelf_Life_Days FROM GlobalConfig), CAST(pib.DATERECD AS DATE))
+          ) >= CAST(GETDATE() AS DATE)
 ),
 
-ParsedWCInventory AS (
+-- WFQ Batches (released only)
+WFQInventory AS (
     SELECT
-        ITEMNMBR,
-        LOT_NUMBER,
-        BIN,
-        LOCNCODE,
-        QTY_Available,
-        CAST(DATERECD AS DATE) AS Receipt_Date,
-        TRY_CONVERT(DATE, EXPNDATE) AS Expiry_Date_Raw,
-        COALESCE(TRY_CONVERT(DATE, EXPNDATE),
-                  DATEADD(DAY, (SELECT WC_Shelf_Life_Days FROM GlobalConfig), CAST(DATERECD AS DATE)))
-            AS Expiry_Date,
-        DATEDIFF(DAY, CAST(DATERECD AS DATE), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
-        LEFT(LOCNCODE,
-              PATINDEX('%[-_]%', LOCNCODE + '-') - 1) AS Client_ID,
-        COALESCE(Bin_Type_Raw, 'UNKNOWN') AS Bin_Type,
-        1 AS SortPriority,
-        'WC_BATCH' AS Inventory_Type,
-        itm.ITEMDESC AS Item_Description,
-        itm.UOMSCHDL AS Unit_Of_Measure
-    FROM RawWCInventory ri
-    LEFT JOIN dbo.IV00101 itm WITH (NOLOCK)
-        ON LTRIM(RTRIM(ri.ITEMNMBR)) = LTRIM(RTRIM(itm.ITEMNMBR))
-    WHERE Expiry_Date >= CAST(GETDATE() AS DATE)
-),
-
--- WFQ Inventory (from T-004 logic)
-RawWFQInventory AS (
-    SELECT
-        inv.ITEMNMBR,
-        inv.LOCNCODE,
-        inv.RCTSEQNM,
-        inv.QTYRECVD - inv.QTYSOLD AS QTY_ON_HAND,
-        inv.DATERECD,
-        inv.EXPNDATE,
-        itm.UOMSCHDL,
-        itm.ITEMDESC
+        inv.ITEMNMBR            AS Item_Number,
+        itm.ITEMDESC            AS Item_Description,
+        itm.UOMSCHDL            AS Unit_Of_Measure,
+        inv.LOCNCODE            AS Site,
+        'WFQ'                   AS Site_Type,
+        SUM(inv.QTYRECVD - inv.QTYSOLD) AS Quantity,
+        MAX(CAST(inv.DATERECD AS DATE)) AS Receipt_Date,
+        MAX(TRY_CONVERT(DATE, inv.EXPNDATE)) AS Expiry_Date,
+        2 AS Allocation_Priority  -- After WC
     FROM dbo.IV00300 inv
     LEFT JOIN dbo.IV00101 itm ON inv.ITEMNMBR = itm.ITEMNMBR
+    CROSS JOIN GlobalConfig cfg
     WHERE TRIM(inv.LOCNCODE) = 'WF-Q'
-      AND (inv.QTYRECVD - inv.QTYSOLD) <> 0
-      AND (inv.EXPNDATE IS NULL
-           OR inv.EXPNDATE > DATEADD(DAY, (SELECT Expiry_Filter_Days FROM GlobalConfig), GETDATE()))
+      AND (inv.QTYRECVD - inv.QTYSOLD) > 0
+    GROUP BY inv.ITEMNMBR, inv.LOCNCODE, itm.ITEMDESC, itm.UOMSCHDL
+    HAVING DATEADD(DAY, cfg.WFQ_Hold_Days, MAX(CAST(inv.DATERECD AS DATE))) <= GETDATE()
 ),
 
-ParsedWFQInventory AS (
+-- RMQTY Batches (released only)
+RMQTYInventory AS (
     SELECT
-        ITEMNMBR,
-        LOCNCODE,
-        RCTSEQNM,
-        SUM(QTY_ON_HAND) AS Available_Quantity,
-        MAX(CAST(DATERECD AS DATE)) AS Receipt_Date,
-        MAX(TRY_CONVERT(DATE, EXPNDATE)) AS Expiry_Date,
-        MAX(UOMSCHDL) AS Unit_Of_Measure,
-        MAX(ITEMDESC) AS Item_Description,
-        DATEADD(DAY, (SELECT WFQ_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) AS Projected_Release_Date,
-        DATEDIFF(DAY, MAX(CAST(DATERECD AS DATE)), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
-        CASE
-            WHEN DATEADD(DAY, (SELECT WFQ_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) <= GETDATE()
-            THEN 1 ELSE 0
-        END AS Is_Eligible_For_Allocation,
-        NULL AS Client_ID,
-        'UNKNOWN' AS Bin_Type,
-        2 AS SortPriority,
-        'WFQ_BATCH' AS Inventory_Type
-    FROM RawWFQInventory
-    GROUP BY ITEMNMBR, LOCNCODE, RCTSEQNM
-    HAVING SUM(QTY_ON_HAND) <> 0
-),
-
--- RMQTY Inventory (from T-004 logic)
-RawRMQTYInventory AS (
-    SELECT
-        inv.ITEMNMBR,
-        inv.LOCNCODE,
-        inv.RCTSEQNM,
-        inv.QTYRECVD - inv.QTYSOLD AS QTY_ON_HAND,
-        inv.DATERECD,
-        inv.EXPNDATE,
-        itm.UOMSCHDL,
-        itm.ITEMDESC
+        inv.ITEMNMBR            AS Item_Number,
+        itm.ITEMDESC            AS Item_Description,
+        itm.UOMSCHDL            AS Unit_Of_Measure,
+        inv.LOCNCODE            AS Site,
+        'RMQTY'                 AS Site_Type,
+        SUM(inv.QTYRECVD - inv.QTYSOLD) AS Quantity,
+        MAX(CAST(inv.DATERECD AS DATE)) AS Receipt_Date,
+        MAX(TRY_CONVERT(DATE, inv.EXPNDATE)) AS Expiry_Date,
+        3 AS Allocation_Priority  -- After WFQ
     FROM dbo.IV00300 inv
     LEFT JOIN dbo.IV00101 itm ON inv.ITEMNMBR = itm.ITEMNMBR
+    CROSS JOIN GlobalConfig cfg
     WHERE TRIM(inv.LOCNCODE) = 'RMQTY'
-      AND (inv.QTYRECVD - inv.QTYSOLD) <> 0
-      AND (inv.EXPNDATE IS NULL
-           OR inv.EXPNDATE > DATEADD(DAY, (SELECT Expiry_Filter_Days FROM GlobalConfig), GETDATE()))
-),
-
-ParsedRMQTYInventory AS (
-    SELECT
-        ITEMNMBR,
-        LOCNCODE,
-        RCTSEQNM,
-        SUM(QTY_ON_HAND) AS Available_Quantity,
-        MAX(CAST(DATERECD AS DATE)) AS Receipt_Date,
-        MAX(TRY_CONVERT(DATE, EXPNDATE)) AS Expiry_Date,
-        MAX(UOMSCHDL) AS Unit_Of_Measure,
-        MAX(ITEMDESC) AS Item_Description,
-        DATEADD(DAY, (SELECT RMQTY_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) AS Projected_Release_Date,
-        DATEDIFF(DAY, MAX(CAST(DATERECD AS DATE)), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
-        CASE
-            WHEN DATEADD(DAY, (SELECT RMQTY_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) <= GETDATE()
-            THEN 1 ELSE 0
-        END AS Is_Eligible_For_Allocation,
-        NULL AS Client_ID,
-        'UNKNOWN' AS Bin_Type,
-        3 AS SortPriority,
-        'RMQTY_BATCH' AS Inventory_Type
-    FROM RawRMQTYInventory
-    GROUP BY ITEMNMBR, LOCNCODE, RCTSEQNM
-    HAVING SUM(QTY_ON_HAND) <> 0
+      AND (inv.QTYRECVD - inv.QTYSOLD) > 0
+    GROUP BY inv.ITEMNMBR, inv.LOCNCODE, itm.ITEMDESC, itm.UOMSCHDL
+    HAVING DATEADD(DAY, cfg.RMQTY_Hold_Days, MAX(CAST(inv.DATERECD AS DATE))) <= GETDATE()
 )
 
+-- ============================================================
+-- FINAL OUTPUT: 12 columns, planner-optimized order
+-- ============================================================
 SELECT
-    -- Human-readable Batch_ID for traceability
-    CONCAT(CASE WHEN Inventory_Type = 'WC_BATCH' THEN 'WC' ELSE LEFT(Inventory_Type, LEN(Inventory_Type)-6) END,
-           '-', LOCNCODE, '-',
-           CASE WHEN Inventory_Type = 'WC_BATCH' THEN BIN ELSE '' END,
-           CASE WHEN Inventory_Type = 'WC_BATCH' THEN '-' ELSE '' END,
-           ITEMNMBR, '-',
-           CONVERT(VARCHAR(10), Receipt_Date, 120)) AS Batch_ID,
-
-    ITEMNMBR                        AS Item_Number,
+    -- IDENTIFY (what item?) - 3 columns
+    Item_Number,
     Item_Description,
     Unit_Of_Measure,
-    Client_ID,
-    LOCNCODE                        AS Location_Code,
-    CASE WHEN Inventory_Type = 'WC_BATCH' THEN BIN ELSE NULL END AS Bin_Location,
-    CASE WHEN Inventory_Type = 'WC_BATCH' THEN LOT_NUMBER ELSE NULL END AS Lot_Number,
-    QTY_Available                   AS Available_Quantity,
+    
+    -- LOCATE (where is it?) - 2 columns
+    Site,
+    Site_Type,
+    
+    -- QUANTIFY (how much?) - 2 columns
+    Quantity,
+    Quantity                AS Usable_Qty,
+    
+    -- TIME (when relevant?) - 3 columns
     Receipt_Date,
     Expiry_Date,
-    Batch_Age_Days,
-    CASE
-        WHEN Expiry_Date IS NOT NULL THEN DATEDIFF(DAY, GETDATE(), Expiry_Date)
-        ELSE NULL
-    END                             AS Days_Until_Expiry,
-    0                               AS Degraded_Quantity,
-    QTY_Available                   AS Usable_Quantity,
-    Bin_Type,
-
-    -- FEFO Sort Priority (within allocation priority)
+    DATEDIFF(DAY, GETDATE(), Expiry_Date) AS Days_To_Expiry,
+    
+    -- DECIDE (what action?) - 2 columns
+    Allocation_Priority,
     ROW_NUMBER() OVER (
-        PARTITION BY ITEMNMBR, Inventory_Type
-        ORDER BY
-            CASE WHEN Inventory_Type = 'WC_BATCH' THEN Expiry_Date ELSE Projected_Release_Date END ASC,
-            Receipt_Date ASC
-    ) AS FEFO_Sort_Priority,
+        PARTITION BY Item_Number
+        ORDER BY Allocation_Priority ASC, Expiry_Date ASC, Receipt_Date ASC
+    ) AS Use_Sequence
 
-    Is_Eligible_For_Allocation,
-    Inventory_Type,
-    SortPriority                    AS Allocation_Priority
-
-FROM ParsedWCInventory
+FROM WCInventory
 
 UNION ALL
 
 SELECT
-    CONCAT('WFQ-', LOCNCODE, '-', ITEMNMBR, '-', CONVERT(VARCHAR(10), Receipt_Date, 120)) AS Batch_ID,
-
-    ITEMNMBR                        AS Item_Number,
+    Item_Number,
     Item_Description,
     Unit_Of_Measure,
-    Client_ID,
-    LOCNCODE                        AS Location_Code,
-    NULL                            AS Bin_Location,
-    NULL                            AS Lot_Number,
-    Available_Quantity,
+    Site,
+    Site_Type,
+    Quantity,
+    Quantity                AS Usable_Qty,
     Receipt_Date,
     Expiry_Date,
-    Batch_Age_Days,
-    CASE
-        WHEN Expiry_Date IS NOT NULL THEN DATEDIFF(DAY, GETDATE(), Expiry_Date)
-        ELSE NULL
-    END                             AS Days_Until_Expiry,
-    0                               AS Degraded_Quantity,
-    Available_Quantity              AS Usable_Quantity,
-    Bin_Type,
-
+    DATEDIFF(DAY, GETDATE(), Expiry_Date) AS Days_To_Expiry,
+    Allocation_Priority,
     ROW_NUMBER() OVER (
-        PARTITION BY ITEMNMBR, Inventory_Type
-        ORDER BY Projected_Release_Date ASC, Receipt_Date ASC
-    ) AS FEFO_Sort_Priority,
+        PARTITION BY Item_Number
+        ORDER BY Allocation_Priority ASC, Expiry_Date ASC, Receipt_Date ASC
+    ) AS Use_Sequence
 
-    Is_Eligible_For_Allocation,
-    Inventory_Type,
-    SortPriority                    AS Allocation_Priority
-
-FROM ParsedWFQInventory
+FROM WFQInventory
 
 UNION ALL
 
 SELECT
-    CONCAT('RMQTY-', LOCNCODE, '-', ITEMNMBR, '-', CONVERT(VARCHAR(10), Receipt_Date, 120)) AS Batch_ID,
-
-    ITEMNMBR                        AS Item_Number,
+    Item_Number,
     Item_Description,
     Unit_Of_Measure,
-    Client_ID,
-    LOCNCODE                        AS Location_Code,
-    NULL                            AS Bin_Location,
-    NULL                            AS Lot_Number,
-    Available_Quantity,
+    Site,
+    Site_Type,
+    Quantity,
+    Quantity                AS Usable_Qty,
     Receipt_Date,
     Expiry_Date,
-    Batch_Age_Days,
-    CASE
-        WHEN Expiry_Date IS NOT NULL THEN DATEDIFF(DAY, GETDATE(), Expiry_Date)
-        ELSE NULL
-    END                             AS Days_Until_Expiry,
-    0                               AS Degraded_Quantity,
-    Available_Quantity              AS Usable_Quantity,
-    Bin_Type,
-
+    DATEDIFF(DAY, GETDATE(), Expiry_Date) AS Days_To_Expiry,
+    Allocation_Priority,
     ROW_NUMBER() OVER (
-        PARTITION BY ITEMNMBR, Inventory_Type
-        ORDER BY Projected_Release_Date ASC, Receipt_Date ASC
-    ) AS FEFO_Sort_Priority,
+        PARTITION BY Item_Number
+        ORDER BY Allocation_Priority ASC, Expiry_Date ASC, Receipt_Date ASC
+    ) AS Use_Sequence
 
-    Is_Eligible_For_Allocation,
-    Inventory_Type,
-    SortPriority                    AS Allocation_Priority
-
-FROM ParsedRMQTYInventory
+FROM RMQTYInventory
 
 ORDER BY
-    Allocation_Priority ASC,        -- WC first, then WFQ, then RMQTY
     Item_Number ASC,
-    FEFO_Sort_Priority ASC,         -- within each, FEFO order
-    Batch_ID ASC;
+    Allocation_Priority ASC,
+    Use_Sequence ASC;
+
+GO
+
+-- ============================================================
+-- TEST QUERIES
+-- ============================================================
+/*
+-- Inventory distribution by site type
+SELECT Site_Type,
+       COUNT(DISTINCT Item_Number) AS Unique_Items,
+       SUM(Quantity) AS Total_Quantity
+FROM dbo.ETB2_Inventory_Unified_Eligible
+GROUP BY Site_Type
+ORDER BY Allocation_Priority;
+
+-- Items with multi-site inventory
+SELECT Item_Number, Item_Description,
+       COUNT(DISTINCT Site_Type) AS Site_Types,
+       SUM(Quantity) AS Total_Available
+FROM dbo.ETB2_Inventory_Unified_Eligible
+GROUP BY Item_Number, Item_Description
+HAVING COUNT(DISTINCT Site_Type) > 1;
+*/
