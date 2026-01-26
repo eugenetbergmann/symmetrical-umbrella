@@ -150,6 +150,31 @@ Preserved exactly:
 
 ---
 
+## 9. ETB2 Analytical Inventory (Authoritative)
+
+**Updated:** 2026-01-26
+**SESSION_ID:** ETB2-20260126030557-ABCD
+
+| Object Name | Dependency Group | Upstream Dependencies | Downstream Consumers | Analytics Readiness Status |
+|-------------|------------------|-----------------------|----------------------|-----------------------------|
+| ETB2_Config_Active | ETB2_SELF_CONTAINED | None | All planning queries | READY |
+| ETB2_Demand_Cleaned_Base | ETB2_EXTERNAL_DEPENDENCY | dbo.ETB_PAB_AUTO, Prosenthal_Vendor_Items | ETB2_Planning_Stockout_Risk, ETB2_Planning_Net_Requirements, ETB2_Planning_Rebalancing_Opportunities | READY |
+| ETB2_Inventory_Quarantine_Restricted | ETB2_EXTERNAL_DEPENDENCY | dbo.IV00300, dbo.IV00101 | ETB2_Inventory_Unified_Eligible | READY |
+| ETB2_Inventory_Unified_Eligible | ETB2_EXTERNAL_DEPENDENCY | dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE, dbo.EXT_BINTYPE, dbo.IV00300, dbo.IV00101 | ETB2_Planning_Stockout_Risk, ETB2_Planning_Rebalancing_Opportunities | READY |
+| ETB2_Inventory_WC_Batches | ETB2_EXTERNAL_DEPENDENCY | dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE, dbo.EXT_BINTYPE | ETB2_Inventory_Unified_Eligible | READY |
+| ETB2_Planning_Net_Requirements | ETB2_EXTERNAL_DEPENDENCY | dbo.ETB_PAB_AUTO | None | READY |
+| ETB2_Planning_Rebalancing_Opportunities | ETB2_EXTERNAL_DEPENDENCY | dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE, dbo.IV00300 | None | READY |
+| ETB2_Planning_Stockout_Risk | ETB2_EXTERNAL_DEPENDENCY | dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE | None | READY |
+
+---
+
+## END OF CANONICAL STANDALONE QUERY DOCUMENTATION
+
+**Document Purpose:** True canonical ledger of current repository state — all analytics now delivered via standalone SELECT-only queries.
+**Intended Audience:** Architects, Planners, LLMs, Auditors
+**Completeness:** Exhaustive snapshot post-migration
+**Last Updated:** 2026-01-26
+**Repository State:** ETB2 Validation & Analytics Update Complete
 ## 9. ETB2 Namespace Consolidation (2026-01-25)
 
 ### Migration Summary
