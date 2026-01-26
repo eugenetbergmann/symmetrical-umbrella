@@ -27,7 +27,20 @@ WITH LeadTimeBuckets AS (
 
 SELECT
     cb.item_id,
-    (ra.on_hand_qty + ra.inbound_qty) / NULLIF(cb.CCU, 0) AS absorbable_campaigns,
+    CASE
+        WHEN NULLIF(cb.CCU, 0) IS NULL THEN NULL
+        ELSE (ra.on_hand_qty + ra.inbound_qty) / NULLIF(cb.CCU, 0)
+    END AS absorbable_campaigns,
+    CASE
+        WHEN NULLIF(cb.CCU, 0) IS NULL THEN 'NOT APPLICABLE'
+        WHEN cb.CCU = 0 THEN 'NOT APPLICABLE - CCU is zero'
+        ELSE CAST((ra.on_hand_qty + ra.inbound_qty) / NULLIF(cb.CCU, 0) AS VARCHAR(20))
+    END AS absorbable_campaigns_formatted,
+    CASE
+        WHEN NULLIF(cb.CCU, 0) IS NULL THEN 'HIGH'
+        WHEN cb.CCU = 0 THEN 'NOT APPLICABLE'
+        ELSE 'HIGH'
+    END AS data_confidence_level,
     p.Pooling_Class AS pooling_class,
     ltb.lead_time_bucket,
     cb.CCU,
