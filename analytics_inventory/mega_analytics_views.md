@@ -1,7 +1,7 @@
 # ETB2 Analytics Inventory: Comprehensive Standalone Query Documentation
 
-**Generated:** 2026-01-25  
-**Repository State:** Standalone Queries Migration Complete  
+**Generated:** 2026-01-26
+**Repository State:** Views Enhanced with Descriptive Columns (2026-01-26 Update)
 **Total Standalone Queries Documented:** 8 (Optimized, Excel-Ready, SELECT-Only)
 
 ---
@@ -36,7 +36,7 @@ Legacy Rolyat-prefixed views and ETB2 views have been retired and replaced by th
 
 ## 2. Standalone Query Inventory
 
-#### Query: `query_t001_unified-active-configuration.sql`
+#### Query: `ETB2_Config_Active.sql`
 **Intended Persona:** System Administrator, Configuration Manager, All Planners  
 **Grain:** Item / Client / Site  
 **Metrics Produced:** All configuration parameters (hold days, shelf life, safety stock, degradation factors, etc.)  
@@ -45,43 +45,43 @@ Legacy Rolyat-prefixed views and ETB2 views have been retired and replaced by th
 - Temporal validity applied
 - Placeholders for future Client/Item overrides
 
-#### Query: `query_t002_cleaned-base-demand.sql`
+#### Query: `ETB2_Demand_Cleaned_Base.sql`
 **Intended Persona:** Demand Planner, Supply Planner  
 **Grain:** Order Line  
 **Metrics Produced:** Base_Demand_Quantity, Demand_Priority_Type, Is_Within_Active_Planning_Window  
 **Notable Assumptions:** Exact preservation of original Rolyat_Cleaned_Base_Demand_1 (excludes 60.x/70.x, partial receives, Remaining > Deductions > Expiry priority)
 
-#### Query: `query_t003_wc-batch-inventory.sql`
-**Intended Persona:** Inventory Manager, Allocation Planner  
-**Grain:** WC Batch  
-**Metrics Produced:** Available_Quantity, Batch_Age_Days, Days_Until_Expiry, FEFO_Sort_Priority  
-**Notable Assumptions:** Exact preservation of original Rolyat_WC_Inventory (WC sites only, shelf life fallback 180 days, always eligible, no hold)
+#### Query: `ETB2_Inventory_WC_Batches.sql`
+**Intended Persona:** Inventory Manager, Allocation Planner
+**Grain:** WC Batch
+**Metrics Produced:** Batch_ID, Item_Number, Item_Description, Unit_Of_Measure, Client_ID, Location_Code, Bin_Location, Bin_Type, Lot_Number, Available_Quantity, Degraded_Quantity, Usable_Quantity, Receipt_Date, Batch_Age_Days, Expiry_Date, Days_Until_Expiry, FEFO_Sort_Priority, Is_Eligible_For_Allocation, Inventory_Type
+**Notable Assumptions:** Exact preservation of original Rolyat_WC_Inventory (WC sites only, shelf life fallback 180 days, always eligible, no hold); Enhanced with descriptive columns from IV00101
 
-#### Query: `query_t004_quarantine-restricted-inventory.sql`
+#### Query: `ETB2_Inventory_Quarantine_Restricted.sql`
 **Intended Persona:** Inventory Manager, QC Manager  
 **Grain:** WFQ/RMQTY Batch (RCTSEQNM)  
 **Metrics Produced:** Quantity_On_Hand, Age_Days, Days_Until_Release, Is_Eligible_For_Release  
 **Notable Assumptions:** Exact preservation of original Rolyat_WFQ_5 (separate 14/7 day holds, 90-day expiry filter, eligibility flag)
 
-#### Query: `query_t005_unified-batch-inventory.sql`
+#### Query: `ETB2_Inventory_Unified_Eligible.sql`
 **Intended Persona:** Inventory Manager, Allocation Planner  
 **Grain:** Eligible Batch (WC + releasable WFQ/RMQTY)  
 **Metrics Produced:** Quantity_On_Hand, Days_Until_Expiry, Is_Eligible_For_Release, Allocation_Sort_Priority (WC first, then expiry)  
 **Notable Assumptions:** Consolidated eligible stock; no expiry filter on WFQ/RMQTY (per ETB2 unification)
 
-#### Query: `query_t006_stockout-risk-analysis.sql`
+#### Query: `ETB2_Planning_Stockout_Risk.sql`
 **Intended Persona:** Supply Planner, Demand Planner  
 **Grain:** Item-Date (simplified to item-level in standalone)  
 **Metrics Produced:** Total_Demand, Total_Allocated, ATP_Balance, Unmet_Demand, Available_Alternate_Quantity, Risk_Level, Recommended_Action  
 **Notable Assumptions:** Simplified aggregate allocation (WC primary); alternate = eligible WFQ/RMQTY
 
-#### Query: `query_t007_net-procurement-requirements.sql`
+#### Query: `ETB2_Planning_Net_Requirements.sql`
 **Intended Persona:** Supply Planner, Procurement  
 **Grain:** Item  
 **Metrics Produced:** Net_Requirement_Quantity, Safety_Stock_Level, Days_Of_Supply, Requirement_Status, Requirement_Priority  
 **Notable Assumptions:** DAYS_OF_SUPPLY method; cascading shortage + safety logic preserved
 
-#### Query: `query_t008_expiry-driven-rebalancing-opportunities.sql`
+#### Query: `ETB2_Planning_Rebalancing_Opportunities.sql`
 **Intended Persona:** Supply Planner, Inventory Manager  
 **Grain:** Batch-to-Item Opportunity  
 **Metrics Produced:** Recommended_Transfer_Quantity, Transfer_Priority, Rebalancing_Type, Business_Impact  
@@ -268,19 +268,24 @@ All Rolyat_* and query_t00X_* references deprecated as of 2026-01-25.
 ## 10. ETB2 File Manifest (Post-Consolidation)
 
 ```
-/analytics_inventory/
+/views/
+├── 16_dbo.ETB2_PAB_EventLedger_v1.sql
 ├── ETB2_Config_Active.sql
 ├── ETB2_Demand_Cleaned_Base.sql
-├── ETB2_Inventory_WC_Batches.sql
 ├── ETB2_Inventory_Quarantine_Restricted.sql
 ├── ETB2_Inventory_Unified_Eligible.sql
-├── ETB2_Planning_Stockout_Risk.sql
+├── ETB2_Inventory_WC_Batches.sql
 ├── ETB2_Planning_Net_Requirements.sql
 ├── ETB2_Planning_Rebalancing_Opportunities.sql
+└── ETB2_Planning_Stockout_Risk.sql
+```
+
+```
+/analytics_inventory/
 └── mega_analytics_views.md
 ```
 
-**Total Files:** 9 (8 queries + 1 documentation)
+**Total Files:** 10 (9 views/queries + 1 documentation)
 
 **Deprecated Files:** All query_t00X_* files removed via Git mv
 
