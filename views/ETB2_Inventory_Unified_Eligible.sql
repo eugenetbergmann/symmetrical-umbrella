@@ -51,15 +51,19 @@ ParsedWCInventory AS (
         CAST(DATERECD AS DATE) AS Receipt_Date,
         TRY_CONVERT(DATE, EXPNDATE) AS Expiry_Date_Raw,
         COALESCE(TRY_CONVERT(DATE, EXPNDATE),
-                 DATEADD(DAY, (SELECT WC_Shelf_Life_Days FROM GlobalConfig), CAST(DATERECD AS DATE)))
+                  DATEADD(DAY, (SELECT WC_Shelf_Life_Days FROM GlobalConfig), CAST(DATERECD AS DATE)))
             AS Expiry_Date,
         DATEDIFF(DAY, CAST(DATERECD AS DATE), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
         LEFT(LOCNCODE,
-             PATINDEX('%[-_]%', LOCNCODE + '-') - 1) AS Client_ID,
+              PATINDEX('%[-_]%', LOCNCODE + '-') - 1) AS Client_ID,
         COALESCE(Bin_Type_Raw, 'UNKNOWN') AS Bin_Type,
         1 AS SortPriority,
-        'WC_BATCH' AS Inventory_Type
-    FROM RawWCInventory
+        'WC_BATCH' AS Inventory_Type,
+        itm.ITEMDESC AS Item_Description,
+        itm.UOMSCHDL AS Unit_Of_Measure
+    FROM RawWCInventory ri
+    LEFT JOIN dbo.IV00101 itm WITH (NOLOCK)
+        ON LTRIM(RTRIM(ri.ITEMNMBR)) = LTRIM(RTRIM(itm.ITEMNMBR))
     WHERE Expiry_Date >= CAST(GETDATE() AS DATE)
 ),
 
@@ -72,7 +76,8 @@ RawWFQInventory AS (
         inv.QTYRECVD - inv.QTYSOLD AS QTY_ON_HAND,
         inv.DATERECD,
         inv.EXPNDATE,
-        itm.UOMSCHDL
+        itm.UOMSCHDL,
+        itm.ITEMDESC
     FROM dbo.IV00300 inv
     LEFT JOIN dbo.IV00101 itm ON inv.ITEMNMBR = itm.ITEMNMBR
     WHERE TRIM(inv.LOCNCODE) = 'WF-Q'
@@ -89,7 +94,8 @@ ParsedWFQInventory AS (
         SUM(QTY_ON_HAND) AS Available_Quantity,
         MAX(CAST(DATERECD AS DATE)) AS Receipt_Date,
         MAX(TRY_CONVERT(DATE, EXPNDATE)) AS Expiry_Date,
-        MAX(UOMSCHDL) AS UOM,
+        MAX(UOMSCHDL) AS Unit_Of_Measure,
+        MAX(ITEMDESC) AS Item_Description,
         DATEADD(DAY, (SELECT WFQ_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) AS Projected_Release_Date,
         DATEDIFF(DAY, MAX(CAST(DATERECD AS DATE)), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
         CASE
@@ -114,7 +120,8 @@ RawRMQTYInventory AS (
         inv.QTYRECVD - inv.QTYSOLD AS QTY_ON_HAND,
         inv.DATERECD,
         inv.EXPNDATE,
-        itm.UOMSCHDL
+        itm.UOMSCHDL,
+        itm.ITEMDESC
     FROM dbo.IV00300 inv
     LEFT JOIN dbo.IV00101 itm ON inv.ITEMNMBR = itm.ITEMNMBR
     WHERE TRIM(inv.LOCNCODE) = 'RMQTY'
@@ -131,7 +138,8 @@ ParsedRMQTYInventory AS (
         SUM(QTY_ON_HAND) AS Available_Quantity,
         MAX(CAST(DATERECD AS DATE)) AS Receipt_Date,
         MAX(TRY_CONVERT(DATE, EXPNDATE)) AS Expiry_Date,
-        MAX(UOMSCHDL) AS UOM,
+        MAX(UOMSCHDL) AS Unit_Of_Measure,
+        MAX(ITEMDESC) AS Item_Description,
         DATEADD(DAY, (SELECT RMQTY_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) AS Projected_Release_Date,
         DATEDIFF(DAY, MAX(CAST(DATERECD AS DATE)), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
         CASE
@@ -157,6 +165,8 @@ SELECT
            CONVERT(VARCHAR(10), Receipt_Date, 120)) AS Batch_ID,
 
     ITEMNMBR                        AS Item_Number,
+    Item_Description,
+    Unit_Of_Measure,
     Client_ID,
     LOCNCODE                        AS Location_Code,
     CASE WHEN Inventory_Type = 'WC_BATCH' THEN BIN ELSE NULL END AS Bin_Location,
@@ -193,6 +203,8 @@ SELECT
     CONCAT('WFQ-', LOCNCODE, '-', ITEMNMBR, '-', CONVERT(VARCHAR(10), Receipt_Date, 120)) AS Batch_ID,
 
     ITEMNMBR                        AS Item_Number,
+    Item_Description,
+    Unit_Of_Measure,
     Client_ID,
     LOCNCODE                        AS Location_Code,
     NULL                            AS Bin_Location,
@@ -226,6 +238,8 @@ SELECT
     CONCAT('RMQTY-', LOCNCODE, '-', ITEMNMBR, '-', CONVERT(VARCHAR(10), Receipt_Date, 120)) AS Batch_ID,
 
     ITEMNMBR                        AS Item_Number,
+    Item_Description,
+    Unit_Of_Measure,
     Client_ID,
     LOCNCODE                        AS Location_Code,
     NULL                            AS Bin_Location,

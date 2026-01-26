@@ -113,10 +113,14 @@ AllItems AS (
 ItemSummary AS (
     SELECT
         ai.Item_Number,
+        itm.ITEMDESC AS Item_Description,
+        itm.UOMSCHDL AS Unit_Of_Measure,
         COALESCE(da.Total_Future_Demand, 0.0) AS Total_Future_Demand,
         COALESCE(pi.Total_Primary_Quantity, 0.0) AS Total_Primary_Inventory,
         COALESCE(ai_alt.Total_Alternate_Quantity, 0.0) AS Total_Alternate_Inventory
     FROM AllItems ai
+    LEFT JOIN dbo.IV00101 itm WITH (NOLOCK)
+        ON LTRIM(RTRIM(ai.Item_Number)) = LTRIM(RTRIM(itm.ITEMNMBR))
     LEFT JOIN DemandAgg da ON ai.Item_Number = da.Item_Number
     LEFT JOIN PrimaryInventory pi ON ai.Item_Number = pi.Item_Number
     LEFT JOIN AlternateInventory ai_alt ON ai.Item_Number = ai_alt.Item_Number
@@ -124,6 +128,8 @@ ItemSummary AS (
 
 SELECT
     Item_Number,
+    Item_Description,
+    Unit_Of_Measure,
     Total_Future_Demand,
     Total_Primary_Inventory,
     Total_Alternate_Inventory,
