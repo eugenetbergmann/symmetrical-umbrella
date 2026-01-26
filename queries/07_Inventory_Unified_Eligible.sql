@@ -42,6 +42,7 @@ SELECT
     i.Work_Center,
     SUM(i.Quantity) AS Eligible_Qty,
     MIN(i.Expiry_Date) AS Earliest_Expiry,
+    MIN(i.DATERECD) AS Date_In_Bin,  -- Date inventory was received into bin
     COUNT(*) AS Batch_Count,
     'WC' AS Inventory_Source,
     -- Expiry status for filtering
