@@ -89,6 +89,8 @@ EligibleHeldBatches AS (
     SELECT
         Batch_ID,
         Item_Number,
+        itm.ITEMDESC AS Item_Description,
+        itm.UOMSCHDL AS Unit_Of_Measure,
         Location_Code,
         Inventory_Type,
         Quantity_On_Hand,
@@ -129,6 +131,8 @@ SELECT
         ORDER BY Type_Priority ASC, Expiry_Date ASC, Receipt_Date ASC
     ) AS Allocation_Sort_Priority
 FROM UnifiedEligible
+LEFT JOIN dbo.IV00101 itm WITH (NOLOCK)
+    ON LTRIM(RTRIM(UnifiedEligible.Item_Number)) = LTRIM(RTRIM(itm.ITEMNMBR))
 WHERE Quantity_On_Hand > 0  -- final safety filter
 ORDER BY
     Item_Number ASC,

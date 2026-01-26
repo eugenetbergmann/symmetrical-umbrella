@@ -1,22 +1,11 @@
 -- ============================================================================
--- View: dbo.ETB2_Inventory_WC_Batches
--- Purpose: Work Center batch inventory with FEFO ordering
--- Grain: WC Batch
---   - Site: LOCNCODE LIKE 'WC[_-]%'
---   - FEFO: Expiry_Date ASC → Receipt_Date ASC
---   - Shelf Life: 180-day fallback if no EXPNDATE
---   - Eligibility: Always (no hold period)
---   - Client_ID: Extracted from LOCNCODE
--- Excel-Ready: Yes (SELECT-only, human-readable columns)
--- Dependencies: dbo.EXT_BINTYPE, dbo.ETB2_Config_Active
--- Last Updated: 2026-01-25
+-- VIEW 2 of 6: ETB2_Inventory_WC_Batches
+-- ENHANCEMENT: Add Item_Description and Unit_Of_Measure from IV00101
 -- ============================================================================
 
 CREATE OR ALTER VIEW dbo.ETB2_Inventory_WC_Batches AS
 
-WITH
-
-GlobalShelfLife AS (
+WITH GlobalShelfLife AS (
     SELECT 180 AS Default_WC_Shelf_Life_Days
 ),
 
@@ -31,8 +20,7 @@ RawWCInventory AS (
         pib.EXPNDATE,
         ext.BINTYPE AS Bin_Type_Raw
     FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE pib
-    LEFT JOIN dbo.EXT_BINTYPE ext
-        ON pib.BINTYPE = ext.BINTYPE
+    LEFT JOIN dbo.EXT_BINTYPE ext ON pib.BINTYPE = ext.BINTYPE
     WHERE pib.LOCNCODE LIKE 'WC[_-]%'
       AND pib.QTY_Available > 0
       AND pib.LOT_NUMBER IS NOT NULL
@@ -41,58 +29,78 @@ RawWCInventory AS (
 
 ParsedInventory AS (
     SELECT
-        ITEMNMBR,
-        LOT_NUMBER,
-        BIN,
-        LOCNCODE,
-        QTY_Available,
-        CAST(DATERECD AS DATE) AS Receipt_Date,
-        TRY_CONVERT(DATE, EXPNDATE) AS Expiry_Date_Raw,
-        COALESCE(TRY_CONVERT(DATE, EXPNDATE),
-                 DATEADD(DAY, gsl.Default_WC_Shelf_Life_Days, CAST(DATERECD AS DATE)))
-            AS Expiry_Date,
-        DATEDIFF(DAY, CAST(DATERECD AS DATE), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
-        -- Extract Client_ID: everything before first '-' or '_'
-        LEFT(LOCNCODE,
-             PATINDEX('%[-_]%', LOCNCODE + '-') - 1) AS Client_ID,
-        COALESCE(BINTYPE_Raw, 'UNKNOWN') AS Bin_Type
-    FROM RawWCInventory
+        ri.ITEMNMBR,
+        ri.LOT_NUMBER,
+        ri.BIN,
+        ri.LOCNCODE,
+        ri.QTY_Available,
+        CAST(ri.DATERECD AS DATE) AS Receipt_Date,
+        TRY_CONVERT(DATE, ri.EXPNDATE) AS Expiry_Date_Raw,
+        COALESCE(
+            TRY_CONVERT(DATE, ri.EXPNDATE),
+            DATEADD(DAY, gsl.Default_WC_Shelf_Life_Days, CAST(ri.DATERECD AS DATE))
+        ) AS Expiry_Date,
+        DATEDIFF(DAY, CAST(ri.DATERECD AS DATE), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
+        LEFT(ri.LOCNCODE, PATINDEX('%[-_]%', ri.LOCNCODE + '-') - 1) AS Client_ID,
+        COALESCE(ri.Bin_Type_Raw, 'UNKNOWN') AS Bin_Type,
+        itm.ITEMDESC AS Item_Description,
+        itm.UOMSCHDL AS Unit_Of_Measure
+    FROM RawWCInventory ri
     CROSS JOIN GlobalShelfLife gsl
+    LEFT JOIN dbo.IV00101 itm WITH (NOLOCK)
+        ON LTRIM(RTRIM(ri.ITEMNMBR)) = LTRIM(RTRIM(itm.ITEMNMBR))
 )
 
+-- ============================================================
+-- FINAL OUTPUT: Planner-optimized column order
+-- ============================================================
 SELECT
-    -- Human-readable Batch_ID for traceability
+    -- IDENTIFICATION (leftmost - what batch am I looking at?)
     CONCAT('WC-', LOCNCODE, '-', BIN, '-', ITEMNMBR, '-',
            CONVERT(VARCHAR(10), Receipt_Date, 120)) AS Batch_ID,
-
-    ITEMNMBR                        AS Item_Number,
+    ITEMNMBR                AS Item_Number,
+    Item_Description,
+    Unit_Of_Measure,
+    
+    -- LOCATION HIERARCHY (where is it?)
     Client_ID,
-    LOCNCODE                        AS Location_Code,
-    BIN                             AS Bin_Location,
-    LOT_NUMBER                      AS Lot_Number,
-    QTY_Available                   AS Available_Quantity,
-    Receipt_Date,
-    Expiry_Date,
-    Batch_Age_Days,
-    DATEDIFF(DAY, GETDATE(), Expiry_Date) AS Days_Until_Expiry,
-    0                               AS Degraded_Quantity,          -- not yet implemented
-    Available_Quantity              AS Usable_Quantity,
+    LOCNCODE                AS Location_Code,
+    BIN                     AS Bin_Location,
     Bin_Type,
-
-    -- FEFO Sort Priority (lower number = use first)
+    LOT_NUMBER              AS Lot_Number,
+    
+    -- QUANTITIES (how much?)
+    QTY_Available           AS Available_Quantity,
+    0                       AS Degraded_Quantity,
+    QTY_Available           AS Usable_Quantity,
+    
+    -- TIME DIMENSIONS (when did it arrive, when expires?)
+    Receipt_Date,
+    Batch_Age_Days,
+    Expiry_Date,
+    DATEDIFF(DAY, GETDATE(), Expiry_Date) AS Days_Until_Expiry,
+    
+    -- ALLOCATION LOGIC (use order)
     ROW_NUMBER() OVER (
         PARTITION BY ITEMNMBR
         ORDER BY Expiry_Date ASC, Receipt_Date ASC
     ) AS FEFO_Sort_Priority,
-
-    -- Always eligible for WC
-    1                               AS Is_Eligible_For_Allocation,
-    'WC_BATCH'                      AS Inventory_Type
-
+    1                       AS Is_Eligible_For_Allocation,
+    'WC_BATCH'              AS Inventory_Type
+    
 FROM ParsedInventory
-WHERE Expiry_Date >= CAST(GETDATE() AS DATE)  -- optional: exclude already expired (common planner filter)
+WHERE Expiry_Date >= CAST(GETDATE() AS DATE)
 ORDER BY
     Item_Number ASC,
-    Expiry_Date ASC,          -- soonest expiry first
-    Receipt_Date ASC,         -- then oldest receipt
+    Expiry_Date ASC,
+    Receipt_Date ASC,
     Batch_ID ASC;
+
+GO
+
+-- ============================================================================
+-- TEST QUERY: Verify enhancement
+-- ============================================================================
+-- SELECT TOP 100 * FROM dbo.ETB2_Inventory_WC_Batches
+-- WHERE Item_Description IS NOT NULL
+-- ORDER BY Item_Number, FEFO_Sort_Priority;

@@ -144,6 +144,8 @@ RebalanceOpportunities AS (
     SELECT
         eb.Batch_ID,
         eb.Item_Number,
+        itm.ITEMDESC AS Item_Description,
+        itm.UOMSCHDL AS Unit_Of_Measure,
         eb.Source_Location,
         eb.Inventory_Type,
         eb.Remaining_Quantity,
@@ -153,11 +155,15 @@ RebalanceOpportunities AS (
         LEAST(eb.Remaining_Quantity, ri.Unmet_Demand) AS Recommended_Transfer_Quantity
     FROM ExpiringBatches eb
     INNER JOIN RiskItems ri ON eb.Item_Number = ri.Item_Number
+    LEFT JOIN dbo.IV00101 itm WITH (NOLOCK)
+        ON LTRIM(RTRIM(eb.Item_Number)) = LTRIM(RTRIM(itm.ITEMNMBR))
 )
 
 SELECT
     Batch_ID,
     Item_Number,
+    Item_Description,
+    Unit_Of_Measure,
     Source_Location,
     Inventory_Type,
     Remaining_Quantity,
