@@ -35,12 +35,13 @@
 SELECT 
     d.ITEMNMBR,
     d.DUEDATE AS Demand_Date,
-    SUM(d.[amount on order]) AS Quantity,  -- Aggregated quantity per item per date (update column name as needed)
+    SUM(d.Deductions) AS Quantity,  -- Deductions column represents demand quantity
     COALESCE(d.Construct, 'UNKNOWN') AS Campaign_ID,  -- Campaign reference from Construct column
     'ETB_PAB_AUTO' AS Source_System,
     COUNT(*) AS Order_Line_Count  -- Line count for data quality check
 FROM dbo.ETB_PAB_AUTO d
-WHERE d.MRPTYPE NOT IN (60, 70) -- Use MRPTYPE for order type filtering
+WHERE d.Deductions > 0            -- Only demand events (Deductions > 0)
+    AND d.MRPTYPE NOT IN (60, 70) -- Exclude partial/receive order types
 GROUP BY d.ITEMNMBR, d.DUEDATE, d.Construct
 
 -- ============================================================================
