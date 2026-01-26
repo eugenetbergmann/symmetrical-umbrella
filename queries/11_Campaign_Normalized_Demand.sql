@@ -1,37 +1,43 @@
 /*******************************************************************************
-* View: ETB2_Campaign_Normalized_Demand
-* Order: 11 of 17 ⚠️ DEPLOY ELEVENTH
+* View Name:    ETB2_Campaign_Normalized_Demand
+* Deploy Order: 11 of 17
 * 
-* Dependencies (MUST exist first):
-*   ✓ ETB2_Demand_Cleaned_Base (file 04)
+* Purpose:      Campaign Consumption Units (CCU) - normalized demand per campaign
+* Grain:        One row per campaign per item
+* 
+* Dependencies:
+*   ✓ dbo.ETB2_Demand_Cleaned_Base (view 04)
 *
-* External Tables Required:
-*   ✓ dbo.ETB_PAB_AUTO
+* DEPLOYMENT:
+* 1. SSMS Object Explorer → Right-click "Views" → "New View..."
+* 2. Query Designer menu → "Pane" → "SQL" (show SQL pane only)
+* 3. Copy SELECT statement below (between markers)
+* 4. Paste into SQL pane
+* 5. Execute (!) to test
+* 6. Save as: dbo.ETB2_Campaign_Normalized_Demand
 *
-* DEPLOYMENT METHOD:
-* 1. In SSMS Object Explorer: Right-click Views → New View
-* 2. When Query Designer opens with grid: Click Query Designer menu → Pane → SQL
-* 3. Delete any default SQL in the pane
-* 4. Copy ENTIRE query below (from SELECT to semicolon)
-* 5. Paste into SQL pane
-* 6. Click Execute (!) to test - should return rows
-* 7. If successful, click Save (disk icon)
-* 8. Save as: dbo.ETB2_Campaign_Normalized_Demand
-*
-* Expected Result: Campaign consumption units normalized
+* Validation: SELECT COUNT(*) FROM dbo.ETB2_Campaign_Normalized_Demand
 *******************************************************************************/
 
--- Copy from here ↓
+-- ============================================================================
+-- COPY FROM HERE
+-- ============================================================================
 
-SELECT
+SELECT 
     d.Campaign_ID,
     d.ITEMNMBR,
-    SUM(d.Quantity) / 30 AS campaign_consumption_per_day,
-    'DAILY' AS campaign_consumption_unit,
+    SUM(d.Quantity) AS Total_Campaign_Quantity,
+    SUM(d.Quantity) / 30.0 AS CCU,  -- Campaign Consumption Unit: daily average
+    'DAILY' AS CCU_Unit,
     MIN(d.Demand_Date) AS Peak_Period_Start,
-    MAX(d.Demand_Date) AS Peak_Period_End
+    MAX(d.Demand_Date) AS Peak_Period_End,
+    DATEDIFF(DAY, MIN(d.Demand_Date), MAX(d.Demand_Date)) AS Campaign_Duration_Days,
+    COUNT(DISTINCT d.Demand_Date) AS Active_Days_Count
 FROM dbo.ETB2_Demand_Cleaned_Base d
 WHERE d.Campaign_ID IS NOT NULL
-GROUP BY d.Campaign_ID, d.ITEMNMBR;
+    AND d.Campaign_ID <> 'UNKNOWN'
+GROUP BY d.Campaign_ID, d.ITEMNMBR
 
--- Copy to here ↑
+-- ============================================================================
+-- COPY TO HERE
+-- ============================================================================

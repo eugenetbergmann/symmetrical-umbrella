@@ -1,49 +1,64 @@
 /*******************************************************************************
-* View: ETB2_Campaign_Risk_Adequacy
-* Order: 14 of 17 ⚠️ DEPLOY AFTER FILE 17 (EventLedger)
+* View Name:    ETB2_Campaign_Risk_Adequacy
+* Deploy Order: 14 of 17 ⚠️ DEPLOY AFTER FILE 17 (EventLedger)
 * 
-* Dependencies (MUST exist first):
-*   ✓ ETB2_Inventory_Unified_Eligible (file 07)
-*   ✓ ETB2_PAB_EventLedger_v1 (file 17 - MUST BE DEPLOYED FIRST)
-*   ✓ ETB2_Demand_Cleaned_Base (file 04)
-*   ✓ ETB2_Campaign_Collision_Buffer (file 13)
+* Purpose:      Inventory adequacy assessment vs collision buffer requirements
+* Grain:        One row per campaign per item
+* 
+* Dependencies:
+*   ✓ dbo.ETB2_Inventory_Unified_Eligible (view 07)
+*   ✓ dbo.ETB2_PAB_EventLedger_v1 (view 17 - MUST BE DEPLOYED FIRST)
+*   ✓ dbo.ETB2_Demand_Cleaned_Base (view 04)
+*   ✓ dbo.ETB2_Campaign_Collision_Buffer (view 13)
 *
-* External Tables Required:
-*   ✓ dbo.ETB_PAB_AUTO
-*   ✓ dbo.IV00300
+* DEPLOYMENT:
+* 1. SSMS Object Explorer → Right-click "Views" → "New View..."
+* 2. Query Designer menu → "Pane" → "SQL" (show SQL pane only)
+* 3. Copy SELECT statement below (between markers)
+* 4. Paste into SQL pane
+* 5. Execute (!) to test
+* 6. Save as: dbo.ETB2_Campaign_Risk_Adequacy
 *
-* DEPLOYMENT METHOD:
-* 1. In SSMS Object Explorer: Right-click Views → New View
-* 2. When Query Designer opens with grid: Click Query Designer menu → Pane → SQL
-* 3. Delete any default SQL in the pane
-* 4. Copy ENTIRE query below (from SELECT to semicolon)
-* 5. Paste into SQL pane
-* 6. Click Execute (!) to test - should return rows
-* 7. If successful, click Save (disk icon)
-* 8. Save as: dbo.ETB2_Campaign_Risk_Adequacy
-*
-* Expected Result: Risk adequacy assessment with collision risk classification
+* Validation: SELECT COUNT(*) FROM dbo.ETB2_Campaign_Risk_Adequacy
 *******************************************************************************/
 
--- Copy from here ↓
+-- ============================================================================
+-- COPY FROM HERE
+-- ============================================================================
 
-SELECT
+SELECT 
     b.ITEMNMBR,
     b.Campaign_ID,
-    SUM(i.Available_Qty) AS Available_Inventory,
+    COALESCE(SUM(i.Available_Qty), 0) AS Available_Inventory,
     SUM(b.collision_buffer_qty) AS Required_Buffer,
-    CASE 
-        WHEN SUM(i.Available_Qty) < SUM(b.collision_buffer_qty) * 0.5 THEN 'High'
-        WHEN SUM(i.Available_Qty) < SUM(b.collision_buffer_qty) THEN 'Medium'
-        ELSE 'Low'
-    END AS campaign_collision_risk,
+    -- Adequacy score: available / required (higher is better)
     CASE 
         WHEN SUM(b.collision_buffer_qty) > 0 
-        THEN CAST(SUM(i.Available_Qty) AS DECIMAL(10,2)) / SUM(b.collision_buffer_qty)
+        THEN CAST(COALESCE(SUM(i.Available_Qty), 0) AS DECIMAL(10,2)) / SUM(b.collision_buffer_qty)
         ELSE 1.0
-    END AS Adequacy_Score
+    END AS Adequacy_Score,
+    -- Risk classification based on adequacy
+    CASE 
+        WHEN COALESCE(SUM(i.Available_Qty), 0) < SUM(b.collision_buffer_qty) * 0.5 THEN 'HIGH'
+        WHEN COALESCE(SUM(i.Available_Qty), 0) < SUM(b.collision_buffer_qty) THEN 'MEDIUM'
+        ELSE 'LOW'
+    END AS campaign_collision_risk,
+    -- Days of buffer coverage
+    CASE 
+        WHEN SUM(b.collision_buffer_qty) > 0 
+        THEN CAST(COALESCE(SUM(i.Available_Qty), 0) / SUM(b.collision_buffer_qty) * 30 AS INT)
+        ELSE 30
+    END AS Days_Buffer_Coverage,
+    -- Recommendation
+    CASE 
+        WHEN COALESCE(SUM(i.Available_Qty), 0) < SUM(b.collision_buffer_qty) * 0.5 THEN 'URGENT_PROCUREMENT'
+        WHEN COALESCE(SUM(i.Available_Qty), 0) < SUM(b.collision_buffer_qty) THEN 'SCHEDULE_PROCUREMENT'
+        ELSE 'ADEQUATE'
+    END AS Recommendation
 FROM dbo.ETB2_Campaign_Collision_Buffer b
 LEFT JOIN dbo.ETB2_Inventory_Unified_Eligible i ON b.ITEMNMBR = i.ITEMNMBR
-GROUP BY b.ITEMNMBR, b.Campaign_ID;
+GROUP BY b.ITEMNMBR, b.Campaign_ID
 
--- Copy to here ↑
+-- ============================================================================
+-- COPY TO HERE
+-- ============================================================================

@@ -1,47 +1,57 @@
 /*******************************************************************************
-* View: ETB2_Inventory_Unified_Eligible
-* Order: 07 of 17 ⚠️ DEPLOY SEVENTH
+* View Name:    ETB2_Inventory_Unified_Eligible
+* Deploy Order: 07 of 17
 * 
-* Dependencies (MUST exist first):
-*   ✓ ETB2_Inventory_WC_Batches (file 05)
-*   ✓ ETB2_Inventory_Quarantine_Restricted (file 06)
+* Purpose:      All eligible inventory consolidated (WC batches + released quarantine)
+* Grain:        One row per item per source type per location
+* 
+* Dependencies:
+*   ✓ dbo.ETB2_Inventory_WC_Batches (view 05)
+*   ✓ dbo.ETB2_Inventory_Quarantine_Restricted (view 06)
 *
-* External Tables Required:
-*   ✓ dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE
-*   ✓ dbo.IV00300
+* DEPLOYMENT:
+* 1. SSMS Object Explorer → Right-click "Views" → "New View..."
+* 2. Query Designer menu → "Pane" → "SQL" (show SQL pane only)
+* 3. Copy SELECT statement below (between markers)
+* 4. Paste into SQL pane
+* 5. Execute (!) to test
+* 6. Save as: dbo.ETB2_Inventory_Unified_Eligible
 *
-* DEPLOYMENT METHOD:
-* 1. In SSMS Object Explorer: Right-click Views → New View
-* 2. When Query Designer opens with grid: Click Query Designer menu → Pane → SQL
-* 3. Delete any default SQL in the pane
-* 4. Copy ENTIRE query below (from SELECT to semicolon)
-* 5. Paste into SQL pane
-* 6. Click Execute (!) to test - should return rows
-* 7. If successful, click Save (disk icon)
-* 8. Save as: dbo.ETB2_Inventory_Unified_Eligible
-*
-* Expected Result: All eligible inventory combined from multiple sources
+* Validation: SELECT COUNT(*) FROM dbo.ETB2_Inventory_Unified_Eligible
 *******************************************************************************/
 
--- Copy from here ↓
+-- ============================================================================
+-- COPY FROM HERE
+-- ============================================================================
 
-SELECT
+-- Part A: Work Center batches (FEFO-ranked, eligible for use)
+SELECT 
     ITEMNMBR,
     'WC_Batch' AS Source_Type,
-    Quantity AS Available_Qty,
     Work_Center AS Location,
+    Quantity AS Available_Qty,
+    Batch_Number,
+    Expiry_Date,
+    FEFO_Rank,
     'Eligible' AS Status
 FROM dbo.ETB2_Inventory_WC_Batches
-WHERE FEFO_Rank <= 5 OR FEFO_Rank = 0
+WHERE FEFO_Rank <= 5 OR FEFO_Rank = 0  -- Top 5 FEFO or non-FEFO enabled
 
 UNION ALL
 
-SELECT
+-- Part B: Released quarantine inventory (hold period expired)
+SELECT 
     ITEMNMBR,
-    'Quarantine' AS Source_Type,
-    Quantity AS Available_Qty,
+    'Quarantine_Released' AS Source_Type,
     Location,
-    'Quarantine' AS Status
-FROM dbo.ETB2_Inventory_Quarantine_Restricted;
+    Available_Qty,
+    Receipt_Reference AS Batch_Number,
+    NULL AS Expiry_Date,  -- Quarantine items may not have expiry
+    999 AS FEFO_Rank,     -- Always last in FEFO ordering
+    'Released' AS Status
+FROM dbo.ETB2_Inventory_Quarantine_Restricted
+WHERE Hold_Until <= GETDATE()  -- Only released (hold period expired)
 
--- Copy to here ↑
+-- ============================================================================
+-- COPY TO HERE
+-- ============================================================================
