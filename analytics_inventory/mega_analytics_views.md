@@ -261,10 +261,331 @@ All Rolyat_* and query_t00X_* references deprecated as of 2026-01-25.
 
 ---
 
-## END OF CANONICAL STANDALONE QUERY DOCUMENTATION
+## 11. Complete View Inventory (All 16 Views)
 
-**Document Purpose:** True canonical ledger of current repository state — all analytics now delivered via standalone SELECT-only queries.
-**Intended Audience:** Architects, Planners, LLMs, Auditors
-**Completeness:** Exhaustive snapshot post-migration and consolidation
-**Last Updated:** 2026-01-25
+### Foundation Views (7 Rolyat Views - Retained for Stability)
+
+| # | View Name | File | Purpose | Dependencies |
+|---|-----------|------|---------|--------------|
+| 00 | Rolyat_Site_Config | `00_dbo.Rolyat_Site_Config.sql` | Site configuration (WFQ/RMQTY locations) | None |
+| 01 | Rolyat_Config_Clients | `01_dbo.Rolyat_Config_Clients.sql` | Client-specific overrides (placeholder) | None |
+| 02 | Rolyat_Config_Global | `02_dbo.Rolyat_Config_Global.sql` | System-wide defaults (17 parameters) | None |
+| 03 | Rolyat_Config_Items | `03_dbo.Rolyat_Config_Items.sql` | Item-specific overrides (placeholder) | None |
+| 04 | Rolyat_Cleaned_Base_Demand_1 | `04_dbo.Rolyat_Cleaned_Base_Demand_1.sql` | Demand cleansing & base calculation | ETB_PAB_AUTO, Rolyat_Config_Global |
+| 05 | Rolyat_WC_Inventory | `05_dbo.Rolyat_WC_Inventory.sql` | WC batch inventory with FEFO | Prosenthal_INV_BIN_QTY_wQTYTYPE, EXT_BINTYPE |
+| 06 | Rolyat_WFQ_5 | `06_dbo.Rolyat_WFQ_5.sql` | WFQ/RMQTY inventory tracking | IV00300, IV00101, Rolyat_Site_Config |
+
+### ETB2 Core View (1 View)
+
+| # | View Name | File | Purpose | Dependencies |
+|---|-----------|------|---------|--------------|
+| 16 | ETB2_PAB_EventLedger_v1 | `16_dbo.ETB2_PAB_EventLedger_v1.sql` | Atomic event ledger (BEGIN_BAL, PO_COMMITMENT, PO_RECEIPT, DEMAND, EXPIRY) | ETB_PAB_AUTO, Rolyat_Cleaned_Base_Demand_1, IV00102, POP10100, POP10110, POP10300 |
+
+### ETB2 Consolidated Queries (8 Standalone SELECT Queries)
+
+| # | Query Name | File | Purpose | Grain | Rolyat Source |
+|---|------------|------|---------|-------|---------------|
+| 1 | ETB2_Config_Active | `ETB2_Config_Active.sql` | Multi-tier configuration hierarchy | Item/Client/Site | New framework |
+| 2 | ETB2_Demand_Cleaned_Base | `ETB2_Demand_Cleaned_Base.sql` | Cleaned base demand | Order Line | Rolyat_Cleaned_Base_Demand_1 ✅ |
+| 3 | ETB2_Inventory_WC_Batches | `ETB2_Inventory_WC_Batches.sql` | WC batch inventory (FEFO) | WC Batch | Rolyat_WC_Inventory ✅ |
+| 4 | ETB2_Inventory_Quarantine_Restricted | `ETB2_Inventory_Quarantine_Restricted.sql` | WFQ/RMQTY with hold periods | Receipt Sequence | Rolyat_WFQ_5 ✅ |
+| 5 | ETB2_Inventory_Unified_Eligible | `ETB2_Inventory_Unified_Eligible.sql` | All eligible inventory | Eligible Batch | Consolidation |
+| 6 | ETB2_Planning_Stockout_Risk | `ETB2_Planning_Stockout_Risk.sql` | ATP & shortage analysis | Item | New analytics |
+| 7 | ETB2_Planning_Net_Requirements | `ETB2_Planning_Net_Requirements.sql` | Procurement requirements | Item | New analytics |
+| 8 | ETB2_Planning_Rebalancing_Opportunities | `ETB2_Planning_Rebalancing_Opportunities.sql` | Expiry-driven transfers | Batch-to-Item | New analytics |
+
+---
+
+## 12. ETB2 Architecture Migration History
+
+### Phase 1: Initial ETB2 Architecture Migration (2026-01-24)
+
+**Branch:** `etb2-architecture-migration`
+**Status:** Complete
+
+#### Objectives
+1. Establish ETB2 as primary architecture
+2. Eliminate legacy rolyat views (07-15, 17-19)
+3. Maintain foundation views (00-06)
+4. Update all dependencies to ETB2 equivalents
+
+#### Views Deleted (12 Legacy Rolyat Views)
+- `07_dbo.Rolyat_Unit_Price_4.sql` - Unit price calculation
+- `08_dbo.Rolyat_WC_Allocation_Effective_2.sql` - WC allocation with FEFO
+- `09_dbo.Rolyat_Final_Ledger_3.sql` - Final ledger with running balances
+- `10_dbo.Rolyat_StockOut_Analysis_v2.sql` - Stock-out intelligence
+- `11_dbo.Rolyat_Rebalancing_Layer.sql` - Rebalancing analysis
+- `12_dbo.Rolyat_Consumption_Detail_v1.sql` - Detailed consumption
+- `13_dbo.Rolyat_Consumption_SSRS_v1.sql` - SSRS-optimized consumption
+- `14_dbo.Rolyat_Net_Requirements_v1.sql` - Net requirements
+- `15_dbo.Rolyat_PO_Detail.sql` - PO details aggregation
+- `17_dbo.Rolyat_StockOut_Risk_Dashboard.sql` - Stock-out risk dashboard
+- `18_dbo.Rolyat_Batch_Expiry_Risk_Dashboard.sql` - Batch expiry risk dashboard
+- `19_dbo.Rolyat_Supply_Planner_Action_List.sql` - Supply planner action list
+
+#### Rationale for Foundation View Retention (00-06)
+1. **Backward Compatibility** - Core configuration and data sources
+2. **Stability** - Stable views unlikely to change
+3. **Clarity** - Rolyat prefix indicates original pipeline architecture
+4. **Consolidation Strategy** - ETB2 builds upon these foundations
+
+### Phase 2: ETB2 Namespace Consolidation (2026-01-25)
+
+**Branch:** `consolidation/etb2-namespace-migration`
+**Status:** Complete
+
+#### Objectives
+1. Consolidate all standalone queries under ETB2_* prefix
+2. Retire legacy query_t00X_* naming
+3. Standardize headers across all queries
+4. Move queries to views/ directory
+5. Remove non-essential ETB2_v1 views
+
+#### Views Removed (19 Non-Essential Views)
+- 7 T-00X SELECT files (T-002 through T-008)
+- 12 ETB2_*_v1 views:
+  - ETB2_Allocation_Engine_v1.sql
+  - ETB2_Config_Engine_v1.sql
+  - ETB2_Consumption_Detail_v1.sql
+  - ETB2_Final_Ledger_v1.sql
+  - ETB2_Inventory_Unified_v1.sql
+  - ETB2_Net_Requirements_v1.sql
+  - ETB2_PO_Detail_v1.sql
+  - ETB2_Presentation_Dashboard_v1.sql
+  - ETB2_Rebalancing_v1.sql
+  - ETB2_StockOut_Analysis_v1.sql
+  - ETB2_Supply_Chain_Master_v1.sql
+  - ETB2_Unit_Price_v1.sql
+
+#### Final Repository Structure
+- **Foundation Views:** 7 (Rolyat 00-06)
+- **ETB2 Core View:** 1 (PAB EventLedger)
+- **ETB2 Consolidated Queries:** 8 (Standalone SELECT)
+- **Total Views:** 16 (55% reduction from 35 to 16)
+
+---
+
+## 13. Configuration Parameter Catalog
+
+### Global Configuration (Rolyat_Config_Global)
+
+| Parameter | Value | Purpose | Used By |
+|-----------|-------|---------|---------|
+| WFQ_Hold_Days | 14 | Quarantine hold period | Rolyat_WFQ_5, ETB2_Inventory_Quarantine_Restricted |
+| RMQTY_Hold_Days | 7 | Restricted material hold period | Rolyat_WFQ_5, ETB2_Inventory_Quarantine_Restricted |
+| WFQ_Expiry_Filter_Days | 90 | Expiry window for WFQ | Rolyat_WFQ_5 |
+| RMQTY_Expiry_Filter_Days | 90 | Expiry window for RMQTY | Rolyat_WFQ_5 |
+| WC_Batch_Shelf_Life_Days | 180 | Default shelf life for WC batches | Rolyat_WC_Inventory, ETB2_Inventory_WC_Batches |
+| ActiveWindow_Past_Days | 21 | Past days for active window | Rolyat_Cleaned_Base_Demand_1, ETB2_Demand_Cleaned_Base |
+| ActiveWindow_Future_Days | 21 | Future days for active window | Rolyat_Cleaned_Base_Demand_1, ETB2_Demand_Cleaned_Base |
+| Safety_Stock_Days | 0 | Default safety stock days | ETB2_Planning_Net_Requirements |
+| Safety_Stock_Method | DAYS_OF_SUPPLY | Safety stock calculation method | ETB2_Planning_Net_Requirements |
+| Degradation_Tier1_Days | 30 | Tier 1 threshold | ETB2_Config_Active (placeholder) |
+| Degradation_Tier1_Factor | 1.00 | Tier 1 multiplier (no degradation) | ETB2_Config_Active (placeholder) |
+| Degradation_Tier2_Days | 60 | Tier 2 threshold | ETB2_Config_Active (placeholder) |
+| Degradation_Tier2_Factor | 0.75 | Tier 2 multiplier (25% degradation) | ETB2_Config_Active (placeholder) |
+| Degradation_Tier3_Days | 90 | Tier 3 threshold | ETB2_Config_Active (placeholder) |
+| Degradation_Tier3_Factor | 0.50 | Tier 3 multiplier (50% degradation) | ETB2_Config_Active (placeholder) |
+| Degradation_Tier4_Factor | 0.00 | Tier 4 multiplier (100% degradation) | ETB2_Config_Active (placeholder) |
+| BackwardSuppression_Lookback_Days | 21 | Standard lookback | Future use |
+| BackwardSuppression_Extended_Lookback_Days | 60 | Extended lookback | Future use |
+
+---
+
+## 14. Business Rules Catalog
+
+### Demand Cleansing Rules (Rolyat_Cleaned_Base_Demand_1, ETB2_Demand_Cleaned_Base)
+1. **Exclusions:**
+   - Items with prefix 60.x (in-process materials)
+   - Items with prefix 70.x (in-process materials)
+   - Orders with status 'Partially Received'
+   - Records with invalid dates
+
+2. **Base Demand Priority Logic:**
+   - Priority 1: Remaining quantity (if > 0)
+   - Priority 2: Deductions quantity (if Remaining = 0 and Deductions > 0)
+   - Priority 3: Expiry quantity (if Remaining = 0 and Deductions = 0 and Expiry > 0)
+   - Default: 0.0
+
+3. **Sort Priority for Event Ordering:**
+   - Priority 1: Beginning Balance (BEG_BAL > 0)
+   - Priority 2: Purchase Orders (POs > 0)
+   - Priority 3: Demand (Remaining or Deductions > 0)
+   - Priority 4: Expiry (Expiry > 0)
+   - Priority 5: Other
+
+4. **Active Window:**
+   - Past: GETDATE() - ActiveWindow_Past_Days (21 days)
+   - Future: GETDATE() + ActiveWindow_Future_Days (21 days)
+   - Flag: IsActiveWindow = 1 if DUEDATE within window
+
+### WC Inventory Rules (Rolyat_WC_Inventory, ETB2_Inventory_WC_Batches)
+1. **Site Filter:** LOCNCODE LIKE 'WC[_-]%'
+2. **Quantity Filter:** QTY_Available > 0
+3. **Lot Filter:** LOT_Number IS NOT NULL
+4. **Expiry Calculation:**
+   - Use EXPNDATE if available
+   - Else: DATERECD + WC_Batch_Shelf_Life_Days (180 days default)
+5. **Client Extraction:** LEFT(SITE, CHARINDEX('-', SITE) - 1)
+6. **FEFO Ordering:** Expiry_Date ASC, Receipt_Date ASC
+7. **Eligibility:** Always eligible (no hold period)
+
+### WFQ/RMQTY Inventory Rules (Rolyat_WFQ_5, ETB2_Inventory_Quarantine_Restricted)
+1. **WFQ Hold Period:** 14 days from receipt
+2. **RMQTY Hold Period:** 7 days from receipt
+3. **Expiry Filter:** 90-day window (configurable)
+4. **Eligibility Calculation:**
+   - WFQ: Receipt_Date + 14 days <= GETDATE()
+   - RMQTY: Receipt_Date + 7 days <= GETDATE()
+5. **Grain:** RCTSEQNM (receipt sequence number)
+
+### Unified Inventory Rules (ETB2_Inventory_Unified_Eligible)
+1. **Sources:** WC + eligible WFQ + eligible RMQTY
+2. **Allocation Priority:**
+   - Priority 1: WC batches
+   - Priority 2: WFQ batches (after hold)
+   - Priority 3: RMQTY batches (after hold)
+3. **FEFO Within Priority:** Expiry_Date ASC, Receipt_Date ASC
+4. **No Expiry Filter:** Unlike Rolyat_WFQ_5, no 90-day filter applied
+
+### Rebalancing Rules (ETB2_Planning_Rebalancing_Opportunities)
+1. **Expiry Threshold:** Days_Until_Expiry <= 90 and > 0
+2. **Demand Match:** Unmet_Demand > 0
+3. **Transfer Quantity:** MIN(Batch_Remaining_Qty, Item_Unmet_Demand)
+4. **Priority Matrix:**
+   - Priority 1: Expiry <= 30 days + High risk
+   - Priority 2: Expiry <= 60 days + Medium risk
+   - Priority 3: Expiry <= 90 days + Low risk
+   - Priority 4: Other combinations
+
+---
+
+## 15. Data Flow Architecture
+
+### Upstream Sources
+```
+ETB_PAB_AUTO (Raw demand data)
+  ↓
+Rolyat_Cleaned_Base_Demand_1 (Cleansed demand)
+  ↓
+ETB2_Demand_Cleaned_Base (Standalone demand query)
+
+Prosenthal_INV_BIN_QTY_wQTYTYPE (Raw WC inventory)
+  ↓
+Rolyat_WC_Inventory (WC batch inventory)
+  ↓
+ETB2_Inventory_WC_Batches (Standalone WC query)
+
+IV00300 (Raw lot data)
+  ↓
+Rolyat_WFQ_5 (WFQ/RMQTY inventory)
+  ↓
+ETB2_Inventory_Quarantine_Restricted (Standalone WFQ/RMQTY query)
+```
+
+### ETB2 Query Dependencies
+```
+ETB2_Config_Active (Configuration)
+  ↓
+ETB2_Demand_Cleaned_Base (Demand)
+  ↓
+ETB2_Inventory_WC_Batches (WC Inventory)
+  ↓
+ETB2_Inventory_Quarantine_Restricted (WFQ/RMQTY Inventory)
+  ↓
+ETB2_Inventory_Unified_Eligible (Unified Inventory)
+  ↓
+ETB2_Planning_Stockout_Risk (Risk Analysis)
+  ↓
+ETB2_Planning_Net_Requirements (Procurement)
+  ↓
+ETB2_Planning_Rebalancing_Opportunities (Rebalancing)
+```
+
+---
+
+## 16. Planner Workflows
+
+### Daily Planner Workflow
+1. **Morning Risk Assessment**
+   - Open `ETB2_Planning_Stockout_Risk.sql` in Excel
+   - Review ATP_Balance and Risk_Level columns
+   - Identify items with Unmet_Demand > 0
+
+2. **Procurement Planning**
+   - Open `ETB2_Planning_Net_Requirements.sql` in Excel
+   - Sort by Requirement_Priority ASC
+   - Review Net_Requirement_Quantity for procurement needs
+
+3. **Rebalancing Opportunities**
+   - Open `ETB2_Planning_Rebalancing_Opportunities.sql` in Excel
+   - Sort by Transfer_Priority ASC, Days_Until_Expiry ASC
+   - Execute recommended transfers
+
+4. **Inventory Validation**
+   - Open `ETB2_Inventory_Unified_Eligible.sql` in Excel
+   - Verify Quantity_On_Hand for critical items
+   - Check Days_Until_Expiry for expiring batches
+
+5. **Demand Review**
+   - Open `ETB2_Demand_Cleaned_Base.sql` in Excel
+   - Verify Base_Demand_Qty for upcoming orders
+   - Check Is_Within_Active_Planning_Window flag
+
+### Configuration Management Workflow
+1. **Review Current Config**
+   - Open `ETB2_Config_Active.sql` in Excel
+   - Review all configuration parameters by Item/Client/Site
+
+2. **Update Global Defaults**
+   - Edit VALUES in `02_dbo.Rolyat_Config_Global.sql`
+   - Deploy updated view
+
+3. **Add Item-Specific Overrides**
+   - Edit VALUES in `03_dbo.Rolyat_Config_Items.sql`
+   - Set Effective_Date and Expiry_Date
+   - Deploy updated view
+
+4. **Add Client-Specific Overrides**
+   - Edit VALUES in `01_dbo.Rolyat_Config_Clients.sql`
+   - Set Effective_Date and Expiry_Date
+   - Deploy updated view
+
+---
+
+## 17. Technical Specifications
+
+### Query Characteristics
+
+| Query | Type | Dependencies | Excel-Ready | Self-Contained |
+|-------|------|--------------|-------------|----------------|
+| ETB2_Config_Active | SELECT | None | Yes | Yes (VALUES-based) |
+| ETB2_Demand_Cleaned_Base | SELECT | ETB_PAB_AUTO | Yes | Yes (inlined logic) |
+| ETB2_Inventory_WC_Batches | SELECT | Prosenthal_INV_BIN_QTY_wQTYTYPE | Yes | Yes (inlined logic) |
+| ETB2_Inventory_Quarantine_Restricted | SELECT | IV00300, IV00101 | Yes | Yes (inlined logic) |
+| ETB2_Inventory_Unified_Eligible | SELECT | None | Yes | Yes (UNION ALL) |
+| ETB2_Planning_Stockout_Risk | SELECT | None | Yes | Yes (inlined logic) |
+| ETB2_Planning_Net_Requirements | SELECT | None | Yes | Yes (inlined logic) |
+| ETB2_Planning_Rebalancing_Opportunities | SELECT | None | Yes | Yes (inlined logic) |
+
+### Performance Considerations
+- All ETB2 queries use CTEs for readability and optimization
+- FEFO ordering applied via ORDER BY (Expiry_Date ASC, Receipt_Date ASC)
+- Active window filtering reduces result set size
+- No nested views or hidden dependencies
+
+### Deployment Requirements
+- SQL Server 2016+ (for TRY_CONVERT, STRING_AGG if used)
+- Read access to source tables (ETB_PAB_AUTO, IV00300, etc.)
+- No write permissions required (SELECT-only)
+
+---
+
+## END OF CANONICAL VIEW INVENTORY
+
+**Document Purpose:** Exhaustive inventory of all views, queries, and analytical components in the ETB2 Analytics Repository
+**Intended Audience:** Architects, Planners, LLMs, Auditors, Future Developers
+**Completeness:** Complete documentation of 16 views, migration history, business rules, and workflows
+**Last Updated:** 2026-01-26
 **Repository State:** ETB2 Namespace Consolidation Complete
+**Total Views:** 16 (7 Foundation + 1 Core + 8 ETB2 Consolidated)
