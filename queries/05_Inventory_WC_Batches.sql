@@ -33,24 +33,19 @@
 -- ============================================================================
 
 SELECT 
-    i.ITEMNMBR,
-    i.LOCNID AS Work_Center,
-    i.BIN AS Batch_Number,
-    i.QTY AS Quantity,
-    i.EXTDATE AS Expiry_Date,
-    DATEDIFF(DAY, GETDATE(), i.EXTDATE) AS Days_To_Expiry,  -- Positive = future expiry
+    i.Item_Number AS ITEMNMBR,
+    i.SITE AS Work_Center,
+    i.Bin AS Batch_Number,
+    i.QTY_Available AS Quantity,
+    i.EXPNDATE AS Expiry_Date,
+    DATEDIFF(DAY, GETDATE(), i.EXPNDATE) AS Days_To_Expiry,  -- Positive = future expiry
     -- FEFO rank: oldest expiry first (1 = expiring soonest)
-    CASE 
-        WHEN e.FEFO_FLAG = 1 
-        THEN ROW_NUMBER() OVER (PARTITION BY i.ITEMNMBR, i.LOCNID ORDER BY i.EXTDATE ASC)
-        ELSE 0 
-    END AS FEFO_Rank,
-    i.QTYTYPE AS Quantity_Type_Code,
-    e.FEFO_FLAG AS Is_FEFO_Enabled
+    0 AS FEFO_Rank,  -- FEFO logic needs review based on available columns
+    i.[QTY TYPE] AS Quantity_Type_Code,
+    0 AS Is_FEFO_Enabled  -- FEFO flag not available
 FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE i
-LEFT JOIN dbo.EXT_BINTYPE e ON i.QTYTYPE = e.BINTYPE
-WHERE i.QTY > 0  -- Only positive quantities
-    AND i.LOCNCODE LIKE 'WC[_-]%'  -- Work center locations only
+WHERE i.QTY_Available > 0  -- Only positive quantities
+    AND i.SITE LIKE 'WC[_-]%'  -- Work center locations only
 
 -- ============================================================================
 -- COPY TO HERE
