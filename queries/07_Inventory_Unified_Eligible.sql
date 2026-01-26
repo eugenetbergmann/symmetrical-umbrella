@@ -39,7 +39,7 @@ SELECT
     MIN(Expiry_Date) AS Earliest_Expiry,
     COUNT(*) AS Batch_Count,
     'UNIFIED' AS Inventory_Source
-FROM dbo.ETB2_Inventory_WC_Batches
+FROM dbo.ETB_Inventory_WC
 WHERE ITEMNMBR NOT IN (
     -- Exclude items that are in quarantine/restricted
     SELECT ITEMNMBR FROM dbo.ETB2_Inventory_Quarantine_Restricted
