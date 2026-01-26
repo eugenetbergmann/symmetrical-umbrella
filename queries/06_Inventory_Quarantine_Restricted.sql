@@ -1,41 +1,49 @@
 /*******************************************************************************
-* View: ETB2_Inventory_Quarantine_Restricted
-* Order: 06 of 17 ⚠️ DEPLOY SIXTH
+* View Name:    ETB2_Inventory_Quarantine_Restricted
+* Deploy Order: 06 of 17
 * 
-* Dependencies (MUST exist first):
-*   ✓ dbo.IV00300 (external table - must exist)
-*   ✓ dbo.IV00101 (external table - must exist)
+* Purpose:      Quarantine (WFQ) and restricted (RMQTY) inventory with hold periods
+* Grain:        One row per item per location per restriction type
+* 
+* Dependencies:
+*   ✓ dbo.IV00300 (receipts - external table)
+*   ✓ dbo.IV00101 (item master - external table)
 *
-* External Tables Required:
-*   ✓ dbo.IV00300
-*   ✓ dbo.IV00101
+* DEPLOYMENT:
+* 1. SSMS Object Explorer → Right-click "Views" → "New View..."
+* 2. Query Designer menu → "Pane" → "SQL" (show SQL pane only)
+* 3. Copy SELECT statement below (between markers)
+* 4. Paste into SQL pane
+* 5. Execute (!) to test
+* 6. Save as: dbo.ETB2_Inventory_Quarantine_Restricted
 *
-* DEPLOYMENT METHOD:
-* 1. In SSMS Object Explorer: Right-click Views → New View
-* 2. When Query Designer opens with grid: Click Query Designer menu → Pane → SQL
-* 3. Delete any default SQL in the pane
-* 4. Copy ENTIRE query below (from SELECT to semicolon)
-* 5. Paste into SQL pane
-* 6. Click Execute (!) to test - should return rows
-* 7. If successful, click Save (disk icon)
-* 8. Save as: dbo.ETB2_Inventory_Quarantine_Restricted
-*
-* Expected Result: Quarantined and restricted inventory with hold periods
+* Validation: SELECT COUNT(*) FROM dbo.ETB2_Inventory_Quarantine_Restricted
 *******************************************************************************/
 
--- Copy from here ↓
+-- ============================================================================
+-- COPY FROM HERE
+-- ============================================================================
 
-SELECT
+SELECT 
     i.ITEMNMBR,
     i.LOCNID AS Location,
-    (i.QTYOH - i.QTYCOMTD) AS Quantity,
+    (i.QTYOH - i.QTYCOMTD) AS Available_Qty,  -- Available = on hand - committed
     CASE 
-        WHEN i.QTYRCTD > i.QTYSOLD THEN 'WFQ'
-        ELSE 'RMQTY'
+        WHEN i.QTYRCTD > i.QTYSOLD THEN 'WFQ'   -- Wait for Quality: receipts > sales
+        ELSE 'RMQTY'                              -- Restricted Material Quality
     END AS Restriction_Type,
-    DATEADD(DAY, 30, GETDATE()) AS Hold_Until,
-    'Quality Review' AS Reason_Code
+    -- Hold periods: WFQ = 14 days, RMQTY = 7 days
+    DATEADD(DAY, 
+        CASE WHEN i.QTYRCTD > i.QTYSOLD THEN 14 ELSE 7 END,
+        GETDATE()
+    ) AS Hold_Until,
+    'Quality Review' AS Reason_Code,
+    i.RCTRXNUM AS Receipt_Reference,
+    GETDATE() AS Assessed_Date
 FROM dbo.IV00300 i
-WHERE (i.QTYOH - i.QTYCOMTD) > 0;
+WHERE (i.QTYOH - i.QTYCOMTD) > 0  -- Only positive available quantities
+    AND i.IV00300.IVDOCTYP = 1    -- Receipt documents only
 
--- Copy to here ↑
+-- ============================================================================
+-- COPY TO HERE
+-- ============================================================================

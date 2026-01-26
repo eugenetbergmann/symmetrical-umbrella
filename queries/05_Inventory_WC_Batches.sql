@@ -1,42 +1,49 @@
 /*******************************************************************************
-* View: ETB2_Inventory_WC_Batches
-* Order: 05 of 17 ⚠️ DEPLOY FIFTH
+* View Name:    ETB2_Inventory_WC_Batches
+* Deploy Order: 05 of 17
 * 
-* Dependencies (MUST exist first):
-*   ✓ dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE (external table - must exist)
-*   ✓ dbo.EXT_BINTYPE (external table - must exist)
+* Purpose:      Work center inventory batches with FEFO ordering and expiry dates
+* Grain:        One row per item per work center per batch
+* 
+* Dependencies:
+*   ✓ dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE (inventory - external table)
+*   ✓ dbo.EXT_BINTYPE (bin types - external table)
 *
-* External Tables Required:
-*   ✓ dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE
-*   ✓ dbo.EXT_BINTYPE
+* DEPLOYMENT:
+* 1. SSMS Object Explorer → Right-click "Views" → "New View..."
+* 2. Query Designer menu → "Pane" → "SQL" (show SQL pane only)
+* 3. Copy SELECT statement below (between markers)
+* 4. Paste into SQL pane
+* 5. Execute (!) to test
+* 6. Save as: dbo.ETB2_Inventory_WC_Batches
 *
-* DEPLOYMENT METHOD:
-* 1. In SSMS Object Explorer: Right-click Views → New View
-* 2. When Query Designer opens with grid: Click Query Designer menu → Pane → SQL
-* 3. Delete any default SQL in the pane
-* 4. Copy ENTIRE query below (from SELECT to semicolon)
-* 5. Paste into SQL pane
-* 6. Click Execute (!) to test - should return rows
-* 7. If successful, click Save (disk icon)
-* 8. Save as: dbo.ETB2_Inventory_WC_Batches
-*
-* Expected Result: Inventory batches with FEFO ordering
+* Validation: SELECT COUNT(*) FROM dbo.ETB2_Inventory_WC_Batches
 *******************************************************************************/
 
--- Copy from here ↓
+-- ============================================================================
+-- COPY FROM HERE
+-- ============================================================================
 
-SELECT
+SELECT 
     i.ITEMNMBR,
     i.LOCNID AS Work_Center,
     i.BIN AS Batch_Number,
     i.QTY AS Quantity,
     i.EXTDATE AS Expiry_Date,
+    DATEDIFF(DAY, GETDATE(), i.EXTDATE) AS Days_To_Expiry,  -- Positive = future expiry
+    -- FEFO rank: oldest expiry first (1 = expiring soonest)
     CASE 
-        WHEN e.FEFO_FLAG = 1 THEN ROW_NUMBER() OVER (PARTITION BY i.ITEMNMBR, i.LOCNID ORDER BY i.EXTDATE ASC)
-        ELSE 0
-    END AS FEFO_Rank
+        WHEN e.FEFO_FLAG = 1 
+        THEN ROW_NUMBER() OVER (PARTITION BY i.ITEMNMBR, i.LOCNID ORDER BY i.EXTDATE ASC)
+        ELSE 0 
+    END AS FEFO_Rank,
+    i.QTYTYPE AS Quantity_Type_Code,
+    e.FEFO_FLAG AS Is_FEFO_Enabled
 FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE i
 LEFT JOIN dbo.EXT_BINTYPE e ON i.QTYTYPE = e.BINTYPE
-WHERE i.QTY > 0;
+WHERE i.QTY > 0  -- Only positive quantities
+    AND i.LOCNCODE LIKE 'WC[_-]%'  -- Work center locations only
 
--- Copy to here ↑
+-- ============================================================================
+-- COPY TO HERE
+-- ============================================================================

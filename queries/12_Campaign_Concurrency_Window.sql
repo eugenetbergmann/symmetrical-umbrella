@@ -1,45 +1,55 @@
 /*******************************************************************************
-* View: ETB2_Campaign_Concurrency_Window
-* Order: 12 of 17 ⚠️ DEPLOY TWELFTH
+* View Name:    ETB2_Campaign_Concurrency_Window
+* Deploy Order: 12 of 17
 * 
-* Dependencies (MUST exist first):
-*   ✓ ETB2_Campaign_Normalized_Demand (file 11)
-*   ✓ ETB2_Config_Active (file 03)
+* Purpose:      Campaign Concurrency Window (CCW) - overlapping campaign periods
+* Grain:        One row per campaign pair per item
+* 
+* Dependencies:
+*   ✓ dbo.ETB2_Campaign_Normalized_Demand (view 11)
+*   ✓ dbo.ETB2_Config_Active (view 03)
 *
-* External Tables Required:
-*   (none - uses ETB2 views only)
+* DEPLOYMENT:
+* 1. SSMS Object Explorer → Right-click "Views" → "New View..."
+* 2. Query Designer menu → "Pane" → "SQL" (show SQL pane only)
+* 3. Copy SELECT statement below (between markers)
+* 4. Paste into SQL pane
+* 5. Execute (!) to test
+* 6. Save as: dbo.ETB2_Campaign_Concurrency_Window
 *
-* DEPLOYMENT METHOD:
-* 1. In SSMS Object Explorer: Right-click Views → New View
-* 2. When Query Designer opens with grid: Click Query Designer menu → Pane → SQL
-* 3. Delete any default SQL in the pane
-* 4. Copy ENTIRE query below (from SELECT to semicolon)
-* 5. Paste into SQL pane
-* 6. Click Execute (!) to test - should return rows
-* 7. If successful, click Save (disk icon)
-* 8. Save as: dbo.ETB2_Campaign_Concurrency_Window
-*
-* Expected Result: Campaign overlap calculation in days
+* Validation: SELECT COUNT(*) FROM dbo.ETB2_Campaign_Concurrency_Window
 *******************************************************************************/
 
--- Copy from here ↓
+-- ============================================================================
+-- COPY FROM HERE
+-- ============================================================================
 
-SELECT
+SELECT 
     a.Campaign_ID,
     b.Campaign_ID AS Overlapping_Campaign,
-    DATEDIFF(DAY, a.Peak_Period_Start, b.Peak_Period_End) AS campaign_concurrency_window,
+    a.ITEMNMBR,
+    -- Calculate overlap in days
+    DATEDIFF(DAY, 
+        CASE WHEN a.Peak_Period_Start < b.Peak_Period_Start THEN a.Peak_Period_Start ELSE b.Peak_Period_Start END,
+        CASE WHEN a.Peak_Period_End > b.Peak_Period_End THEN a.Peak_Period_End ELSE b.Peak_Period_End END
+    ) AS CCW,  -- Campaign Concurrency Window in days
+    -- Overlap boundaries
+    CASE WHEN a.Peak_Period_Start < b.Peak_Period_Start THEN a.Peak_Period_Start ELSE b.Peak_Period_Start END AS Overlap_Start,
+    CASE WHEN a.Peak_Period_End > b.Peak_Period_End THEN a.Peak_Period_End ELSE b.Peak_Period_End END AS Overlap_End,
+    -- Default CCW = 1 (conservative, due to missing campaign dates in source data)
+    1 AS Default_CCW,
     CASE 
-        WHEN a.Peak_Period_Start < b.Peak_Period_End 
-        THEN a.Peak_Period_Start 
-        ELSE b.Peak_Period_Start 
-    END AS Overlap_Start,
-    CASE 
-        WHEN a.Peak_Period_End > b.Peak_Period_Start 
-        THEN a.Peak_Period_End 
-        ELSE b.Peak_Period_End 
-    END AS Overlap_End
+        WHEN DATEDIFF(DAY, 
+            CASE WHEN a.Peak_Period_Start < b.Peak_Period_Start THEN a.Peak_Period_Start ELSE b.Peak_Period_Start END,
+            CASE WHEN a.Peak_Period_End > b.Peak_Period_End THEN a.Peak_Period_End ELSE b.Peak_Period_End END
+        ) > 0 THEN 'OVERLAPS'
+        ELSE 'SEPARATE'
+    END AS Concurrency_Status
 FROM dbo.ETB2_Campaign_Normalized_Demand a
-JOIN dbo.ETB2_Campaign_Normalized_Demand b ON a.ITEMNMBR = b.ITEMNMBR
-WHERE a.Campaign_ID <> b.Campaign_ID;
+INNER JOIN dbo.ETB2_Campaign_Normalized_Demand b ON a.ITEMNMBR = b.ITEMNMBR
+WHERE a.Campaign_ID <> b.Campaign_ID
+    AND a.Campaign_ID < b.Campaign_ID  -- Prevent duplicate pairs (A-B and B-A)
 
--- Copy to here ↑
+-- ============================================================================
+-- COPY TO HERE
+-- ============================================================================

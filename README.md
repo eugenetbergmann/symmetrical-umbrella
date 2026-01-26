@@ -1,142 +1,209 @@
-# ETB2 SQL Views - Query Designer Deployment
+# ETB2 SQL Views - 17 Views for Supply Chain Planning
 
-## ⚠️ CRITICAL: Deployment Order
+> **All Objects Are Views** - No tables to create  
+> **Method:** Copy-paste SELECT statements into SSMS Query Designer  
+> **Time:** 20-30 minutes for all 17 views
 
-**You MUST deploy in numerical order. View 17 (EventLedger) deploys BETWEEN files 13 and 14, NOT at the end!**
+---
+
+## Quick Start
+
+### Prerequisites
+- SQL Server Management Studio (SSMS)
+- Connection to target database
+- CREATE VIEW permission
+- External tables exist (see `/reference/external_tables_required.md`)
+
+---
+
+## ⚠️ Deployment Order (CRITICAL)
+
+Deploy in exact numerical order. Each view depends on previous ones.
+
+**Exception:** View 17 deploys BETWEEN files 13 and 14 (not at the end).
 
 ### Correct Deployment Sequence:
 
-**START HERE:**
-1. ✅ `01_Config_Lead_Times_TABLE.sql` - Create table first
-2. ✅ `02_Config_Part_Pooling_TABLE.sql` - Create table first  
-3. ✅ `03_Config_Active.sql` - First view (depends on tables 1-2)
-4. ✅ `04_Demand_Cleaned_Base.sql`
-5. ✅ `05_Inventory_WC_Batches.sql`
-6. ✅ `06_Inventory_Quarantine_Restricted.sql`
-7. ✅ `07_Inventory_Unified_Eligible.sql`
-8. ✅ `08_Planning_Stockout_Risk.sql`
-9. ✅ `09_Planning_Net_Requirements.sql`
-10. ✅ `10_Planning_Rebalancing_Opportunities.sql`
-11. ✅ `11_Campaign_Normalized_Demand.sql`
-12. ✅ `12_Campaign_Concurrency_Window.sql`
-13. ✅ `13_Campaign_Collision_Buffer.sql`
-14. ⚠️ `17_PAB_EventLedger_v1.sql` - **DEPLOY NOW** (between 13 and 14)
-15. ✅ `14_Campaign_Risk_Adequacy.sql`
-16. ✅ `15_Campaign_Absorption_Capacity.sql`
-17. ✅ `16_Campaign_Model_Data_Gaps.sql` - **LAST**
+```
+01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 13 → 17 → 14 → 15 → 16
+          ↑                                                          ↑
+          |                                                          |
+     (Views only)                                              (DEPLOY HERE)
+```
+
+### Deployment Order Table:
+
+| # | File | View Name | Deploy After |
+|---|------|-----------|--------------|
+| 01 | `01_Config_Lead_Times.sql` | ETB2_Config_Lead_Times | - (first) |
+| 02 | `02_Config_Part_Pooling.sql` | ETB2_Config_Part_Pooling | 01 |
+| 03 | `03_Config_Active.sql` | ETB2_Config_Active | 01, 02 |
+| 04 | `04_Demand_Cleaned_Base.sql` | ETB2_Demand_Cleaned_Base | External only |
+| 05 | `05_Inventory_WC_Batches.sql` | ETB2_Inventory_WC_Batches | External only |
+| 06 | `06_Inventory_Quarantine_Restricted.sql` | ETB2_Inventory_Quarantine_Restricted | External only |
+| 07 | `07_Inventory_Unified_Eligible.sql` | ETB2_Inventory_Unified_Eligible | 05, 06 |
+| 08 | `08_Planning_Stockout_Risk.sql` | ETB2_Planning_Stockout_Risk | 04, 05 |
+| 09 | `09_Planning_Net_Requirements.sql` | ETB2_Planning_Net_Requirements | 04, 05 |
+| 10 | `10_Planning_Rebalancing_Opportunities.sql` | ETB2_Planning_Rebalancing_Opportunities | 04, 05, 06 |
+| 11 | `11_Campaign_Normalized_Demand.sql` | ETB2_Campaign_Normalized_Demand | 04 |
+| 12 | `12_Campaign_Concurrency_Window.sql` | ETB2_Campaign_Concurrency_Window | 11, 03 |
+| 13 | `13_Campaign_Collision_Buffer.sql` | ETB2_Campaign_Collision_Buffer | 11, 12, 02 |
+| **17** | **`17_PAB_EventLedger_v1.sql`** | **ETB2_PAB_EventLedger_v1** | **13 (DEPLOY NOW!)** |
+| 14 | `14_Campaign_Risk_Adequacy.sql` | ETB2_Campaign_Risk_Adequacy | 07, 17, 04, 13 |
+| 15 | `15_Campaign_Absorption_Capacity.sql` | ETB2_Campaign_Absorption_Capacity | 13, 14, 03, 02 |
+| 16 | `16_Campaign_Model_Data_Gaps.sql` | ETB2_Campaign_Model_Data_Gaps | 03, 02 |
 
 ---
 
-## How to Use Query Designer
+## Deployment Process (Same for All 17 Views)
 
-### Step-by-Step for Each View:
+**For each query file in order:**
 
-1. **Open New View**
-   - Object Explorer → Right-click **Views** → **New View**
-   - Query Designer opens with 4 panes
+1. **Open New View in SSMS**
+   - Object Explorer → Right-click **Views** → **New View...**
 
 2. **Switch to SQL Pane**
-   - Method A: Menu bar → **Query Designer** → **Pane** → **SQL** only
-   - Method B: Right-click in designer area → **Pane** → **SQL**
-   - This hides the grid/diagram and shows just SQL text editor
+   - Menu: **Query Designer** → **Pane** → **SQL**
+   - (Hides diagram/grid, shows only SQL editor)
 
-3. **Clear Default SQL**
-   - Delete the default `SELECT` statement that appears
+3. **Copy Query**
+   - Open query file (e.g., `01_Config_Lead_Times.sql`)
+   - Copy text between "COPY FROM HERE" and "COPY TO HERE" markers
 
-4. **Paste Your Query**
-   - Open query file (e.g., `03_Config_Active.sql`)
-   - Copy the SELECT statement (between the marker comments)
-   - Paste into SQL pane
+4. **Paste & Test**
+   - Paste into SQL pane (delete any default SQL first)
+   - Click **Execute** (!) to test
+   - Verify results appear (no errors)
 
-5. **Test Query**
-   - Click **Execute** button (red ! icon) or press Ctrl+R
-   - Results appear at bottom
-   - Verify you see data (not errors)
-
-6. **Save as View**
-   - Click **Save** (disk icon) or press Ctrl+S
-   - Enter name: `dbo.ETB2_Config_Active`
+5. **Save View**
+   - Click **Save** (disk icon)
+   - Enter exact name from file header: `dbo.ETB2_Config_Lead_Times`
    - Click OK
 
-7. **Verify**
-   - Refresh Views folder in Object Explorer
-   - Confirm view appears in list
+6. **Verify**
+   - Refresh Views folder
+   - Confirm view appears
 
-8. **Move to Next File**
-   - Proceed to next numbered query file
-
----
-
-## Why Your EventLedger Failed
-
-The error shows these invalid columns:
-- `ITEMNMBR` ✗
-- `POSTSTATUS` ✗  
-- `QTYORDER` ✗
-- `CITYCANCEL` ✗
-- etc.
-
-**Root cause:** EventLedger (file 17) depends on many other views that don't exist yet.
-
-**Fix:** Start over from file 01 and deploy in exact numerical order.
+7. **Next File**
+   - Move to next numbered file
+   - Repeat steps 1-6
 
 ---
 
-## Quick Troubleshooting
+## What You're Building
+
+### Configuration Layer (01-03)
+- **01_Config_Lead_Times:** 30-day lead time defaults per item
+- **02_Config_Part_Pooling:** Pooling classification (Dedicated/Semi-Pooled/Pooled)
+- **03_Config_Active:** Unified config with COALESCE logic
+
+### Data Foundation (04-06)
+- **04_Demand_Cleaned_Base:** Cleaned demand (excludes partial/invalid orders)
+- **05_Inventory_WC_Batches:** Work center inventory (FEFO ordering)
+- **06_Inventory_Quarantine_Restricted:** Quarantine/restricted inventory (hold periods)
+
+### Unified Inventory (07)
+- **07_Inventory_Unified_Eligible:** All eligible inventory consolidated
+
+### Planning Core (08-10)
+- **08_Planning_Stockout_Risk:** ATP balances and stockout risk classification
+- **09_Planning_Net_Requirements:** Net procurement requirements
+- **10_Planning_Rebalancing_Opportunities:** Expiry-driven transfer recommendations
+
+### Campaign Model (11-16)
+- **11_Campaign_Normalized_Demand:** Campaign consumption units (CCU)
+- **12_Campaign_Concurrency_Window:** Campaign concurrency windows (CCW)
+- **13_Campaign_Collision_Buffer:** Collision buffer calculations
+- **14_Campaign_Risk_Adequacy:** Risk adequacy assessment
+- **15_Campaign_Absorption_Capacity:** Absorption capacity KPI
+- **16_Campaign_Model_Data_Gaps:** Data quality flags
+
+### Event Ledger (17)
+- **17_PAB_EventLedger_v1:** Atomic event tracking (BEGIN_BAL, PO, DEMAND, EXPIRY)
+- ⚠️ **Deploy AFTER 13 but BEFORE 14**
+
+---
+
+## Validation
+
+After deploying all 17 views:
+
+```sql
+-- Check all views exist
+SELECT name AS ViewName
+FROM sys.views
+WHERE name LIKE 'ETB2_%'
+ORDER BY name;
+-- Should return 17 rows
+
+-- Quick data check
+SELECT 
+    'ETB2_Config_Lead_Times' AS ViewName, 
+    COUNT(*) AS RowCount 
+FROM dbo.ETB2_Config_Lead_Times
+UNION ALL
+SELECT 'ETB2_Demand_Cleaned_Base', COUNT(*) FROM dbo.ETB2_Demand_Cleaned_Base
+UNION ALL
+SELECT 'ETB2_Planning_Stockout_Risk', COUNT(*) FROM dbo.ETB2_Planning_Stockout_Risk;
+-- All should return > 0 rows
+```
+
+---
+
+## Troubleshooting
+
+### "Invalid object name 'dbo.ETB2_XXX'"
+**Problem:** Dependency view doesn't exist yet  
+**Fix:** Deploy in exact numerical order, create dependencies first
 
 ### "Invalid column name"
-- **Cause:** You're deploying out of order
-- **Fix:** Check file number, verify all lower-numbered views exist first
+**Problem:** Source table structure different than expected  
+**Fix:** Verify external table exists and has expected columns
 
-### "Invalid object name 'dbo.ETB2_XXX'"  
-- **Cause:** Missing dependency view
-- **Fix:** Deploy dependencies first (check file header for list)
+### View saves but returns 0 rows
+**Problem:** Source data empty or filters too restrictive  
+**Fix:** Check source tables have data, review WHERE clauses
 
-### Query Designer shows grid instead of SQL
-- **Fix:** Click Query Designer menu → Pane → SQL
-
-### Save button grayed out
-- **Fix:** Click Execute first to validate query
+### "Incorrect syntax near 'GO'"
+**Problem:** Copied GO statement into view designer  
+**Fix:** Copy only SELECT statement (between markers), no GO
 
 ---
 
 ## Deployment Checklist
 
-Print and check off as you deploy:
+Print and check off as you go:
 
-**Foundation:**
-- [ ] 01 - Config_Lead_Times (TABLE)
-- [ ] 02 - Config_Part_Pooling (TABLE)
-- [ ] 03 - Config_Active (VIEW)
-
-**Data Foundation:**
+- [ ] 01 - Config_Lead_Times
+- [ ] 02 - Config_Part_Pooling
+- [ ] 03 - Config_Active
 - [ ] 04 - Demand_Cleaned_Base
-- [ ] 05 - Inventory_WC_Batches  
+- [ ] 05 - Inventory_WC_Batches
 - [ ] 06 - Inventory_Quarantine_Restricted
-
-**Unified Inventory:**
 - [ ] 07 - Inventory_Unified_Eligible
-
-**Planning:**
 - [ ] 08 - Planning_Stockout_Risk
 - [ ] 09 - Planning_Net_Requirements
 - [ ] 10 - Planning_Rebalancing_Opportunities
-
-**Campaign Foundation:**
 - [ ] 11 - Campaign_Normalized_Demand
 - [ ] 12 - Campaign_Concurrency_Window
 - [ ] 13 - Campaign_Collision_Buffer
-
-**⚠️ CRITICAL - EventLedger NOW:**
-- [ ] 17 - PAB_EventLedger_v1 (DEPLOY BETWEEN 13 AND 14)
-
-**Campaign Analytics:**
+- [ ] 17 - PAB_EventLedger_v1 ⚠️ Deploy before 14
 - [ ] 14 - Campaign_Risk_Adequacy
-- [ ] 15 - Campaign_Absorption_Capacity  
+- [ ] 15 - Campaign_Absorption_Capacity
 - [ ] 16 - Campaign_Model_Data_Gaps
 
 **Validation:**
-- [ ] All 17 objects exist: `SELECT COUNT(*) FROM sys.objects WHERE name LIKE 'ETB2_%'`
-- [ ] Result should be 17
+- [ ] All 17 views exist
+- [ ] Spot-check views return data
 
 ✅ **Done!**
+
+---
+
+## Support Files
+
+- **DEPLOYMENT_ORDER.md** - Detailed dependency explanations
+- **docs/VIEW_DEFINITIONS.md** - Specs for each view
+- **docs/DEPENDENCY_MAP.md** - Visual dependency tree
+- **docs/TROUBLESHOOTING.md** - Common issues and solutions
+- **reference/external_tables_required.md** - Required external tables (10 total)
