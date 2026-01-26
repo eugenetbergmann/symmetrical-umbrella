@@ -5,8 +5,6 @@
 -- SCREEN COLUMNS: 12 (fits 1920px)
 -- ============================================================================
 
-CREATE OR ALTER VIEW dbo.ETB2_Inventory_Unified_Eligible AS
-
 WITH GlobalConfig AS (
     SELECT
         180 AS WC_Shelf_Life_Days,

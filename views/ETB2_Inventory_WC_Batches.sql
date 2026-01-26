@@ -5,8 +5,6 @@
 -- SCREEN COLUMNS: 14 (fits 1920px)
 -- ============================================================================
 
-CREATE OR ALTER VIEW dbo.ETB2_Inventory_WC_Batches AS
-
 WITH GlobalShelfLife AS (
     SELECT 180 AS Default_WC_Shelf_Life_Days
 ),
@@ -93,11 +91,7 @@ ORDER BY
     Item_Number ASC,
     Use_Sequence ASC;
 
-GO
 
--- ============================================================
--- TEST QUERIES
--- ============================================================
 /*
 -- Verify item descriptions populated
 SELECT COUNT(*) AS Total_Batches,

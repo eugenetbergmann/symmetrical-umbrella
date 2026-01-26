@@ -10,8 +10,6 @@
 -- Last Updated: 2026-01-26
 -- ============================================================================
 
-CREATE OR ALTER VIEW dbo.ETB2_Campaign_Model_Data_Gaps AS
-
 SELECT
     i.ITEMNMBR AS item_id,
     i.ITEMDESC AS item_description,

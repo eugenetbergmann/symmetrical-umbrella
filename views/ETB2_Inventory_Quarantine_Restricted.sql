@@ -5,8 +5,6 @@
 -- SCREEN COLUMNS: 13 (fits 1920px)
 -- ============================================================================
 
-CREATE OR ALTER VIEW dbo.ETB2_Inventory_Quarantine_Restricted AS
-
 WITH GlobalConfig AS (
     SELECT
         14 AS WFQ_Hold_Days,

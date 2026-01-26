@@ -13,8 +13,6 @@
 -- Last Updated: 2026-01-26
 -- ============================================================================
 
-CREATE OR ALTER VIEW dbo.ETB2_Campaign_Normalized_Demand AS
-
 SELECT
     d.ITEMNMBR AS item_id,
     d.ORDERNUMBER AS campaign_id,

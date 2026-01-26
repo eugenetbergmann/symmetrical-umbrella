@@ -1,10 +1,10 @@
 -- ============================================================================
--- VIEW 1 of 6: ETB2_PAB_EventLedger_v1
--- ENHANCEMENT: Standardize to IV00101, optimize column order
+-- VIEW: dbo.ETB2_PAB_EventLedger_v1
+-- Purpose: Event ledger for planning with all inventory movements
+-- Dependencies: External tables (IV00101, IV00102, POP10100, POP10110, POP10300, ETB_PAB_AUTO)
+-- Last Updated: 2026-01-26
 -- ============================================================================
 
-CREATE OR ALTER VIEW dbo.ETB2_PAB_EventLedger_v1
-AS
 WITH AllEvents AS (
   
   -- ============================================================
@@ -191,11 +191,4 @@ ORDER BY
   Event_Priority, 
   Order_Number;
 
-GO
 
--- ============================================================================
--- TEST QUERY: Verify enhancement
--- ============================================================================
--- SELECT TOP 100 * FROM dbo.ETB2_PAB_EventLedger_v1 
--- WHERE Item_Description IS NOT NULL
--- ORDER BY Item_Number, Event_Date;

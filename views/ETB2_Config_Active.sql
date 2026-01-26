@@ -7,8 +7,6 @@
 -- Last Updated: 2026-01-25
 -- ============================================================================
 
-CREATE OR ALTER VIEW dbo.ETB2_Config_Active AS
-
 WITH
 
 -- 1. Global defaults (hardcoded values)
