@@ -5,8 +5,6 @@
 -- SCREEN COLUMNS: 11 (fits 1920px)
 -- ============================================================================
 
-CREATE OR ALTER VIEW dbo.ETB2_Planning_Stockout_Risk AS
-
 WITH
 
 -- Future demand (next 90 days)

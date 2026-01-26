@@ -11,8 +11,6 @@
 -- Last Updated: 2026-01-26
 -- ============================================================================
 
-CREATE OR ALTER VIEW dbo.ETB2_Campaign_Absorption_Capacity AS
-
 WITH LeadTimeBuckets AS (
     SELECT
         ITEMNMBR,

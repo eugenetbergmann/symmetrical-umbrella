@@ -10,8 +10,6 @@
 -- Last Updated: 2026-01-25
 -- ============================================================================
 
-CREATE OR ALTER VIEW dbo.ETB2_Demand_Cleaned_Base AS
-
 WITH RawDemand AS (
     SELECT
         ORDERNUMBER,
