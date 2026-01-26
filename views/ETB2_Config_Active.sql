@@ -1,54 +1,17 @@
-/*
-===============================================================================
-View: dbo.ETB2_Config_Engine_v1
-Description: Unified Active Configuration - Standalone SQL Query
-Version: 1.0.0
-Last Modified: 2026-01-25
-Dependencies: None (self-contained with inlined CTEs)
+-- ============================================================================
+-- View: dbo.ETB2_Config_Active
+-- Purpose: Multi-tier configuration hierarchy (Item > Client > Global)
+-- Grain: Item / Client / Site
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
+-- Dependencies: None (fully self-contained)
+-- Last Updated: 2026-01-25
+-- ============================================================================
 
-Purpose:
-   - Returns one row per relevant Item/Client/Site combination with the effective configuration parameters
-   - Applies priority hierarchy: Item-specific > Client-specific > Global defaults
-   - Only includes currently active records (Effective_Date <= GETDATE() and Expiry_Date is null or > GETDATE())
-   - All columns are human-readable for planners
-   - Sorted for easy Excel filtering
-
-Business Rules:
-   - Config hierarchy (priority order):
-     1. Item-specific config (highest priority)
-     2. Client-specific config
-     3. Global default config (lowest priority)
-   - Site configs hardcoded for now (WFQ/RMQTY locations)
-   - All configs pivoted into columns for easy joining
-
-Configuration Parameters:
-   - Hold periods: WFQ_Hold_Days (14 default), RMQTY_Hold_Days (7 default)
-   - Expiry filters: WFQ_Expiry_Filter_Days (90 default), RMQTY_Expiry_Filter_Days (90 default)
-   - Shelf life: WC_Batch_Shelf_Life_Days (180 default)
-   - Active window: ActiveWindow_Past_Days (21 default), ActiveWindow_Future_Days (21 default)
-   - Safety stock: Safety_Stock_Days (14 default), Safety_Stock_Method ('DAYS_OF_SUPPLY' default)
-   - Degradation tiers (4 tiers: 0-30, 31-60, 61-90, >90 days)
-
-REPLACES:
-   - dbo.Rolyat_Site_Config (View 00)
-   - dbo.Rolyat_Config_Clients (View 01)
-   - dbo.Rolyat_Config_Global (View 02)
-   - dbo.Rolyat_Config_Items (View 03)
-==============================================================================
-*/
-
-CREATE OR ALTER VIEW dbo.ETB2_Config_Engine_v1
-AS
-
--- [T-001] Unified Active Configuration
--- Purpose: Returns one row per relevant Item/Client/Site combination with the effective configuration parameters
---          after applying the priority hierarchy: Item-specific > Client-specific > Global defaults.
---          Only includes currently active records (Effective_Date <= GETDATE() and Expiry_Date is null or > GETDATE()).
---          All columns are human-readable for planners. Sorted for easy Excel filtering.
+CREATE OR ALTER VIEW dbo.ETB2_Config_Active AS
 
 WITH
 
--- 1. Global defaults (static VALUES from Rolyat_Config_Global)
+-- 1. Global defaults (hardcoded values)
 GlobalConfig AS (
     SELECT
         'GLOBAL' AS Config_Source,
@@ -76,7 +39,7 @@ GlobalConfig AS (
     ) AS g(Config_Key, Config_Value)
 ),
 
--- 2. Client-specific overrides (from Rolyat_Config_Clients - currently placeholder/empty, but included for future)
+-- 2. Client-specific overrides (placeholder for future use)
 ClientConfigRaw AS (
     SELECT
         Client_ID,
@@ -87,12 +50,14 @@ ClientConfigRaw AS (
     FROM (VALUES
         -- Placeholder structure - real data would go here
         -- Example: ('CLI001', 'WFQ_Hold_Days', '10', '2025-01-01', NULL)
+        (NULL, NULL, NULL, NULL, NULL)
     ) AS c(Client_ID, Config_Key, Config_Value, Effective_Date, Expiry_Date)
     WHERE Effective_Date <= GETDATE()
       AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())
+      AND Client_ID IS NOT NULL
 ),
 
--- 3. Item-specific overrides (from Rolyat_Config_Items - currently placeholder/empty)
+-- 3. Item-specific overrides (placeholder for future use)
 ItemConfigRaw AS (
     SELECT
         ITEMNMBR AS Item_Number,
@@ -103,12 +68,14 @@ ItemConfigRaw AS (
     FROM (VALUES
         -- Placeholder structure - real data would go here
         -- Example: ('ITEM123', 'Safety_Stock_Days', '21', '2025-06-01', NULL)
+        (NULL, NULL, NULL, NULL, NULL)
     ) AS i(ITEMNMBR, Config_Key, Config_Value, Effective_Date, Expiry_Date)
     WHERE Effective_Date <= GETDATE()
       AND (Expiry_Date IS NULL OR Expiry_Date > GETDATE())
+      AND ITEMNMBR IS NOT NULL
 ),
 
--- 4. Site configuration (from Rolyat_Site_Config - hardcoded locations/types)
+-- 4. Site configuration (hardcoded locations/types)
 SiteConfig AS (
     SELECT
         LOCNCODE AS Location_Code,

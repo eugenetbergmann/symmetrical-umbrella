@@ -1,12 +1,12 @@
--- [T-007] Net Requirements & Procurement Guidance
--- Purpose: Item-level net procurement requirements with safety stock buffering.
---          - Aggregates future demand (next 90 days) and compares to total eligible WC inventory (primary)
---          - Alternate stock (eligible WFQ + RMQTY) considered for effective coverage but not primary ATP
---          - Exact cascading Net_Requirement_Qty logic from ETB2_Net_Requirements_v1
---          - DAYS_OF_SUPPLY safety stock method (average daily demand over horizon)
---          - Requirement_Status and Priority for planner action sorting
---          - Includes items with demand OR inventory for complete coverage
---          Sorted by Requirement_Priority ASC, then Net_Requirement_Quantity DESC for urgent items first.
+-- ============================================================================
+-- ETB2 Query: Planning_Net_Requirements
+-- Purpose: Net procurement requirements calculation
+-- Grain: Item
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
+-- Dependencies: None (fully self-contained)
+-- Last Updated: 2026-01-25
+-- ============================================================================
 
 WITH
 

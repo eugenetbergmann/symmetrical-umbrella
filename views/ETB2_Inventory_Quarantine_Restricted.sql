@@ -1,21 +1,19 @@
--- [T-004] WFQ & RMQTY Inventory – Exact Rolyat Preservation
--- Purpose: Returns current WFQ (Quarantine) and RMQTY (Restricted Material) batch inventory exactly as in original Rolyat_WFQ_5.
---          - WFQ sites: 'WF-Q' with 14-day hold period
---          - RMQTY sites: 'RMQTY' with 7-day hold period
---          - Positive available quantity only
---          - Expiry filter: exclude batches expiring within 90 days
---          - Projected release dates based on hold periods
---          - Client_ID not applicable (NULL)
---          - Batch_Age_Days = DATEDIFF(DAY, Receipt_Date, GETDATE())
---          - Is_Eligible_For_Allocation based on hold period completion
---          - Degradation not yet implemented (Degraded_Qty = 0, Usable_Qty = Available_Qty)
---          - Bin type defaults to 'UNKNOWN' (not bin-based)
---          - All columns renamed to planner-friendly names
---          - Sorted by Item_Number → Projected_Release_Date ASC → Receipt_Date ASC for immediate eligibility visibility in Excel
+-- ============================================================================
+-- View: dbo.ETB2_Inventory_Quarantine_Restricted
+-- Purpose: WFQ/RMQTY inventory with hold period management
+-- Grain: Receipt Sequence (RCTSEQNM)
+--   - Hold Periods: WFQ 14 days, RMQTY 7 days
+--   - Expiry Filter: 90-day window
+--   - Eligibility: Calculated from hold release date
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
+-- Dependencies: dbo.ETB2_Config_Active
+-- Last Updated: 2026-01-25
+-- ============================================================================
+
+CREATE OR ALTER VIEW dbo.ETB2_Inventory_Quarantine_Restricted AS
 
 WITH
 
--- Inline global config defaults (from Rolyat_Config_Global)
 GlobalConfig AS (
     SELECT
         14 AS WFQ_Hold_Days,

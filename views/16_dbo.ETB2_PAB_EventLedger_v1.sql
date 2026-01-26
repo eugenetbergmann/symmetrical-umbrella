@@ -6,12 +6,12 @@ Description: Atomic event ledger matching PAB_AUTO pattern with separate PO
 Version: 1.0.0
 Last Modified: 2026-01-23
 Dependencies:
-   - dbo.ETB_PAB_AUTO (source for beginning balance, demand, expiry)
-   - dbo.Rolyat_Cleaned_Base_Demand_1 (demand reference)
-   - IV00102 (inventory on hand)
-   - POP10100, POP10110 (PO lines and headers)
-   - POP10300 (PO receipts)
-   - Prosenthal_Vendor_Items (item master)
+    - dbo.ETB_PAB_AUTO (source for beginning balance, demand, expiry)
+    - dbo.ETB2_Demand_Cleaned_Base (demand reference)
+    - IV00102 (inventory on hand)
+    - POP10100, POP10110 (PO lines and headers)
+    - POP10300 (PO receipts)
+    - Prosenthal_Vendor_Items (item master)
 
 Purpose:
    - Builds atomic event ledger with separate PO commitment and receipt events
@@ -24,7 +24,7 @@ Business Rules:
    - 60.x and 70.x items are IN-PROCESS MATERIALS - INCLUDED (not excluded)
    - PO commitments and receipts are SEPARATE additive events (not netted)
    - MOs with multiple due dates de-duplicated to earliest date per item/MO
-   - Demand reference: Rolyat_Cleaned_Base_Demand_1 (filters 'Partially Received')
+   - Demand reference: ETB2_Demand_Cleaned_Base (filters 'Partially Received')
    - Expiry events from demand view if available
    - Event ordering: BEGIN_BAL (1) > PO_COMMITMENT/PO_RECEIPT (2) > DEMAND (3) > EXPIRY (4)
 
@@ -130,7 +130,7 @@ WITH AllEvents AS (
   UNION ALL
   
   -- ============================================================
-  -- 4. DEMAND (from existing Rolyat_Cleaned_Base_Demand_1)
+  -- 4. DEMAND (from existing ETB2_Demand_Cleaned_Base)
   -- DE-DUPLICATION: If MO has multiple lines with same item but different dates,
   -- use earliest date and sum quantities
   -- ============================================================
@@ -148,7 +148,7 @@ WITH AllEvents AS (
     CAST(0 AS decimal(19,5)) AS [PO's],
     'DEMAND' AS EventType,
     TRIM(D.UOMSCHDL) AS UOMSCHDL
-  FROM dbo.Rolyat_Cleaned_Base_Demand_1 D
+  FROM dbo.ETB2_Demand_Cleaned_Base D
   WHERE D.Base_Demand > 0  -- Positive demand only
   GROUP BY 
     D.ORDERNUMBER,
@@ -178,7 +178,7 @@ WITH AllEvents AS (
     CAST(0 AS decimal(19,5)) AS [PO's],
     'EXPIRY' AS EventType,
     TRIM(D.UOMSCHDL) AS UOMSCHDL
-  FROM dbo.Rolyat_Cleaned_Base_Demand_1 D
+  FROM dbo.ETB2_Demand_Cleaned_Base D
   WHERE D.Expiry > 0
     AND D.Expiry_Dates IS NOT NULL
     AND CAST(D.Expiry_Dates AS date) BETWEEN GETDATE() AND DATEADD(MONTH, 6, GETDATE())

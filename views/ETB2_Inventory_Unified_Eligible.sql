@@ -1,17 +1,14 @@
--- [T-005] Unified Inventory – WC, WFQ & RMQTY Consolidated
--- Purpose: Returns consolidated batch inventory from WC, WFQ, and RMQTY sources exactly as in ETB2_Inventory_Unified_v1.
---          - WC batches: Bin-based, FEFO by Expiry_Date
---          - WFQ batches: 14-day hold, FEFO by Projected_Release_Date
---          - RMQTY batches: 7-day hold, FEFO by Projected_Release_Date
---          - Positive available quantity only
---          - Expiry filters applied per type
---          - Client_ID from WC sites, NULL for WFQ/RMQTY
---          - Batch_Age_Days = DATEDIFF(DAY, Receipt_Date, GETDATE())
---          - Is_Eligible_For_Allocation: WC always 1, WFQ/RMQTY based on hold completion
---          - Degradation not yet implemented (Degraded_Qty = 0, Usable_Qty = Available_Qty)
---          - Bin_Type from EXT_BINTYPE for WC, 'UNKNOWN' for WFQ/RMQTY
---          - All columns renamed to planner-friendly names
---          - Sorted by Allocation_Priority (WC→WFQ→RMQTY) → Item_Number → FEFO_Sort_Priority for immediate allocation order in Excel
+-- ============================================================================
+-- ETB2 Query: Inventory_Unified_Eligible
+-- Purpose: All eligible inventory (WC + released quarantine batches)
+-- Grain: Eligible Batch
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
+--   - Allocation Priority: WC first, then FEFO (Expiry → Receipt)
+--   - No expiry filter on WFQ/RMQTY (per ETB2 unification)
+-- Excel-Ready: Yes (SELECT-only, human-readable columns)
+-- Dependencies: None (fully self-contained, logic inlined via UNION ALL)
+-- Last Updated: 2026-01-25
+-- ============================================================================
 
 WITH
 
