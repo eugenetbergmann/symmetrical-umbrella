@@ -55,6 +55,13 @@ WHERE i.Expiry_Date >= GETDATE()  -- Only non-expired inventory
     AND i.Quantity > 0
 GROUP BY i.ITEMNMBR, i.Work_Center, 
     CASE WHEN i.Expiry_Date >= GETDATE() THEN 'VALID' ELSE 'EXPIRED' END
+    'UNIFIED' AS Inventory_Source
+FROM dbo.ETB_Inventory_WC
+WHERE ITEMNMBR NOT IN (
+    -- Exclude items that are in quarantine/restricted
+    SELECT ITEMNMBR FROM dbo.ETB2_Inventory_Quarantine_Restricted
+)
+GROUP BY ITEMNMBR, Work_Center
 
 -- ============================================================================
 -- COPY TO HERE
