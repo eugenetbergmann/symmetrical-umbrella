@@ -1,4 +1,4 @@
-# ETB2 View Optimization & Documentation
+# ETB2 Complete Documentation
 
 **Generated:** 2026-01-26  
 **Session ID:** ETB2-OPTIMIZATION-20260126  
@@ -6,31 +6,71 @@
 
 ---
 
-## 1. Overview
+## Table of Contents
 
-This document consolidates all ETB2 views, supporting queries, configurations, and documentation into a single organized artifact. It includes:
-- Decision table for each view (Keep/Merge/Delete)
-- Numbered task graph with deployment order
-- SQL snippets where relevant
-- Audit trail for deleted/merged views
+1. [Executive Summary](#1-executive-summary)
+2. [Assumptions](#2-assumptions)
+3. [Decision Table](#3-decision-table)
+4. [Deleted Views Audit Trail](#4-deleted-views-audit-trail)
+5. [Deployment Task Graph](#5-deployment-task-graph)
+6. [Optimized View List](#6-optimized-view-list)
+7. [Metric Index](#7-metric-index)
+8. [Campaign Risk Model](#8-campaign-risk-model)
+9. [Planner Workflow](#9-planner-workflow)
+10. [Migration History](#10-migration-history)
+11. [File Manifest](#11-file-manifest)
+12. [Dependency Audit](#12-dependency-audit)
+
+---
+
+## 1. Executive Summary
+
+ETB2 (Enterprise Tactical Business 2) is a unified supply chain planning and analytics system. This document consolidates all views, configurations, and documentation into a single organized artifact.
+
+### Key Metrics
+
+| Metric | Value |
+|--------|-------|
+| Total Views | 17 |
+| Config Tables | 2 |
+| Deleted Views | 1 |
+| Migration Reduction | 55% (from 35 to 16 views) |
+
+### Analytics Domains
+
+1. **Configuration Management** - Multi-tier config hierarchy (Item > Client > Global)
+2. **Demand Planning** - Base demand calculation, demand cleansing
+3. **Inventory Management** - WC, WFQ, RMQTY batches with eligibility and expiry
+4. **Supply Chain Analysis** - ATP, stockout risk, net requirements
+5. **Rebalancing & Optimization** - Expiry-driven inventory transfers, risk mitigation
+6. **Campaign Risk Model** - Campaign-based buffer calculations
+7. **Reporting & Dashboards** - Planner-focused risk, requirements, and rebalancing
 
 ---
 
 ## 2. Assumptions
 
 ### 2.1 Data Quality Assumptions
-- **Campaign Data:** All campaign-based views operate with LOW CONFIDENCE due to missing campaign structure (campaign IDs, start/end dates)
-- **Lead Times:** Default to 30 days conservative estimate
-- **Pooling Classification:** Default to Dedicated (most conservative)
-- **Campaign Concurrency Window (CCW):** Default to 1 due to point-in-time date inference
+
+| Assumption | Default | Notes |
+|------------|---------|-------|
+| Campaign Data | LOW CONFIDENCE | Missing campaign structure (IDs, dates) |
+| Lead Times | 30 days | Conservative estimate for novel-modality CDMO |
+| Pooling Classification | Dedicated | Most conservative classification |
+| Campaign Concurrency Window (CCW) | 1 | Due to point-in-time date inference |
+| WFQ Hold Period | 14 days | Quality hold before release |
+| RMQTY Hold Period | 7 days | Raw material quality hold |
+| WC Shelf Life | 180 days | Default if no expiry date |
 
 ### 2.2 Technical Assumptions
+
 - **Database:** SQL Server (T-SQL syntax)
 - **Grain Consistency:** Each view has explicit grain defined in comments
 - **Naming Convention:** `ETB2_{Domain}_{Purpose}.sql` pattern enforced
 - **Dependencies:** Views must be deployed in dependency order
 
 ### 2.3 Business Assumptions
+
 - **Campaign-Based Risk Model:** Replaces daily-usage safety stock with campaign collision buffers
 - **Pooling Effects:** Part sharing across campaigns changes risk dynamics
 - **Lead Time Awareness:** Supplier constraints considered in risk calculation
@@ -41,32 +81,32 @@ This document consolidates all ETB2 views, supporting queries, configurations, a
 
 | # | View Name | Purpose | Necessity | Complexity | Notes |
 |---|-----------|---------|-----------|------------|-------|
-| 1 | ETB2_Config_Active | Multi-tier config hierarchy (Item > Client > Global) | **KEEP** | Low | Self-contained, no external dependencies |
-| 2 | ETB2_Demand_Cleaned_Base | Cleaned base demand (excludes 60.x/70.x, partials) | **KEEP** | Medium | Core dependency for all planning views |
-| 3 | ETB2_Inventory_WC_Batches | WC batch inventory with FEFO ordering | **KEEP** | Medium | Base inventory layer |
-| 4 | ETB2_Inventory_Quarantine_Restricted | WFQ/RMQTY with hold period management | **KEEP** | Medium | Source for unified eligible view |
-| 5 | ETB2_Inventory_Unified_Eligible | All eligible inventory (WC + released holds) | **KEEP** | Medium | Planner primary for "what can I allocate?" |
-| 6 | ETB2_Planning_Stockout_Risk | ATP balance and shortage risk analysis | **KEEP** | Medium | Risk assessment for planners |
-| 7 | ETB2_Planning_Net_Requirements | Net procurement requirements calculation | **KEEP** | High | Core procurement planning logic |
-| 8 | ETB2_Planning_Rebalancing_Opportunities | Expiry-driven inventory transfer recommendations | **KEEP** | High | Optimization opportunities |
-| 9 | ETB2_Campaign_Normalized_Demand | Normalize demand into campaign units (CCU) | **KEEP** | Low | Campaign model foundation |
-| 10 | ETB2_Campaign_Concurrency_Window | Determine campaign overlap within lead time | **KEEP** | Low | CCW defaults to 1 (conservative) |
-| 11 | ETB2_Campaign_Collision_Buffer | Calculate collision buffer (replaces safety stock) | **KEEP** | Medium | Formula: CCU × CCW × pooling_multiplier |
-| 12 | ETB2_Campaign_Risk_Adequacy | Assess inventory adequacy against collision risk | **KEEP** | Medium | Risk levels: LOW/MED/HIGH |
-| 13 | ETB2_Campaign_Absorption_Capacity | Executive KPI: absorbable campaigns | **KEEP** | Medium | Primary capacity metric |
-| 14 | ETB2_Campaign_Model_Data_Gaps | Flag missing/inferred data in campaign model | **KEEP** | Low | Data quality transparency |
-| 15 | ETB2_Config_Lead_Times | Lead time configuration table | **KEEP** | Low | Config table, populates on first run |
-| 16 | ETB2_Config_Part_Pooling | Part pooling classification table | **KEEP** | Low | Config table, populates on first run |
-| 17 | ETB2_Classical_Benchmark_Metrics | Classical metrics for comparison only | **DELETE** | Low | All NULL values, no practical use |
-| 18 | ETB2_PAB_EventLedger_v1 | Event ledger (BEGIN_BAL, PO, DEMAND, EXPIRY) | **KEEP** | High | Complex but necessary for event tracking |
+| 1 | ETB2_Config_Active | Multi-tier config hierarchy | **KEEP** | Low | Self-contained, no external dependencies |
+| 2 | ETB2_Demand_Cleaned_Base | Cleaned base demand | **KEEP** | Medium | Core dependency for all planning views |
+| 3 | ETB2_Inventory_WC_Batches | WC batch inventory with FEFO | **KEEP** | Medium | Base inventory layer |
+| 4 | ETB2_Inventory_Quarantine_Restricted | WFQ/RMQTY with holds | **KEEP** | Medium | Source for unified eligible view |
+| 5 | ETB2_Inventory_Unified_Eligible | All eligible inventory | **KEEP** | Medium | Planner primary view |
+| 6 | ETB2_Planning_Stockout_Risk | ATP & shortage analysis | **KEEP** | Medium | Risk assessment |
+| 7 | ETB2_Planning_Net_Requirements | Procurement requirements | **KEEP** | High | Core procurement logic |
+| 8 | ETB2_Planning_Rebalancing_Opportunities | Transfer recommendations | **KEEP** | High | Optimization |
+| 9 | ETB2_Campaign_Normalized_Demand | Campaign units (CCU) | **KEEP** | Low | Campaign model foundation |
+| 10 | ETB2_Campaign_Concurrency_Window | Campaign overlap | **KEEP** | Low | CCW defaults to 1 |
+| 11 | ETB2_Campaign_Collision_Buffer | Collision buffer | **KEEP** | Medium | Formula: CCU × CCW × pooling |
+| 12 | ETB2_Campaign_Risk_Adequacy | Risk adequacy | **KEEP** | Medium | Risk levels: LOW/MED/HIGH |
+| 13 | ETB2_Campaign_Absorption_Capacity | Executive KPI | **KEEP** | Medium | Primary capacity metric |
+| 14 | ETB2_Campaign_Model_Data_Gaps | Data quality flags | **KEEP** | Low | Data transparency |
+| 15 | ETB2_Config_Lead_Times | Lead time config | **KEEP** | Low | Auto-populates |
+| 16 | ETB2_Config_Part_Pooling | Pooling config | **KEEP** | Low | Auto-populates |
+| 17 | ETB2_PAB_EventLedger_v1 | Event ledger | **KEEP** | High | Complex but necessary |
+| 18 | ETB2_Classical_Benchmark_Metrics | Classical metrics | **DELETE** | Low | All NULL values |
 
 ### 3.1 Summary
 
 | Category | Count |
 |----------|-------|
 | **KEEP** | 17 views |
-| **DELETE** | 1 view (ETB2_Classical_Benchmark_Metrics) |
-| **MERGE** | 0 views (none identified for merging) |
+| **DELETE** | 1 view |
+| **MERGE** | 0 views |
 
 ---
 
@@ -74,11 +114,20 @@ This document consolidates all ETB2 views, supporting queries, configurations, a
 
 | View Name | Deleted Date | Reason | Replaced By |
 |-----------|--------------|--------|-------------|
-| ETB2_Classical_Benchmark_Metrics | 2026-01-26 | All values NULL; provides no practical value. Classical metrics rejected in favor of campaign collision model. | N/A - Not needed |
+| ETB2_Classical_Benchmark_Metrics | 2026-01-26 | All values NULL; provides no practical value. Classical metrics rejected in favor of campaign collision model. | N/A |
+
+### Rationale for Deletion
+
+The classical metrics view contained:
+- NULL for EOQ (continuous demand assumption invalid)
+- NULL for Classical Safety Stock (Z-score approach rejected)
+- NULL for Reorder Point (daily usage model rejected)
+
+These metrics assume continuous demand patterns that don't apply to campaign-based CDMO operations. The campaign collision model provides the correct risk framework.
 
 ---
 
-## 5. SQL & Deployment Task Graph
+## 5. Deployment Task Graph
 
 ### 5.1 Deployment Order (Numbered by Dependency)
 
@@ -88,8 +137,8 @@ This document consolidates all ETB2 views, supporting queries, configurations, a
 | 2 | `ETB2_Config_Part_Pooling.sql` | None (table) | Table |
 | 3 | `ETB2_Config_Active.sql` | None | View |
 | 4 | `ETB2_Demand_Cleaned_Base.sql` | dbo.ETB_PAB_AUTO, Prosenthal_Vendor_Items | View |
-| 5 | `ETB2_Inventory_WC_Batches.sql` | dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE, dbo.EXT_BINTYPE | View |
-| 6 | `ETB2_Inventory_Quarantine_Restricted.sql` | dbo.IV00300, dbo.IV00101 | View |
+| 5 | `ETB2_Inventory_WC_Batches.sql` | Prosenthal_INV_BIN_QTY_wQTYTYPE, EXT_BINTYPE | View |
+| 6 | `ETB2_Inventory_Quarantine_Restricted.sql` | IV00300, IV00101 | View |
 | 7 | `ETB2_Inventory_Unified_Eligible.sql` | Views 5, 6 + external tables | View |
 | 8 | `ETB2_Planning_Stockout_Risk.sql` | Views 4, 5 | View |
 | 9 | `ETB2_Planning_Net_Requirements.sql` | Views 4, 5 | View |
@@ -104,34 +153,25 @@ This document consolidates all ETB2 views, supporting queries, configurations, a
 
 ### 5.2 SQL Syntax Verification Instructions
 
-To verify correctness in SSMS:
-
 ```sql
--- 1. Test each view individually
+-- Test each view individually
 SELECT TOP 10 * FROM dbo.ETB2_Config_Active;
 SELECT TOP 10 * FROM dbo.ETB2_Demand_Cleaned_Base;
--- Continue for each view in deployment order...
 
--- 2. Check for dependencies
-SELECT
-    v.name AS ViewName,
-    OBJECT_NAME(v.object_id) AS ObjectID,
-    CASE WHEN ISNULL(p.name, 'N/A') = 'N/A' THEN 'Self-Contained' ELSE p.name END AS Dependency
+-- Check dependencies
+SELECT v.name AS ViewName, p.name AS Dependency
 FROM sys.views v
 LEFT JOIN sys.sql_expression_dependencies d ON v.object_id = d.referenced_id
 LEFT JOIN sys.views p ON d.referenced_id = p.object_id
 WHERE v.name LIKE 'ETB2_%'
 ORDER BY v.name;
 
--- 3. Verify row counts
-SELECT 
-    'ETB2_Demand_Cleaned_Base' AS ViewName,
-    COUNT(*) AS RowCount
+-- Verify row counts
+SELECT 'ETB2_Demand_Cleaned_Base' AS ViewName, COUNT(*) AS RowCount
 FROM dbo.ETB2_Demand_Cleaned_Base
 UNION ALL
-SELECT 'ETB2_Inventory_Unified_Eligible', COUNT(*) FROM dbo.ETB2_Inventory_Unified_Eligible
-UNION ALL
-SELECT 'ETB2_Planning_Stockout_Risk', COUNT(*) FROM dbo.ETB2_Planning_Stockout_Risk;
+SELECT 'ETB2_Inventory_Unified_Eligible', COUNT(*)
+FROM dbo.ETB2_Inventory_Unified_Eligible;
 ```
 
 ---
@@ -147,30 +187,17 @@ SELECT 'ETB2_Planning_Stockout_Risk', COUNT(*) FROM dbo.ETB2_Planning_Stockout_R
 - **Complexity:** Low
 - **Excel-Ready:** Yes
 
-```sql
--- Core pattern (simplified)
-CREATE OR ALTER VIEW dbo.ETB2_Config_Active AS
-WITH GlobalConfig AS (
-    SELECT Config_Key, Config_Value FROM (VALUES
-        ('WFQ_Hold_Days', '14'),
-        ('RMQTY_Hold_Days', '7'),
-        ('Safety_Stock_Days', '14')
-    ) AS g(Config_Key, Config_Value)
-)
-SELECT ...
-```
-
 #### `ETB2_Config_Lead_Times.sql`
 - **Purpose:** Lead time configuration table
 - **Grain:** Item
-- **Dependencies:** None (table with auto-populate)
-- **Complexity:** Low
+- **Defaults:** 30 days
+- **Auto-populate:** Yes
 
 #### `ETB2_Config_Part_Pooling.sql`
 - **Purpose:** Part pooling classification table
 - **Grain:** Item
-- **Dependencies:** None (table with auto-populate)
-- **Complexity:** Low
+- **Defaults:** Dedicated (1.4 multiplier)
+- **Auto-populate:** Yes
 
 ### 6.2 Demand Layer
 
@@ -282,9 +309,41 @@ SELECT ...
 
 ---
 
-## 8. Planner Persona Workflow
+## 8. Campaign Risk Model
+
+### 8.1 Why Daily Usage Was Rejected
+
+Traditional supply chain models assume continuous demand that can be averaged into "daily usage" rates. This doesn't apply here:
+
+- **Novel-Modality CDMO Context:** Demand arrives in discrete campaigns, not continuous flows
+- **Contracted Nature:** Orders are committed in advance for specific production runs
+- **Non-Continuous Reality:** Extended periods of zero demand followed by sudden campaign spikes
+- **False Precision:** Daily rates imply predictability that doesn't exist
+
+### 8.2 Why Z-Scores Were Abandoned
+
+Z-score safety stock assumes normally distributed demand variability. Campaign demand violates this:
+
+- **Campaign Overlap Risk:** Relevant risk is how many campaigns might collide within a lead time window
+- **Non-Normal Demand:** Campaign demand is lumpy and scheduled, not randomly distributed
+- **Pooling Effects:** Part sharing changes risk dynamics in ways Z-scores can't capture
+
+### 8.3 Why Campaign Collision Is the Correct Risk Unit
+
+The campaign collision model directly addresses: "Do we have enough inventory for the maximum number of campaigns that could collide?"
+
+**Key Concepts:**
+- **CCU (Campaign Consumption Unit):** Total quantity needed per campaign for an item
+- **CCW (Campaign Concurrency Window):** How many campaigns can overlap within lead time
+- **Collision Buffer:** CCU × CCW × Pooling Multiplier
+- **Absorbable Campaigns:** How many campaigns current inventory can support
+
+---
+
+## 9. Planner Workflow
 
 ### Daily Operations
+
 1. **Risk Assessment:** Open `ETB2_Planning_Stockout_Risk`
 2. **Requirements Review:** Open `ETB2_Planning_Net_Requirements`
 3. **Transfer Recommendations:** Open `ETB2_Planning_Rebalancing_Opportunities`
@@ -292,31 +351,35 @@ SELECT ...
 5. **Demand Validation:** Open `ETB2_Demand_Cleaned_Base`
 
 ### Campaign Risk Review (Weekly/Executive)
+
 1. **Absorption Capacity:** Open `ETB2_Campaign_Absorption_Capacity`
 2. **Risk Adequacy:** Open `ETB2_Campaign_Risk_Adequacy`
 3. **Data Quality:** Open `ETB2_Campaign_Model_Data_Gaps`
 
 ---
 
-## 9. Migration History
+## 10. Migration History
 
 ### Phase 1: Initial ETB2 Architecture (2026-01-24)
+
 - Established ETB2 as primary architecture
 - Eliminated legacy rolyat views (07-15, 17-19)
 - Maintained foundation views (00-06)
 
 ### Phase 2: Namespace Consolidation (2026-01-25)
+
 - Consolidated all queries under ETB2_* prefix
 - Retired query_t00X_* naming
 
 ### Phase 3: View Optimization (2026-01-26)
+
 - Deleted ETB2_Classical_Benchmark_Metrics (all NULL)
 - Standardized all view headers
 - Created consolidated documentation
 
 ---
 
-## 10. File Manifest
+## 11. File Manifest
 
 ```
 /views/
@@ -339,9 +402,46 @@ SELECT ...
 └── ETB2_PAB_EventLedger_v1.sql
 
 /docs/
-└── ETB2_Optimization.md (this file)
+└── ETB2_Complete_Documentation.md (this file)
+
+/analytics_inventory/
+└── mega_analytics_views.md
 ```
 
 ---
 
-**END OF DOCUMENT**
+## 12. Dependency Audit
+
+### ETB2 Object Inventory
+
+| Object Name | Dependency Group | External Dependencies | Analytics Readiness |
+|-------------|------------------|----------------------|---------------------|
+| ETB2_Config_Active | ETB2_SELF_CONTAINED | None | READY |
+| ETB2_Demand_Cleaned_Base | ETB2_EXTERNAL_DEPENDENCY | dbo.ETB_PAB_AUTO, Prosenthal_Vendor_Items | READY |
+| ETB2_Inventory_Quarantine_Restricted | ETB2_EXTERNAL_DEPENDENCY | dbo.IV00300, dbo.IV00101 | READY |
+| ETB2_Inventory_Unified_Eligible | ETB2_EXTERNAL_DEPENDENCY | Prosenthal_INV_BIN_QTY_wQTYTYPE, EXT_BINTYPE, IV00300, IV00101 | READY |
+| ETB2_Inventory_WC_Batches | ETB2_EXTERNAL_DEPENDENCY | Prosenthal_INV_BIN_QTY_wQTYTYPE, EXT_BINTYPE | READY |
+| ETB2_Planning_Net_Requirements | ETB2_EXTERNAL_DEPENDENCY | dbo.ETB_PAB_AUTO | READY |
+| ETB2_Planning_Rebalancing_Opportunities | ETB2_EXTERNAL_DEPENDENCY | Prosenthal_INV_BIN_QTY_wQTYTYPE, IV00300 | READY |
+| ETB2_Planning_Stockout_Risk | ETB2_EXTERNAL_DEPENDENCY | Prosenthal_INV_BIN_QTY_wQTYTYPE | READY |
+
+### External Dependency Validation Queue
+
+The following objects require validation of external dependencies before production use:
+
+1. ETB2_Demand_Cleaned_Base (dbo.ETB_PAB_AUTO, Prosenthal_Vendor_Items)
+2. ETB2_Inventory_Quarantine_Restricted (dbo.IV00300, dbo.IV00101)
+3. ETB2_Inventory_Unified_Eligible (Prosenthal_INV_BIN_QTY_wQTYTYPE, EXT_BINTYPE, IV00300, IV00101)
+4. ETB2_Inventory_WC_Batches (Prosenthal_INV_BIN_QTY_wQTYTYPE, EXT_BINTYPE)
+5. ETB2_Planning_Net_Requirements (dbo.ETB_PAB_AUTO)
+6. ETB2_Planning_Rebalancing_Opportunities (Prosenthal_INV_BIN_QTY_wQTYTYPE, IV00300)
+7. ETB2_Planning_Stockout_Risk (Prosenthal_INV_BIN_QTY_wQTYTYPE)
+
+---
+
+## END OF DOCUMENT
+
+**Document Purpose:** Single authoritative source for all ETB2 views, configurations, and documentation  
+**Intended Audience:** Architects, Planners, LLMs, Auditors  
+**Completeness:** Complete snapshot post-optimization  
+**Last Updated:** 2026-01-26
