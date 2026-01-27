@@ -49,22 +49,23 @@ SELECT
 FROM (
     SELECT 
         pib.ITEMNMBR,
-        pib.LOCNCODE AS Source_WC,
-        SUM(pib.Qty_Available) AS Surplus_Qty
-    FROM dbo.ETB_INVENTORY_WC pib
-    WHERE pib.Qty_Available > 0 
-    GROUP BY pib.ITEMNMBR, pib.LOCNCODE
+        pib.LOCNID AS Source_WC,
+        SUM(pib.QTY) AS Surplus_Qty
+    FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE pib
+    WHERE pib.QTY > 0 
+      AND pib.LOCNID LIKE 'WC[_-]%'
+    GROUP BY pib.ITEMNMBR, pib.LOCNID
 ) Surplus
 INNER JOIN (
     SELECT 
         d.ITEMNMBR,
-        i.LOCNCODE AS Target_WC,
-        SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.Qty_Available), 0) AS Deficit_Qty
+        i.LOCNID AS Target_WC,
+        SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.QTY), 0) AS Deficit_Qty
     FROM dbo.ETB3_Demand_Cleaned_Base d
     LEFT JOIN dbo.ETB2_Inventory_Unified i ON d.ITEMNMBR = i.ITEMNMBR
     WHERE d.Is_Within_Active_Planning_Window = 1
-    GROUP BY d.ITEMNMBR, i.LOCNCODE
-    HAVING SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.Qty_Available), 0) > 0
+    GROUP BY d.ITEMNMBR, i.LOCNID
+    HAVING SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.QTY), 0) > 0
 ) Deficit ON Surplus.ITEMNMBR = Deficit.ITEMNMBR;
 
 -- ============================================================================
