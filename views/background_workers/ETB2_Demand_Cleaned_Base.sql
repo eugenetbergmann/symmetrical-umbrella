@@ -50,9 +50,9 @@ CleanedDemand AS (
         Expiry_Date_Clean AS Expiry_Date,
         MRP_IssueDate,
         CASE
-            WHEN COALESCE(REMAINING, 0) > 0 THEN Remaining_Qty
-            WHEN COALESCE(DEDUCTIONS, 0) > 0 THEN Deductions_Qty
-            WHEN COALESCE(EXPIRY, 0) > 0 THEN Expiry_Qty
+            WHEN COALESCE(REMAINING, 0) > 0 THEN COALESCE(REMAINING, 0.0)
+            WHEN COALESCE(DEDUCTIONS, 0) > 0 THEN COALESCE(DEDUCTIONS, 0.0)
+            WHEN COALESCE(EXPIRY, 0) > 0 THEN COALESCE(EXPIRY, 0.0)
             ELSE 0.0
         END AS Base_Demand_Qty,
         CASE
@@ -68,10 +68,10 @@ CleanedDemand AS (
             THEN 1 ELSE 0
         END AS Is_Within_Active_Planning_Window,
         -- Sort priority matches original: 1=BEG_BAL (not here), 2=POs, 3=Demand, 4=Expiry, 5=Other
-        CASE Demand_Priority_Type
-            WHEN 'Remaining'   THEN 3
-            WHEN 'Deductions'  THEN 3
-            WHEN 'Expiry'      THEN 4
+        CASE 
+            WHEN COALESCE(REMAINING, 0) > 0 THEN 3
+            WHEN COALESCE(DEDUCTIONS, 0) > 0 THEN 3
+            WHEN COALESCE(EXPIRY, 0) > 0 THEN 4
             ELSE 5
         END AS Event_Sort_Priority,
         -- Clean order number: remove MO-, -, /, ., # and trim
