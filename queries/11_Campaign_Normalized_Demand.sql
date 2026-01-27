@@ -10,7 +10,7 @@
 *   ✅ ETB2_Config_Lead_Times (deployed)
 *   ✅ ETB2_Config_Part_Pooling (deployed)
 *   ✅ ETB2_Config_Active (deployed)
-*   ✓ dbo.ETB2_Demand_Cleaned_Base (view 04 - deploy first)
+*   ✓ dbo.ETB3_Demand_Cleaned_Base (view 04 - deploy first)
 *
 * ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
 * 1. Object Explorer → Right-click "Views" → "New View..."
@@ -41,7 +41,7 @@ SELECT
     MAX(d.Demand_Date) AS Peak_Period_End,
     DATEDIFF(DAY, MIN(d.Demand_Date), MAX(d.Demand_Date)) AS Campaign_Duration_Days,
     COUNT(DISTINCT d.Demand_Date) AS Active_Days_Count
-FROM dbo.ETB2_Demand_Cleaned_Base d
+FROM dbo.ETB3_Demand_Cleaned_Base d
 WHERE d.Campaign_ID IS NOT NULL
     AND d.Campaign_ID <> 'UNKNOWN'
 GROUP BY d.Campaign_ID, d.ITEMNMBR

@@ -10,7 +10,7 @@
 *   ✅ ETB2_Config_Lead_Times (deployed)
 *   ✅ ETB2_Config_Part_Pooling (deployed)
 *   ✅ ETB2_Config_Active (deployed)
-*   ✓ dbo.ETB2_Campaign_Normalized_Demand (view 11 - deploy first)
+*   ✓ dbo.ETB3_Campaign_Normalized_Demand (view 11 - deploy first)
 *
 * ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
 * 1. Object Explorer → Right-click "Views" → "New View..."
@@ -65,8 +65,8 @@ SELECT
     c1.CCU + c2.CCU AS Combined_CCU,
     -- Concurrency ratio
     (c1.CCU + c2.CCU) / NULLIF(c1.Campaign_Duration_Days, 0) AS Concurrency_Intensity
-FROM dbo.ETB2_Campaign_Normalized_Demand c1
-INNER JOIN dbo.ETB2_Campaign_Normalized_Demand c2 
+FROM dbo.ETB3_Campaign_Normalized_Demand c1
+INNER JOIN dbo.ETB3_Campaign_Normalized_Demand c2 
     ON c1.ITEMNMBR = c2.ITEMNMBR
     AND c1.Campaign_ID < c2.Campaign_ID  -- Avoid duplicates
 WHERE 

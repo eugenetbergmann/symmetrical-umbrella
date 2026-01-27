@@ -12,7 +12,7 @@
 *   ✅ ETB2_Config_Active (deployed)
 *   ✓ dbo.ETB2_Inventory_Unified_Eligible (view 07 - deploy first)
 *   ✓ dbo.ETB2_PAB_EventLedger_v1 (view 17 - MUST BE DEPLOYED FIRST)
-*   ✓ dbo.ETB2_Demand_Cleaned_Base (view 04 - deploy first)
+*   ✓ dbo.ETB3_Demand_Cleaned_Base (view 04 - deploy first)
 *   ✓ dbo.ETB2_Campaign_Collision_Buffer (view 13 - deploy first)
 *
 * ⚠️ DEPLOYMENT METHOD (Same as views 1-3):

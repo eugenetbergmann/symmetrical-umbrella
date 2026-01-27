@@ -10,7 +10,7 @@ WITH Demand_Aggregated AS (
         COUNT(DISTINCT CAST(DUEDATE AS DATE)) AS Demand_Days,
         MIN(CAST(DUEDATE AS DATE)) AS Earliest_Demand_Date,
         MAX(CAST(DUEDATE AS DATE)) AS Latest_Demand_Date
-    FROM dbo.ETB2_Demand_Cleaned_Base
+    FROM dbo.ETB3_Demand_Cleaned_Base
     WHERE Is_Within_Active_Planning_Window = 1
     GROUP BY ITEMNMBR
 )
