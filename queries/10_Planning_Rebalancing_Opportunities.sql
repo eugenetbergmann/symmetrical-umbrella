@@ -1,33 +1,32 @@
 /*******************************************************************************
-* View Name:    ETB2_Planning_Rebalancing_Opportunities
-* Deploy Order: 10 of 17
-* Status:       🔴 NOT YET DEPLOYED
-* 
-* Purpose:      Identify inventory rebalancing opportunities between work centers
-* Grain:        One row per item per surplus/deficit location pair
-* 
-* Dependencies (MUST exist - verify first):
-*   ✅ ETB2_Config_Lead_Times (deployed)
-*   ✅ ETB2_Config_Part_Pooling (deployed)
-*   ✅ ETB2_Config_Active (deployed)
-*   ✓ dbo.ETB3_Demand_Cleaned_Base (view 04 - deploy first)
-*   ✓ dbo.ETB2_Inventory_Unified (view 05 - deploy first)
-*   ✓ dbo.ETB2_Inventory_Quarantine_Restricted (view 06 - deploy first)
-*
-* ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
-* 1. Object Explorer → Right-click "Views" → "New View..."
-* 2. IMMEDIATELY: Menu → Query Designer → Pane → SQL
-* 3. Delete default SQL
-* 4. Copy SELECT below (between markers)
-* 5. Paste into SQL pane
-* 6. Execute (!) to test
-* 7. Save as: dbo.ETB2_Planning_Rebalancing_Opportunities
-* 8. Refresh Views folder
-*
-* Validation: 
-*   SELECT COUNT(*) FROM dbo.ETB2_Planning_Rebalancing_Opportunities
-*   Expected: Transfer recommendations
-*******************************************************************************/
+ * View Name:    ETB2_Planning_Rebalancing_Opportunities
+ * Deploy Order: 10 of 17
+ * Status:       🔴 NOT YET DEPLOYED
+ * 
+ * Purpose:      Identify inventory rebalancing opportunities between work centers
+ * Grain:        One row per item per surplus/deficit location pair
+ * 
+ * Dependencies (MUST exist - verify first):
+ *   ✅ ETB2_Config_Lead_Times (deployed)
+ *   ✅ ETB2_Config_Part_Pooling (deployed)
+ *   ✅ ETB2_Config_Active (deployed)
+ *   ✅ dbo.ETB3_Demand_Cleaned_Base (view 04 - deploy first)
+ *   ✅ dbo.ETB2_Inventory_Unified (view 07 - deploy first)
+ *
+ * ⚠️ DEPLOYMENT METHOD:
+ * 1. Object Explorer → Right-click "Views" → "New View..."
+ * 2. IMMEDIATELY: Menu → Query Designer → Pane → SQL
+ * 3. Delete default SQL
+ * 4. Copy SELECT below (between markers)
+ * 5. Paste into SQL pane
+ * 6. Execute (!) to test
+ * 7. Save as: dbo.ETB2_Planning_Rebalancing_Opportunities
+ * 8. Refresh Views folder
+ *
+ * Validation: 
+ *   SELECT COUNT(*) FROM dbo.ETB2_Planning_Rebalancing_Opportunities
+ *   Expected: Transfer recommendations
+ *******************************************************************************/
 
 -- ============================================================================
 -- COPY FROM HERE
@@ -39,7 +38,6 @@ SELECT
     Surplus.Surplus_Qty,
     Deficit.Target_WC AS To_Work_Center,
     Deficit.Deficit_Qty,
-    -- Transfer quantity limited by smaller of surplus/deficit
     CASE 
         WHEN Surplus.Surplus_Qty < Deficit.Deficit_Qty 
         THEN Surplus.Surplus_Qty 
@@ -49,26 +47,25 @@ SELECT
     'TRANSFER' AS Rebalancing_Type,
     GETDATE() AS Identified_Date
 FROM (
-    -- Identify surplus locations
     SELECT 
-        ITEMNMBR,
-        LOCNID AS Source_WC,
-        SUM(QTY) AS Surplus_Qty
-    FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE
-    WHERE QTY > 0 AND LOCNCODE LIKE 'WC[_-]%'
-    GROUP BY ITEMNMBR, LOCNID
+        pib.ITEMNMBR,
+        pib.LOCNCODE AS Source_WC,
+        SUM(pib.Qty_Available) AS Surplus_Qty
+    FROM dbo.ETB_INVENTORY_WC pib
+    WHERE pib.Qty_Available > 0 
+    GROUP BY pib.ITEMNMBR, pib.LOCNCODE
 ) Surplus
 INNER JOIN (
-    -- Identify deficit locations (based on demand)
     SELECT 
         d.ITEMNMBR,
-        i.LOCNID AS Target_WC,
-        SUM(d.Quantity) - COALESCE(SUM(i.Quantity), 0) AS Deficit_Qty
+        i.LOCNCODE AS Target_WC,
+        SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.Qty_Available), 0) AS Deficit_Qty
     FROM dbo.ETB3_Demand_Cleaned_Base d
     LEFT JOIN dbo.ETB2_Inventory_Unified i ON d.ITEMNMBR = i.ITEMNMBR
-    GROUP BY d.ITEMNMBR, i.LOCNID
-    HAVING SUM(d.Quantity) - COALESCE(SUM(i.Quantity), 0) > 0
-) Deficit ON Surplus.ITEMNMBR = Deficit.ITEMNMBR
+    WHERE d.Is_Within_Active_Planning_Window = 1
+    GROUP BY d.ITEMNMBR, i.LOCNCODE
+    HAVING SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.Qty_Available), 0) > 0
+) Deficit ON Surplus.ITEMNMBR = Deficit.ITEMNMBR;
 
 -- ============================================================================
 -- COPY TO HERE

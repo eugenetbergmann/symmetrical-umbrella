@@ -10,8 +10,8 @@
  *   ✅ ETB2_Config_Lead_Times (deployed)
  *   ✅ ETB2_Config_Part_Pooling (deployed)
  *   ✅ ETB2_Config_Active (deployed)
- *   ✓ dbo.ETB3_Demand_Cleaned_Base (view 04 - deploy first)
- *   ✓ dbo.ETB2_Inventory_Unified (view 07 - deploy first)
+ *   ✅ dbo.ETB3_Demand_Cleaned_Base (view 04 - deploy first)
+ *   ✅ dbo.ETB2_Inventory_Unified (view 07 - deploy first)
  *
  * ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
  * 1. Object Explorer → Right-click "Views" → "New View..."
@@ -34,33 +34,29 @@
 
 SELECT 
     d.ITEMNMBR,
-    SUM(d.Quantity) AS Projected_Demand,
-    COALESCE(SUM(i.Eligible_Qty), 0) AS Current_Inventory,
-    SUM(d.Quantity) - COALESCE(SUM(i.Eligible_Qty), 0) AS ATP,  -- ATP = Demand - Inventory
+    SUM(d.Base_Demand_Qty) AS Projected_Demand,
+    COALESCE(SUM(i.Qty_Available), 0) AS Current_Inventory,
+    SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.Qty_Available), 0) AS ATP,
     CASE 
-        -- CRITICAL: Negative ATP (stockout imminent)
-        WHEN SUM(d.Quantity) - COALESCE(SUM(i.Eligible_Qty), 0) < 0 THEN 'CRITICAL'
-        -- HIGH: ATP < 50% of demand
-        WHEN SUM(d.Quantity) - COALESCE(SUM(i.Eligible_Qty), 0) < SUM(d.Quantity) * 0.5 THEN 'HIGH'
-        -- MEDIUM: ATP < 100% of demand
-        WHEN SUM(d.Quantity) - COALESCE(SUM(i.Eligible_Qty), 0) < SUM(d.Quantity) THEN 'MEDIUM'
-        -- LOW: ATP >= demand
+        WHEN SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.Qty_Available), 0) < 0 THEN 'CRITICAL'
+        WHEN SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.Qty_Available), 0) < SUM(d.Base_Demand_Qty) * 0.5 THEN 'HIGH'
+        WHEN SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.Qty_Available), 0) < SUM(d.Base_Demand_Qty) THEN 'MEDIUM'
         ELSE 'LOW'
     END AS Risk_Classification,
     CASE 
-        WHEN SUM(d.Quantity) > 0 
-        THEN CAST(COALESCE(SUM(i.Eligible_Qty), 0) AS DECIMAL(10,2)) / SUM(d.Quantity)
+        WHEN SUM(d.Base_Demand_Qty) > 0 
+        THEN CAST(COALESCE(SUM(i.Qty_Available), 0) AS DECIMAL(10,2)) / SUM(d.Base_Demand_Qty)
         ELSE 1.0
     END AS Service_Level_Pct,
-    -- Days of supply based on average daily demand
     CASE 
-        WHEN SUM(d.Quantity) > 0 
-        THEN CAST(COALESCE(SUM(i.Eligible_Qty), 0) / (SUM(d.Quantity) / 30) AS INT)
+        WHEN SUM(d.Base_Demand_Qty) > 0 
+        THEN CAST(COALESCE(SUM(i.Qty_Available), 0) / (SUM(d.Base_Demand_Qty) / 30) AS INT)
         ELSE 999
     END AS Days_Of_Supply
 FROM dbo.ETB3_Demand_Cleaned_Base d
 LEFT JOIN dbo.ETB2_Inventory_Unified i ON d.ITEMNMBR = i.ITEMNMBR
-GROUP BY d.ITEMNMBR
+WHERE d.Is_Within_Active_Planning_Window = 1
+GROUP BY d.ITEMNMBR;
 
 -- ============================================================================
 -- COPY TO HERE
@@ -76,7 +72,7 @@ Post-Deployment Validation:
        SUM(Projected_Demand) AS Total_Demand
    FROM dbo.ETB2_Planning_Stockout_Risk
    GROUP BY Risk_Classification
-   ORDER BY Risk_Classification
+   ORDER BY Risk_Classification;
 
 2. Critical items check:
    SELECT TOP 10
@@ -86,12 +82,12 @@ Post-Deployment Validation:
        Days_Of_Supply
    FROM dbo.ETB2_Planning_Stockout_Risk
    WHERE Risk_Classification = 'CRITICAL'
-   ORDER BY ATP ASC
+   ORDER BY ATP ASC;
 
 3. Service level summary:
    SELECT 
        AVG(Service_Level_Pct) AS Avg_Service_Level,
        MIN(Service_Level_Pct) AS Min_Service_Level,
        MAX(Service_Level_Pct) AS Max_Service_Level
-   FROM dbo.ETB2_Planning_Stockout_Risk
+   FROM dbo.ETB2_Planning_Stockout_Risk;
 */
