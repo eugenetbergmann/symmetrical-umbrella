@@ -37,7 +37,7 @@
 SELECT 
     b.ITEMNMBR,
     b.Campaign_ID,
-    COALESCE(SUM(i.Available_Qty), 0) AS Available_Inventory,
+    COALESCE(SUM(i.Eligible_Qty), 0) AS Available_Inventory,
     SUM(b.collision_buffer_qty) AS Required_Buffer,
     -- Adequacy score: available / required (higher is better)
     CASE 
