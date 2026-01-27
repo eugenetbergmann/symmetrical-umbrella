@@ -1,5 +1,5 @@
 /*******************************************************************************
- * View Name:    ETB2_Inventory_Unified_Eligible
+ * View Name:    ETB2_Inventory_Unified
  * Deploy Order: 07 of 17
  * Status:       🔴 NOT YET DEPLOYED
  * 
@@ -16,7 +16,7 @@
  *   ✅ ETB2_Config_Lead_Times (deployed)
  *   ✅ ETB2_Config_Part_Pooling (deployed)
  *   ✅ ETB2_Config_Active (deployed)
- *   ✓ dbo.ETB_INVENTORY_WC (WC inventory - external table)
+ *   ✓ dbo.ETB_INVENTORY_BASE (WC inventory - external table)
  *
  * ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
  * 1. Object Explorer → Right-click "Views" → "New View..."
@@ -25,13 +25,13 @@
  * 4. Copy SELECT below (between markers)
  * 5. Paste into SQL pane
  * 6. Execute (!) to test
- * 7. Save as: dbo.ETB2_Inventory_Unified_Eligible
+ * 7. Save as: dbo.ETB2_Inventory_Unified
  * 8. Refresh Views folder
  *
  * Validation: 
- *   SELECT COUNT(*) FROM dbo.ETB2_Inventory_Unified_Eligible
+ *   SELECT COUNT(*) FROM dbo.ETB2_Inventory_Unified
  *   Expected: Non-expired WC inventory rows
- *******************************************************************************/
+ *  *******************************************************************************/
 
 -- ============================================================================
 -- COPY FROM HERE
@@ -46,7 +46,7 @@ SELECT
     COUNT(*) AS Batch_Count,
     'WC' AS Inventory_Source,
     'VALID' AS Expiry_Status
-FROM dbo.ETB_INVENTORY_WC i
+FROM dbo.ETB_INVENTORY_BASE i
 WHERE i.Expiry_Date >= GETDATE()
     AND i.Quantity > 0
 GROUP BY i.ITEMNMBR, i.Work_Center
@@ -77,12 +77,12 @@ GROUP BY i.ITEMNMBR, i.Work_Center
  * Post-Deployment Validation:
  * 
  * 1. Row count check:
- *    SELECT COUNT(*) FROM dbo.ETB2_Inventory_Unified_Eligible
+ *    SELECT COUNT(*) FROM dbo.ETB2_Inventory_Unified
  *    -- Should show non-expired WC inventory
  * 
  * 2. Expiry status check:
  *    SELECT Expiry_Status, COUNT(*) AS Rows, SUM(Eligible_Qty) AS Qty
- *    FROM dbo.ETB2_Inventory_Unified_Eligible
+ *    FROM dbo.ETB2_Inventory_Unified
  *    GROUP BY Expiry_Status
  *    -- VALID = can fulfill demand, EXPIRED = needs replacement
  * 
@@ -91,7 +91,7 @@ GROUP BY i.ITEMNMBR, i.Work_Center
  *        Work_Center,
  *        COUNT(DISTINCT ITEMNMBR) AS Unique_Items,
  *        SUM(Eligible_Qty) AS Total_Qty
- *    FROM dbo.ETB2_Inventory_Unified_Eligible
+ *    FROM dbo.ETB2_Inventory_Unified
  *    GROUP BY Work_Center
  *    ORDER BY Work_Center
  */
