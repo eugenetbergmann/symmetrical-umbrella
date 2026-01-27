@@ -44,21 +44,21 @@ CleanedDemand AS (
         ItemDescription,
         UOMSCHDL,
         Due_Date_Clean AS Due_Date,
-        COALESCE(REMAINING, 0.0) AS Remaining_Qty,
-        COALESCE(DEDUCTIONS, 0.0) AS Deductions_Qty,
-        COALESCE(EXPIRY, 0.0) AS Expiry_Qty,
+        COALESCE(TRY_CAST(REMAINING AS DECIMAL(18,4)), 0.0) AS Remaining_Qty,
+        COALESCE(TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)), 0.0) AS Deductions_Qty,
+        COALESCE(TRY_CAST(EXPIRY AS DECIMAL(18,4)), 0.0) AS Expiry_Qty,
         Expiry_Date_Clean AS Expiry_Date,
         MRP_IssueDate,
         CASE
-            WHEN COALESCE(REMAINING, 0) > 0 THEN COALESCE(REMAINING, 0.0)
-            WHEN COALESCE(DEDUCTIONS, 0) > 0 THEN COALESCE(DEDUCTIONS, 0.0)
-            WHEN COALESCE(EXPIRY, 0) > 0 THEN COALESCE(EXPIRY, 0.0)
+            WHEN COALESCE(TRY_CAST(REMAINING AS DECIMAL(18,4)), 0) > 0 THEN COALESCE(TRY_CAST(REMAINING AS DECIMAL(18,4)), 0.0)
+            WHEN COALESCE(TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)), 0) > 0 THEN COALESCE(TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)), 0.0)
+            WHEN COALESCE(TRY_CAST(EXPIRY AS DECIMAL(18,4)), 0) > 0 THEN COALESCE(TRY_CAST(EXPIRY AS DECIMAL(18,4)), 0.0)
             ELSE 0.0
         END AS Base_Demand_Qty,
         CASE
-            WHEN COALESCE(REMAINING, 0) > 0 THEN 'Remaining'
-            WHEN COALESCE(DEDUCTIONS, 0) > 0 THEN 'Deductions'
-            WHEN COALESCE(EXPIRY, 0) > 0 THEN 'Expiry'
+            WHEN COALESCE(TRY_CAST(REMAINING AS DECIMAL(18,4)), 0) > 0 THEN 'Remaining'
+            WHEN COALESCE(TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)), 0) > 0 THEN 'Deductions'
+            WHEN COALESCE(TRY_CAST(EXPIRY AS DECIMAL(18,4)), 0) > 0 THEN 'Expiry'
             ELSE 'Zero'
         END AS Demand_Priority_Type,
         CASE
@@ -69,9 +69,9 @@ CleanedDemand AS (
         END AS Is_Within_Active_Planning_Window,
         -- Sort priority matches original: 1=BEG_BAL (not here), 2=POs, 3=Demand, 4=Expiry, 5=Other
         CASE 
-            WHEN COALESCE(REMAINING, 0) > 0 THEN 3
-            WHEN COALESCE(DEDUCTIONS, 0) > 0 THEN 3
-            WHEN COALESCE(EXPIRY, 0) > 0 THEN 4
+            WHEN COALESCE(TRY_CAST(REMAINING AS DECIMAL(18,4)), 0) > 0 THEN 3
+            WHEN COALESCE(TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)), 0) > 0 THEN 3
+            WHEN COALESCE(TRY_CAST(EXPIRY AS DECIMAL(18,4)), 0) > 0 THEN 4
             ELSE 5
         END AS Event_Sort_Priority,
         -- Clean order number: remove MO-, -, /, ., # and trim
