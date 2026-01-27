@@ -35,8 +35,8 @@
 SELECT 
     d.ITEMNMBR,
     SUM(d.Base_Demand_Qty) AS Projected_Demand,
-    COALESCE(SUM(i.Qty_Available), 0) AS Current_Inventory,
-    SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.Qty_Available), 0) AS ATP,
+    COALESCE(SUM(i.QTY), 0) AS Current_Inventory,
+    SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.QTY), 0) AS ATP,
     CASE 
         WHEN SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.Qty_Available), 0) < 0 THEN 'CRITICAL'
         WHEN SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.Qty_Available), 0) < SUM(d.Base_Demand_Qty) * 0.5 THEN 'HIGH'
@@ -45,12 +45,12 @@ SELECT
     END AS Risk_Classification,
     CASE 
         WHEN SUM(d.Base_Demand_Qty) > 0 
-        THEN CAST(COALESCE(SUM(i.Qty_Available), 0) AS DECIMAL(10,2)) / SUM(d.Base_Demand_Qty)
+        THEN CAST(COALESCE(SUM(i.QTY), 0) AS DECIMAL(10,2)) / SUM(d.Base_Demand_Qty)
         ELSE 1.0
     END AS Service_Level_Pct,
     CASE 
         WHEN SUM(d.Base_Demand_Qty) > 0 
-        THEN CAST(COALESCE(SUM(i.Qty_Available), 0) / (SUM(d.Base_Demand_Qty) / 30) AS INT)
+        THEN CAST(COALESCE(SUM(i.QTY), 0) / (SUM(d.Base_Demand_Qty) / 30) AS INT)
         ELSE 999
     END AS Days_Of_Supply
 FROM dbo.ETB3_Demand_Cleaned_Base d
