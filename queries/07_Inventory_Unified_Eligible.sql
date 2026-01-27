@@ -42,19 +42,14 @@ SELECT
     i.Work_Center,
     SUM(i.Quantity) AS Eligible_Qty,
     MIN(i.Expiry_Date) AS Earliest_Expiry,
-    MIN(i.DATERECD) AS Date_In_Bin,  -- Date inventory was received into bin
+    MIN(i.DATERECD) AS Date_In_Bin,
     COUNT(*) AS Batch_Count,
     'WC' AS Inventory_Source,
-    -- Expiry status for filtering
-    CASE 
-        WHEN i.Expiry_Date >= GETDATE() THEN 'VALID'
-        ELSE 'EXPIRED'
-    END AS Expiry_Status
+    'VALID' AS Expiry_Status
 FROM dbo.ETB_Inventory_WC i
-WHERE i.Expiry_Date >= GETDATE()  -- Only non-expired inventory
+WHERE i.Expiry_Date >= GETDATE()
     AND i.Quantity > 0
-GROUP BY i.ITEMNMBR, i.Work_Center, 
-    CASE WHEN i.Expiry_Date >= GETDATE() THEN 'VALID' ELSE 'EXPIRED' END
+GROUP BY i.ITEMNMBR, i.Work_Center
 
 -- ============================================================================
 -- COPY TO HERE
