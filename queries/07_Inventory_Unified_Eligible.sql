@@ -16,7 +16,7 @@
  *   ✅ ETB2_Config_Lead_Times (deployed)
  *   ✅ ETB2_Config_Part_Pooling (deployed)
  *   ✅ ETB2_Config_Active (deployed)
- *   ✓ dbo.ETB_Inventory_WC (WC inventory - external table)
+ *   ✓ dbo.ETB_INVENTORY_WC (WC inventory - external table)
  *
  * ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
  * 1. Object Explorer → Right-click "Views" → "New View..."
@@ -42,11 +42,11 @@ SELECT
     i.Work_Center,
     SUM(i.Quantity) AS Eligible_Qty,
     MIN(i.Expiry_Date) AS Earliest_Expiry,
-    MIN(i.DATERECD) AS Date_In_Bin,
+    MIN(i.Quantity) AS Date_In_Bin,
     COUNT(*) AS Batch_Count,
     'WC' AS Inventory_Source,
     'VALID' AS Expiry_Status
-FROM dbo.ETB_Inventory_WC i
+FROM dbo.ETB_INVENTORY_WC i
 WHERE i.Expiry_Date >= GETDATE()
     AND i.Quantity > 0
 GROUP BY i.ITEMNMBR, i.Work_Center
