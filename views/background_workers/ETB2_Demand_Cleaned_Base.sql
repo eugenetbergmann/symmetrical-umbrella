@@ -89,7 +89,7 @@ CleanedDemand AS (
         ) AS Clean_Order_Number
     FROM RawDemand
     WHERE Due_Date_Clean IS NOT NULL  -- only valid dates
-      AND (COALESCE(REMAINING, 0) + COALESCE(DEDUCTIONS, 0) + COALESCE(EXPIRY, 0)) > 0  -- exclude zero-impact rows
+      AND (COALESCE(TRY_CAST(REMAINING AS DECIMAL(18,4)), 0) + COALESCE(TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)), 0) + COALESCE(TRY_CAST(EXPIRY AS DECIMAL(18,4)), 0)) > 0  -- exclude zero-impact rows
 )
 
 SELECT
