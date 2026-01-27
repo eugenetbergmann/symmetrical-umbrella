@@ -36,7 +36,7 @@ Inbound AS (
 FirmCommitments AS (
     SELECT
         ITEMNMBR,
-        SUM(Base_Demand) AS firm_commitments_90_days
+        SUM(Base_Demand_Qty) AS firm_commitments_90_days
     FROM dbo.ETB2_Demand_Cleaned_Base
     WHERE DUEDATE BETWEEN CAST(GETDATE() AS DATE) AND DATEADD(DAY, 90, CAST(GETDATE() AS DATE))
     GROUP BY ITEMNMBR
