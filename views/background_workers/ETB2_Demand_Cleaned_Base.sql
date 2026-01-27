@@ -110,9 +110,4 @@ SELECT
     Event_Sort_Priority,
     MRP_IssueDate,
     Clean_Order_Number AS Order_Number
-FROM CleanedDemand
-ORDER BY
-    Due_Date ASC,
-    Base_Demand_Qty DESC,
-    Event_Sort_Priority ASC,
-    ITEMNMBR ASC;
+FROM CleanedDemand;
