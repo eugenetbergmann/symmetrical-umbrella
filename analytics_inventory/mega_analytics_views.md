@@ -803,3 +803,163 @@ This attestation confirms that no new business logic was invented during the fin
 **Signed:** _System Auditor_
 **Date:** 2026-01-26
 **SESSION_ID:** ETB2-20260126030557-ABCD
+
+---
+
+## 14. Deployment Session Findings (2026-01-26 Evening Session)
+
+### Session Summary
+
+**Deployment Progress:**
+- ✅ Queries 01-03 (Config tables): Successfully deployed
+- ✅ Query 04 (Demand_Cleaned_Base): Column mapping updated, deployed
+- ✅ Query 05 (Inventory_WC_Batches): Column mapping updated, deployed
+- ✅ Query 06 (Inventory_Quarantine_Restricted): Column mapping updated, deployed
+- 🔄 Query 07 (Inventory_Unified_Eligible): IN PROGRESS - logic redesigned, view not yet deployed
+
+### Column Mapping Discoveries
+
+During deployment, actual database column names were discovered to differ from documented names. The following mappings were verified:
+
+#### dbo.ETB_PAB_AUTO (Demand Source)
+
+| Expected Column | Actual Column | Purpose |
+|----------------|---------------|---------|
+| ITEMNMBR | ITEMNMBR ✅ | Part number |
+| DUEDAT | DUEDATE | Demand date |
+| QTYORDER | [Not found - use Deductions] | Quantity |
+| POSTATUS | [Not available] | Status |
+| CUSTNMBR | Construct | Customer/Campaign |
+| SOPTYPE | MRPTYPE | Order type |
+| Deductions | Deductions ✅ | Demand quantity |
+
+**Key Discovery:**
+- `Deductions` column contains demand quantities (VARCHAR, needs CAST)
+- `Construct` column provides customer/campaign reference
+- `MRPTYPE` classifies order type (filter: NOT IN 60, 70)
+- `PO` column = supply events (when not blank)
+- `BegBal` = starting balances
+- `Expiry` = expiry events
+- `Issued` = issue status
+
+#### dbo.IV00300 (Quarantine Inventory)
+
+| Expected Column | Actual Column | Purpose |
+|----------------|---------------|---------|
+| ITEMNMBR | ITEMNMBR ✅ | Part number |
+| LOCNID | LOCNCODE | Location |
+| QTYOH | QTYRECVD - QTYSOLD | Available qty |
+| QTYCOMTD | ATYALLOC | Allocated qty |
+| QTYRCTD | QTYRECVD | Received qty |
+| QTYSOLD | QTYSOLD ✅ | Sold qty |
+| RCTRXNUM | RCTSEQNM | Receipt ref |
+
+#### dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE (WC Inventory)
+
+| Expected Column | Actual Column | Purpose |
+|----------------|---------------|---------|
+| ITEMNMBR | Item_Number | Part number |
+| LOCNID | SITE | Work center |
+| BIN | Bin | Bin location |
+| QTY | QTY_Available | Available qty |
+| EXTDATE | EXPNDATE | Expiry date |
+| QTYTYPE | [QTY TYPE] | Quantity type |
+| LOCNCODE | [Not available] | Location code |
+
+### Business Logic Corrections
+
+#### WC Inventory vs WFQ/Quarantine (Critical Distinction)
+
+**Original Misunderstanding:**
+- Query 07 incorrectly excluded quarantine items using `NOT IN`
+- This treated WC inventory and WFQ as the same pool
+
+**Corrected Business Logic:**
+
+| Concept | Description | Usage |
+|---------|-------------|-------|
+| **WC Inventory** | Inventory in Work Centers, ready for use | Normal demand fulfillment |
+| **WFQ/Quarantine** | Material awaiting release (testing, inspection) | ONLY during stockouts |
+
+**WC Inventory Eligibility Criteria:**
+1. Located in Work Center (SITE LIKE 'WC%')
+2. Not expired (`Expiry_Date >= GETDATE()`)
+3. Positive quantity (`Quantity > 0`)
+
+**WFQ/Quarantine Usage:**
+- Should ONLY be queried when:
+  - A stockout is occurring or imminent
+  - We need to check if quarantined material can be released
+  - Emergency supply scenario
+- NOT included in normal eligibility calculations
+
+#### Date_In_Bin Requirement
+
+Added `DATERECD` (Date Received) as `Date_In_Bin` to track when inventory entered the bin. This enables:
+- Time fence calculations
+- Batch age analysis
+- FEFO sorting
+
+### Query 07 No-Data Issue Diagnosis
+
+**Symptom:** Query 07 returns no rows despite 669 rows in source table.
+
+**Diagnosis Steps Performed:**
+```sql
+-- Row count in source
+SELECT COUNT(*) FROM dbo.ETB_Inventory_WC;  -- 669 rows
+
+-- Expiry status breakdown
+SELECT 
+    CASE WHEN Expiry_Date >= GETDATE() THEN 'VALID' ELSE 'EXPIRED' END AS Status,
+    COUNT(*) AS Rows,
+    SUM(Quantity) AS Total_Qty
+FROM dbo.ETB_Inventory_WC
+GROUP BY CASE WHEN Expiry_Date >= GETDATE() THEN 'VALID' ELSE 'EXPIRED' END;
+
+-- Results:
+-- EXPIRED: 1 row, 50 qty
+-- VALID: 668 rows, 199,560 qty
+```
+
+**Root Cause:** The view in SSMS was not updated with the new query. The source data IS valid (668 VALID rows).
+
+**Solution:** Deploy the updated query 07 SQL to create the view.
+
+### Files Modified in This Session
+
+| File | Change | Status |
+|------|--------|--------|
+| `queries/04_Demand_Cleaned_Base.sql` | Column mapping: DUEDAT→DUEDATE, CAST Deductions, use Construct | ✅ Committed |
+| `queries/05_Inventory_WC_Batches.sql` | Column mapping: SITE, Item_Number, QTY_Available, EXPNDATE | ✅ Committed |
+| `queries/06_Inventory_Quarantine_Restricted.sql` | Column mapping: LOCNCODE, QTYRECVD, ATYALLOC, RCTSEQNM | ✅ Committed |
+| `queries/07_Inventory_Unified_Eligible.sql` | Redesigned logic: remove NOT IN, add Date_In_Bin, WC-only focus | ✅ Committed |
+| `queries/debug_ETB_PAB_AUTO_schema.sql` | Debug script for column discovery | ✅ Committed |
+| `queries/debug_inventory_tables.sql` | Debug script for inventory table columns | ✅ Committed |
+| `queries/debug_IV00300.sql` | Debug script for IV00300 columns | ✅ Committed |
+
+### Deployment Instructions for Remaining Queries
+
+**Query 07 - Deploy after confirming source data:**
+1. Run diagnostic query to confirm VALID rows exist
+2. Copy SQL from `queries/07_Inventory_Unified_Eligible.sql` (between COPY markers)
+3. Save as `dbo.ETB2_Inventory_Unified_Eligible` in SSMS
+4. Execute to validate
+5. Refresh Views folder
+
+**Subsequent Queries (08-17):**
+- May require similar column mapping updates as deployment proceeds
+- Run debug scripts for each external table as needed
+- Check documented column mappings in Section 14 above
+
+### Outstanding Questions
+
+1. **Time Fence Configuration:** How is time fence defined in config tables? Need to document the column and usage.
+2. **Deductions Column:** Is this the correct column for demand quantity, or should another column be used?
+3. **MRPTYPE Values:** Need to confirm valid values for filtering (currently using NOT IN 60, 70).
+
+---
+
+**SESSION_CONTINUATION:** ETB2-20260126-EVENING-DEPLOYMENT
+**STATUS:** Queries 01-06 DEPLOYED | Query 07 PENDING DEPLOYMENT
+**NEXT_ACTION:** Deploy Query 07 after user confirms view update in SSMS
