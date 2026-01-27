@@ -10,8 +10,8 @@
 *   ✅ ETB2_Config_Lead_Times (deployed)
 *   ✅ ETB2_Config_Part_Pooling (deployed)
 *   ✅ ETB2_Config_Active (deployed)
-*   ✓ dbo.ETB2_Demand_Cleaned_Base (view 04 - deploy first)
-*   ✓ dbo.ETB2_Inventory_WC_Batches (view 05 - deploy first)
+*   ✓ dbo.ETB3_Demand_Cleaned_Base (view 04 - deploy first)
+*   ✓ dbo.ETB2_Inventory_Unified (view 05 - deploy first)
 *   ✓ dbo.ETB2_Inventory_Quarantine_Restricted (view 06 - deploy first)
 *
 * ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
@@ -64,8 +64,8 @@ INNER JOIN (
         d.ITEMNMBR,
         i.LOCNID AS Target_WC,
         SUM(d.Quantity) - COALESCE(SUM(i.Quantity), 0) AS Deficit_Qty
-    FROM dbo.ETB2_Demand_Cleaned_Base d
-    LEFT JOIN dbo.ETB2_Inventory_WC_Batches i ON d.ITEMNMBR = i.ITEMNMBR
+    FROM dbo.ETB3_Demand_Cleaned_Base d
+    LEFT JOIN dbo.ETB2_Inventory_Unified i ON d.ITEMNMBR = i.ITEMNMBR
     GROUP BY d.ITEMNMBR, i.LOCNID
     HAVING SUM(d.Quantity) - COALESCE(SUM(i.Quantity), 0) > 0
 ) Deficit ON Surplus.ITEMNMBR = Deficit.ITEMNMBR

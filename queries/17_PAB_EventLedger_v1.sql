@@ -10,7 +10,7 @@
 *   ✅ ETB2_Config_Lead_Times (deployed)
 *   ✅ ETB2_Config_Part_Pooling (deployed)
 *   ✅ ETB2_Config_Active (deployed)
-*   ✓ dbo.ETB2_Demand_Cleaned_Base (view 04 - deploy first)
+*   ✓ dbo.ETB3_Demand_Cleaned_Base (view 04 - deploy first)
 *   ✓ dbo.POP10100 (PO Header - external table)
 *   ✓ dbo.POP10110 (PO Detail - external table)
 *   ✓ dbo.IV00102 (Item quantities - external table)
@@ -68,7 +68,7 @@ SELECT
 FROM dbo.POP10100 p
 INNER JOIN dbo.POP10110 pd ON p.PONUMBER = pd.PONUMBER
 LEFT JOIN dbo.IV00102 i ON pd.ITEMNMBR = i.ITEMNMBR
-WHERE pd.ITEMNMBR IN (SELECT ITEMNMBR FROM dbo.ETB2_Demand_Cleaned_Base)
+WHERE pd.ITEMNMBR IN (SELECT ITEMNMBR FROM dbo.ETB3_Demand_Cleaned_Base)
 
 UNION ALL
 
