@@ -18,8 +18,8 @@ SELECT
     d.ORDERNUMBER AS campaign_id,
     d.DUEDATE AS campaign_start_date,
     d.DUEDATE AS campaign_end_date,
-    d.Base_Demand AS campaign_consumption_unit,  -- CCU
+    d.Base_Demand_Qty AS campaign_consumption_unit,  -- CCU
     'LOW CONFIDENCE' AS data_quality_flag,
     'Campaign dates inferred as point-in-time from order due dates; actual campaign spans unknown' AS assumptions_notes
 FROM dbo.ETB2_Demand_Cleaned_Base d
-WHERE d.Base_Demand > 0;
+WHERE d.Base_Demand_Qty > 0;

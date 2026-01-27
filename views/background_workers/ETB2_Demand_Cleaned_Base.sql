@@ -99,14 +99,14 @@ SELECT
     SITE,
     Due_Date AS DUEDATE,
     STSDESCR,
-    Base_Demand_Qty AS Base_Demand,
+    Base_Demand_Qty,  -- Keep original column name
     Expiry_Qty AS Expiry,
     Expiry_Date AS Expiry_Dates,
     UOMSCHDL,
     Remaining_Qty,
     Deductions_Qty,
     Demand_Priority_Type,
-    Is_Within_Active_Planning_Window,
+    Is_Within_Active_Planning_Window,  -- Ensure this column is exposed
     Event_Sort_Priority,
     MRP_IssueDate,
     Clean_Order_Number AS Order_Number
