@@ -14,6 +14,7 @@
 -- Grain: Item
 -- Dependencies:
 --   - dbo.ETB2_Demand_Cleaned_Base (view 04)
+--   - dbo.ETB2_Config_Items (view 02B) - for Item_Description, UOM_Schedule
 -- Last Updated: 2026-01-28
 -- ============================================================================
 
@@ -30,34 +31,38 @@ WITH Demand_Aggregated AS (
     GROUP BY ITEMNMBR
 )
 SELECT
-    Item_Number,
-    CAST(Total_Demand AS NUMERIC(18, 4)) AS Net_Requirement_Qty,
+    da.Item_Number,
+    ci.Item_Description,
+    ci.UOM_Schedule,
+    CAST(da.Total_Demand AS NUMERIC(18, 4)) AS Net_Requirement_Qty,
     CAST(0 AS NUMERIC(18, 4)) AS Safety_Stock_Level,
-    Demand_Days AS Days_Of_Supply,
-    Order_Count,
+    da.Demand_Days AS Days_Of_Supply,
+    da.Order_Count,
     CASE
-        WHEN Total_Demand = 0 THEN 'NONE'
-        WHEN Total_Demand <= 100 THEN 'LOW'
-        WHEN Total_Demand <= 500 THEN 'MEDIUM'
+        WHEN da.Total_Demand = 0 THEN 'NONE'
+        WHEN da.Total_Demand <= 100 THEN 'LOW'
+        WHEN da.Total_Demand <= 500 THEN 'MEDIUM'
         ELSE 'HIGH'
     END AS Requirement_Priority,
     CASE
-        WHEN Total_Demand = 0 THEN 'NO_DEMAND'
-        WHEN Total_Demand <= 100 THEN 'LOW_PRIORITY'
-        WHEN Total_Demand <= 500 THEN 'MEDIUM_PRIORITY'
+        WHEN da.Total_Demand = 0 THEN 'NO_DEMAND'
+        WHEN da.Total_Demand <= 100 THEN 'LOW_PRIORITY'
+        WHEN da.Total_Demand <= 500 THEN 'MEDIUM_PRIORITY'
         ELSE 'HIGH_PRIORITY'
     END AS Requirement_Status,
-    Earliest_Demand_Date,
-    Latest_Demand_Date
-FROM Demand_Aggregated
+    da.Earliest_Demand_Date,
+    da.Latest_Demand_Date
+FROM Demand_Aggregated da
+LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
+    ON da.Item_Number = ci.Item_Number
 ORDER BY
     CASE
-        WHEN Total_Demand = 0 THEN 4
-        WHEN Total_Demand <= 100 THEN 3
-        WHEN Total_Demand <= 500 THEN 2
+        WHEN da.Total_Demand = 0 THEN 4
+        WHEN da.Total_Demand <= 100 THEN 3
+        WHEN da.Total_Demand <= 500 THEN 2
         ELSE 1
     END ASC,
-    Total_Demand DESC;
+    da.Total_Demand DESC;
 
 -- ============================================================================
 -- END OF VIEW 08

@@ -15,6 +15,7 @@
 -- Dependencies:
 --   - dbo.ETB2_Planning_Net_Requirements (view 08)
 --   - dbo.ETB2_Inventory_Unified (view 07)
+--   - dbo.ETB2_Config_Items (view 02B) - for Item_Description, UOM_Schedule
 -- Last Updated: 2026-01-28
 -- ============================================================================
 
@@ -41,26 +42,17 @@ AvailableInventory AS (
         SUM(Usable_Qty) AS Total_Available
     FROM dbo.ETB2_Inventory_Unified WITH (NOLOCK)
     GROUP BY Item_Number
-),
-
--- Item master for descriptions
-ItemMaster AS (
-    SELECT DISTINCT
-        ITEMNMBR,
-        ITEMDESC,
-        UOMSCHDL
-    FROM dbo.IV00101 WITH (NOLOCK)
 )
 
 -- ============================================================
--- FINAL OUTPUT: 11 columns, planner-optimized order
+-- FINAL OUTPUT: 13 columns, planner-optimized order
 -- ============================================================
 SELECT
-    -- IDENTIFY (what item?) - 3 columns
+    -- IDENTIFY (what item?) - 4 columns
     COALESCE(nr.Item_Number, ai.Item_Number) AS Item_Number,
-    im.ITEMDESC             AS Item_Description,
-    im.UOMSCHDL             AS Unit_Of_Measure,
-
+    ci.Item_Description,
+    ci.UOM_Schedule AS Unit_Of_Measure_Schedule,
+    
     -- QUANTIFY (the math) - 4 columns
     COALESCE(nr.Net_Requirement_Qty, 0) AS Net_Requirement,
     COALESCE(ai.Total_Available, 0) AS Total_Available,
@@ -71,7 +63,7 @@ SELECT
         ELSE 0
     END AS Shortage_Quantity,
 
-    -- DECIDE (risk assessment) - 4 columns
+    -- DECIDE (risk assessment) - 5 columns
     CASE
         WHEN COALESCE(ai.Total_Available, 0) = 0 THEN 'CRITICAL'
         WHEN COALESCE(ai.Total_Available, 0) < COALESCE(nr.Net_Requirement_Qty, 0) * 0.5 THEN 'HIGH'
@@ -94,13 +86,15 @@ SELECT
         WHEN COALESCE(ai.Total_Available, 0) < COALESCE(nr.Net_Requirement_Qty, 0) * 0.5 THEN 'EXPEDITE: Low coverage'
         WHEN COALESCE(ai.Total_Available, 0) < COALESCE(nr.Net_Requirement_Qty, 0) THEN 'MONITOR: Partial coverage'
         ELSE 'OK: Adequate coverage'
-    END AS Recommendation
+    END AS Recommendation,
+    nr.Requirement_Priority,
+    nr.Requirement_Status
 
 FROM NetRequirements nr
 FULL OUTER JOIN AvailableInventory ai
     ON nr.Item_Number = ai.Item_Number
-LEFT JOIN ItemMaster im
-    ON COALESCE(nr.Item_Number, ai.Item_Number) = im.ITEMNMBR
+LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
+    ON COALESCE(nr.Item_Number, ai.Item_Number) = ci.Item_Number
 
 WHERE COALESCE(nr.Net_Requirement_Qty, 0) > 0
    OR COALESCE(ai.Total_Available, 0) > 0

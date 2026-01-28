@@ -18,6 +18,7 @@
 -- Dependencies:
 --   - dbo.ETB_PAB_AUTO (external table)
 --   - Prosenthal_Vendor_Items (external table)
+--   - dbo.ETB2_Config_Items (view 02B) - for Item_Description, UOM_Schedule
 -- Last Updated: 2026-01-28
 -- ============================================================================
 
@@ -104,7 +105,8 @@ CleanedDemand AS (
 SELECT
     Clean_Order_Number AS Order_Number,
     ITEMNMBR AS Item_Number,
-    Item_Description,
+    COALESCE(ci.Item_Description, cd.ItemDescription) AS Item_Description,
+    ci.UOM_Schedule,
     Site,
     Due_Date,
     STSDESCR AS Status_Description,
@@ -118,7 +120,9 @@ SELECT
     Is_Within_Active_Planning_Window,
     Event_Sort_Priority,
     MRP_IssueDate
-FROM CleanedDemand;
+FROM CleanedDemand cd
+LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
+    ON cd.ITEMNMBR = ci.Item_Number;
 
 -- ============================================================================
 -- END OF VIEW 04
