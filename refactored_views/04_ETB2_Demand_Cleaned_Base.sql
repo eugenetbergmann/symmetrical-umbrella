@@ -105,7 +105,7 @@ CleanedDemand AS (
 SELECT
     Clean_Order_Number AS Order_Number,
     ITEMNMBR AS Item_Number,
-    COALESCE(ci.Item_Description, cd.ItemDescription) AS Item_Description,
+    COALESCE(ci.Item_Description, cd.ITEMDESC) AS Item_Description,
     ci.UOM_Schedule,
     Site,
     Due_Date,

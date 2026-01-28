@@ -10,25 +10,24 @@
 -- 6. Right-click → Create View
 -- 7. Save as: dbo.ETB2_Config_Items
 -- ============================================================================
--- Purpose: Master item configuration combining IV00101 + Prosenthal_Vendor_Items
+-- Purpose: Master item configuration from Prosenthal_Vendor_Items
 -- Grain: One row per item
 -- Dependencies:
---   - dbo.IV00101 (Dynamics GP item master)
 --   - dbo.Prosenthal_Vendor_Items (vendor item reference)
 -- Outputs:
 --   - Item_Number (PK): Unique item identifier
---   - Item_Description: Primary item description (master or vendor)
+--   - Item_Description: Primary item description
 --   - UOM_Schedule: Unit of measure schedule code
---   - Purchasing_UOM: Placeholder for future PO planning
---   - Config_Source: Indicates data source (Both, Master, Vendor)
+--   - Purchasing_UOM: Purchasing UOM from vendor data
 --   - Is_Active: Whether item is active in vendor system
 -- Last Updated: 2026-01-28
 -- ============================================================================
 
-WITH ItemMaster AS (
+WITH VendorItems AS (
     SELECT
-        ITEMNMBR AS Item_Number,
+        [Item Number] AS Item_Number,
         ITEMDESC AS Item_Description,
+        PRCHSUOM AS Purchasing_UOM,
         UOMSCHDL AS UOM_Schedule,
         PRCHSUOM AS Purchasing_UOM
     FROM dbo.IV00101 WITH (NOLOCK)
@@ -45,24 +44,16 @@ VendorDetails AS (
             ORDER BY [Item Description] DESC
         ) AS RowNum
     FROM dbo.Prosenthal_Vendor_Items WITH (NOLOCK)
+    WHERE Active = 'Yes'
 )
 
 SELECT
-    COALESCE(im.Item_Number, vd.Item_Number) AS Item_Number,
-    COALESCE(im.Item_Description, vd.Vendor_Item_Description) AS Item_Description,
-    COALESCE(im.UOM_Schedule, vd.Vendor_UOM_Schedule, 'UNKNOWN') AS UOM_Schedule,
-    im.Purchasing_UOM,
-    CASE 
-        WHEN im.Item_Number IS NOT NULL AND vd.Item_Number IS NOT NULL THEN 'Both_Sources'
-        WHEN im.Item_Number IS NOT NULL THEN 'Master_Only'
-        WHEN vd.Item_Number IS NOT NULL THEN 'Vendor_Only'
-        ELSE 'Unknown'
-    END AS Config_Source,
-    COALESCE(vd.Is_Active, 'Yes') AS Is_Active
-FROM ItemMaster im
-FULL OUTER JOIN VendorDetails vd 
-    ON im.Item_Number = vd.Item_Number
-WHERE vd.RowNum = 1 OR vd.RowNum IS NULL;
+    Item_Number,
+    Item_Description,
+    UOM_Schedule,
+    Purchasing_UOM,
+    Is_Active
+FROM VendorItems;
 
 -- ============================================================================
 -- END OF VIEW 02B
