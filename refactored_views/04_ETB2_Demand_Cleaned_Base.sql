@@ -34,9 +34,9 @@ WITH RawDemand AS (
         MRP_IssueDate,
         TRY_CONVERT(DATE, DUEDATE) AS Due_Date_Clean,
         TRY_CONVERT(DATE, [Date + Expiry]) AS Expiry_Date_Clean,
-        pvi.ITEMDESC AS ItemDescription,
+        pvi.ITEMDESC AS Item_Description,
         pvi.UOMSCHDL,
-        'MAIN' AS SITE  -- Default site for demand
+        'MAIN' AS Site  -- Default site for demand
     FROM dbo.ETB_PAB_AUTO pa WITH (NOLOCK)
     INNER JOIN Prosenthal_Vendor_Items pvi WITH (NOLOCK)
       ON LTRIM(RTRIM(pa.ITEMNMBR)) = LTRIM(RTRIM(pvi.[Item Number]))
@@ -51,8 +51,8 @@ CleanedDemand AS (
         ORDERNUMBER,
         ITEMNMBR,
         STSDESCR,
-        SITE,
-        ItemDescription,
+        Site,
+        Item_Description,
         UOMSCHDL,
         Due_Date_Clean AS Due_Date,
         COALESCE(TRY_CAST(REMAINING AS DECIMAL(18,4)), 0.0) AS Remaining_Qty,
@@ -78,14 +78,12 @@ CleanedDemand AS (
                 AND DATEADD(DAY, 21, CAST(GETDATE() AS DATE))
             THEN 1 ELSE 0
         END AS Is_Within_Active_Planning_Window,
-        -- Sort priority matches original: 1=BEG_BAL (not here), 2=POs, 3=Demand, 4=Expiry, 5=Other
         CASE
             WHEN COALESCE(TRY_CAST(REMAINING AS DECIMAL(18,4)), 0) > 0 THEN 3
             WHEN COALESCE(TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)), 0) > 0 THEN 3
             WHEN COALESCE(TRY_CAST(EXPIRY AS DECIMAL(18,4)), 0) > 0 THEN 4
             ELSE 5
         END AS Event_Sort_Priority,
-        -- Clean order number: remove MO-, -, /, ., # and trim
         TRIM(
             REPLACE(
                 REPLACE(
@@ -99,26 +97,29 @@ CleanedDemand AS (
             )
         ) AS Clean_Order_Number
     FROM RawDemand
-    WHERE Due_Date_Clean IS NOT NULL  -- only valid dates
-      AND (COALESCE(TRY_CAST(REMAINING AS DECIMAL(18,4)), 0) + COALESCE(TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)), 0) + COALESCE(TRY_CAST(EXPIRY AS DECIMAL(18,4)), 0)) > 0  -- exclude zero-impact rows
+    WHERE Due_Date_Clean IS NOT NULL
+      AND (COALESCE(TRY_CAST(REMAINING AS DECIMAL(18,4)), 0) + COALESCE(TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)), 0) + COALESCE(TRY_CAST(EXPIRY AS DECIMAL(18,4)), 0)) > 0
 )
 
 SELECT
-    ORDERNUMBER,
-    ITEMNMBR,
-    ItemDescription,
-    SITE,
-    Due_Date AS DUEDATE,
-    STSDESCR,
-    Base_Demand_Qty,  -- Keep original column name
-    Expiry_Qty AS Expiry,
-    Expiry_Date AS Expiry_Dates,
-    UOMSCHDL,
+    Clean_Order_Number AS Order_Number,
+    ITEMNMBR AS Item_Number,
+    Item_Description,
+    Site,
+    Due_Date,
+    STSDESCR AS Status_Description,
+    Base_Demand_Qty,
+    Expiry_Qty,
+    Expiry_Date,
+    UOMSCHDL AS Unit_Of_Measure,
     Remaining_Qty,
     Deductions_Qty,
     Demand_Priority_Type,
-    Is_Within_Active_Planning_Window,  -- Ensure this column is exposed
+    Is_Within_Active_Planning_Window,
     Event_Sort_Priority,
-    MRP_IssueDate,
-    Clean_Order_Number AS Order_Number
-FROM CleanedDemand
+    MRP_IssueDate
+FROM CleanedDemand;
+
+-- ============================================================================
+-- END OF VIEW 04
+-- ============================================================================

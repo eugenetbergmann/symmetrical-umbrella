@@ -1,31 +1,31 @@
 /*******************************************************************************
-* View Name:    ETB2_Campaign_Concurrency_Window
-* Deploy Order: 12 of 17
-* Status:       🔴 NOT YET DEPLOYED
-* 
-* Purpose:      Campaign Concurrency Window (CCW) - overlapping campaign periods
-* Grain:        One row per overlapping campaign pair
-* 
-* Dependencies (MUST exist - verify first):
-*   ✅ ETB2_Config_Lead_Times (deployed)
-*   ✅ ETB2_Config_Part_Pooling (deployed)
-*   ✅ ETB2_Config_Active (deployed)
-*   ✓ dbo.ETB3_Campaign_Normalized_Demand (view 11 - deploy first)
-*
-* ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
-* 1. Object Explorer → Right-click "Views" → "New View..."
-* 2. IMMEDIATELY: Menu → Query Designer → Pane → SQL
-* 3. Delete default SQL
-* 4. Copy SELECT below (between markers)
-* 5. Paste into SQL pane
-* 6. Execute (!) to test
-* 7. Save as: dbo.ETB2_Campaign_Concurrency_Window
-* 8. Refresh Views folder
-*
-* Validation: 
-*   SELECT COUNT(*) FROM dbo.ETB2_Campaign_Concurrency_Window
-*   Expected: Overlapping campaign pairs
-*******************************************************************************/
+ * View Name:    ETB2_Campaign_Concurrency_Window
+ * Deploy Order: 12 of 17
+ * Status:       🔴 NOT YET DEPLOYED
+ * 
+ * Purpose:      Campaign Concurrency Window (CCW) - overlapping campaign periods
+ * Grain:        One row per overlapping campaign pair
+ * 
+ * Dependencies (MUST exist - verify first):
+ *   ✅ ETB2_Config_Lead_Times (deployed)
+ *   ✅ ETB2_Config_Part_Pooling (deployed)
+ *   ✅ ETB2_Config_Active (deployed)
+ *   ✅ dbo.ETB2_Campaign_Normalized_Demand (view 11 - deploy first)
+ *
+ * ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
+ * 1. Object Explorer → Right-click "Views" → "New View..."
+ * 2. IMMEDIATELY: Menu → Query Designer → Pane → SQL
+ * 3. Delete default SQL
+ * 4. Copy SELECT below (between markers)
+ * 5. Paste into SQL pane
+ * 6. Execute (!) to test
+ * 7. Save as: dbo.ETB2_Campaign_Concurrency_Window
+ * 8. Refresh Views folder
+ *
+ * Validation: 
+ *   SELECT COUNT(*) FROM dbo.ETB2_Campaign_Concurrency_Window
+ *   Expected: Overlapping campaign pairs
+ *******************************************************************************/
 
 -- ============================================================================
 -- COPY FROM HERE
@@ -63,10 +63,10 @@ SELECT
     END AS Concurrency_Days,
     -- Combined CCU during overlap
     c1.CCU + c2.CCU AS Combined_CCU,
-    -- Concurrency ratio
+    -- Concurrency ratio with NULLIF to prevent division by zero
     (c1.CCU + c2.CCU) / NULLIF(c1.Campaign_Duration_Days, 0) AS Concurrency_Intensity
-FROM dbo.ETB3_Campaign_Normalized_Demand c1
-INNER JOIN dbo.ETB3_Campaign_Normalized_Demand c2 
+FROM dbo.ETB2_Campaign_Normalized_Demand c1 WITH (NOLOCK)
+INNER JOIN dbo.ETB2_Campaign_Normalized_Demand c2 WITH (NOLOCK) 
     ON c1.ITEMNMBR = c2.ITEMNMBR
     AND c1.Campaign_ID < c2.Campaign_ID  -- Avoid duplicates
 WHERE 

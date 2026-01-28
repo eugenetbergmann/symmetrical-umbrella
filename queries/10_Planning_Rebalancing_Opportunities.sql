@@ -10,7 +10,7 @@
  *   ✅ ETB2_Config_Lead_Times (deployed)
  *   ✅ ETB2_Config_Part_Pooling (deployed)
  *   ✅ ETB2_Config_Active (deployed)
- *   ✅ dbo.ETB3_Demand_Cleaned_Base (view 04 - deploy first)
+ *   ✅ dbo.ETB2_Demand_Cleaned_Base (view 04 - deploy first)
  *   ✅ dbo.ETB2_Inventory_Unified (view 07 - deploy first)
  *
  * ⚠️ DEPLOYMENT METHOD:
@@ -50,9 +50,9 @@ FROM (
     SELECT 
         pib.ITEMNMBR,
         pib.LOCNID AS Source_WC,
-        SUM(pib.QTY) AS Surplus_Qty
-    FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE pib
-    WHERE pib.QTY > 0 
+        SUM(COALESCE(TRY_CAST(pib.QTY AS DECIMAL(18,4)), 0)) AS Surplus_Qty
+    FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE pib WITH (NOLOCK)
+    WHERE COALESCE(TRY_CAST(pib.QTY AS DECIMAL(18,4)), 0) > 0 
       AND pib.LOCNID LIKE 'WC[_-]%'
     GROUP BY pib.ITEMNMBR, pib.LOCNID
 ) Surplus
@@ -60,12 +60,12 @@ INNER JOIN (
     SELECT 
         d.ITEMNMBR,
         i.LOCNID AS Target_WC,
-        SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.QTY), 0) AS Deficit_Qty
-    FROM dbo.ETB3_Demand_Cleaned_Base d
-    LEFT JOIN dbo.ETB2_Inventory_Unified i ON d.ITEMNMBR = i.ITEMNMBR
+        SUM(COALESCE(TRY_CAST(d.Base_Demand_Qty AS DECIMAL(18,4)), 0)) - COALESCE(SUM(COALESCE(TRY_CAST(i.QTY AS DECIMAL(18,4)), 0)), 0) AS Deficit_Qty
+    FROM dbo.ETB2_Demand_Cleaned_Base d WITH (NOLOCK)
+    LEFT JOIN dbo.ETB2_Inventory_Unified i WITH (NOLOCK) ON d.ITEMNMBR = i.ITEMNMBR
     WHERE d.Is_Within_Active_Planning_Window = 1
     GROUP BY d.ITEMNMBR, i.LOCNID
-    HAVING SUM(d.Base_Demand_Qty) - COALESCE(SUM(i.QTY), 0) > 0
+    HAVING SUM(COALESCE(TRY_CAST(d.Base_Demand_Qty AS DECIMAL(18,4)), 0)) - COALESCE(SUM(COALESCE(TRY_CAST(i.QTY AS DECIMAL(18,4)), 0)), 0) > 0
 ) Deficit ON Surplus.ITEMNMBR = Deficit.ITEMNMBR;
 
 -- ============================================================================

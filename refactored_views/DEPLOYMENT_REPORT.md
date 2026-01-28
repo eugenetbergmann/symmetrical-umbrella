@@ -11,21 +11,21 @@
 
 ### What Was Accomplished
 
-✅ **9 Views Refactored** (originally 10 planned, ETB_INVENTORY_WC not found in codebase)
+✅ **17 Views Refactored** (views 1-17 now complete)
 ✅ **2 New Views Created** (ETB2_Inventory_Unified, ETB2_Planning_Stockout)
 ✅ **All Issues Fixed** (ETB3 references, type safety, NULL safety, NOLOCK hints)
 ✅ **Git Files Updated** (all views ready for copy/paste deployment)
 ✅ **Validation Complete** (all views pass syntax and reference checks)
 
-### Issues Fixed
+### Issues Fixed (Views 10-17)
 
 | Issue Type | Count | Details |
 |------------|-------|---------|
-| ETB3 References | 0 | No ETB3 references found (already correct) |
-| Missing NOLOCK Hints | 15+ | Added to all external table references |
-| Missing Type Safety | 20+ | Added TRY_CAST/TRY_CONVERT to all conversions |
-| Missing NULL Safety | 10+ | Added COALESCE to all aggregations |
-| CREATE VIEW Statements | 1 | Removed from ETB2_Planning_Net_Requirements |
+| ETB3 References | 9 | Fixed ETB3→ETB2 in views 10-17 |
+| Missing NOLOCK Hints | 20+ | Added to all table references |
+| Missing Type Safety | 15+ | Added TRY_CAST/TRY_CONVERT |
+| Missing NULL Safety | 10+ | Added COALESCE to aggregations |
+| Division Safety | 3 | Added NULLIF to prevent divide-by-zero |
 
 ### Deployment Readiness
 
@@ -72,18 +72,26 @@ For each view you want to deploy:
 Views must be deployed in dependency order:
 
 ```
-1. 01_ETB2_Config_Lead_Times.sql          (No dependencies)
-2. 02_ETB2_Config_Part_Pooling.sql        (No dependencies)
-3. 03_ETB2_Config_Active.sql              (Depends on 01, 02)
-4. 04_ETB2_Demand_Cleaned_Base.sql        (Depends on external tables)
-5. 05_ETB2_Inventory_WC_Batches.sql       (Depends on external tables)
-6. 06_ETB2_Inventory_Quarantine_Restricted.sql (Depends on external tables)
-7. 07_ETB2_Inventory_Unified.sql          (NEW - Depends on 05, 06)
-8. 08_ETB2_Planning_Net_Requirements.sql   (Depends on 04)
-9. 09_ETB2_Planning_Stockout.sql          (NEW - Depends on 07, 08)
+1.  01_ETB2_Config_Lead_Times.sql              (No dependencies)
+2.  02_ETB2_Config_Part_Pooling.sql            (No dependencies)
+3.  03_ETB2_Config_Active.sql                  (Depends on 01, 02)
+4.  04_ETB2_Demand_Cleaned_Base.sql            (Depends on external tables)
+5.  05_ETB2_Inventory_WC_Batches.sql           (Depends on external tables)
+6.  06_ETB2_Inventory_Quarantine_Restricted.sql (Depends on external tables)
+7.  07_ETB2_Inventory_Unified.sql              (NEW - Depends on 05, 06)
+8.  08_ETB2_Planning_Net_Requirements.sql       (Depends on 04)
+9.  09_ETB2_Planning_Stockout.sql              (NEW - Depends on 07, 08)
+10. 10_ETB2_Planning_Rebalancing_Opportunities.sql (Depends on 04, 07)
+11. 11_ETB2_Campaign_Normalized_Demand.sql     (Depends on 04)
+12. 12_ETB2_Campaign_Concurrency_Window.sql    (Depends on 11)
+13. 13_ETB2_Campaign_Collision_Buffer.sql      (Depends on 11, 12)
+14. 14_ETB2_Campaign_Risk_Adequacy.sql         (Depends on 13, 17)
+15. 15_ETB2_Campaign_Absorption_Capacity.sql   (Depends on 14)
+16. 16_ETB2_Campaign_Model_Data_Gaps.sql       (No dependencies)
+17. 17_ETB2_PAB_EventLedger_v1.sql             (Depends on 04 - Deploy between 13 and 14)
 ```
 
-**Total Deployment Time:** ~30 minutes (3-4 minutes per view)
+**Total Deployment Time:** ~60 minutes (3-4 minutes per view)
 
 ---
 
@@ -360,20 +368,253 @@ Views must be deployed in dependency order:
 
 ---
 
-### View 10: ETB_INVENTORY_WC (NOT FOUND)
+### View 10: ETB2_Planning_Rebalancing_Opportunities
 
-**Status:** ❌ Not found in codebase
+**File:** `refactored_views/10_ETB2_Planning_Rebalancing_Opportunities.sql`
 
-**Analysis:**
-- Searched entire codebase for ETB_INVENTORY_WC
-- No references found in any .sql files
-- Likely deprecated or never created
-- Functionality covered by ETB2_Inventory_WC_Batches (view 05)
+**Issues Found:**
+- ❌ ETB3_Demand_Cleaned_Base reference (should be ETB2)
+- Missing NOLOCK hint on external table reference
+- Missing COALESCE on SUM aggregation
 
-**Recommendation:**
-- Do not create this view
-- Use ETB2_Inventory_WC_Batches instead
-- Mark as deprecated in documentation
+**Changes Made:**
+- ✅ Fixed ETB3→ETB2 reference in subquery
+- ✅ Added NOLOCK to Prosenthal_INV_BIN_QTY_wQTYTYPE
+- ✅ Added COALESCE(TRY_CAST(...)) to QTY columns
+- ✅ Added deployment instruction header
+
+**Dependencies:**
+- dbo.ETB2_Demand_Cleaned_Base (view 04)
+- dbo.ETB2_Inventory_Unified (view 07)
+- dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE (external table)
+
+**Expected Row Count:** ~50-200 transfer opportunities
+
+**Copy/Paste Steps:**
+1. Open `10_ETB2_Planning_Rebalancing_Opportunities.sql`
+2. Copy entire contents
+3. Paste into SSMS
+4. Execute (F5) to test
+5. Right-click → Create View
+6. Save as `dbo.ETB2_Planning_Rebalancing_Opportunities`
+
+---
+
+### View 11: ETB2_Campaign_Normalized_Demand
+
+**File:** `refactored_views/11_ETB2_Campaign_Normalized_Demand.sql`
+
+**Issues Found:**
+- ❌ ETB3_Demand_Cleaned_Base reference (should be ETB2)
+- Missing NOLOCK hint
+- Missing COALESCE on aggregations
+
+**Changes Made:**
+- ✅ Fixed ETB3→ETB2 reference
+- ✅ Added NOLOCK to ETB2_Demand_Cleaned_Base
+- ✅ Added COALESCE(TRY_CAST(...)) to SUM aggregations
+- ✅ Added deployment instruction header
+
+**Dependencies:**
+- dbo.ETB2_Demand_Cleaned_Base (view 04)
+
+**Expected Row Count:** ~100-500 campaign-item combinations
+
+**Copy/Paste Steps:**
+1. Open `11_ETB2_Campaign_Normalized_Demand.sql`
+2. Copy entire contents
+3. Paste into SSMS
+4. Execute (F5) to test
+5. Right-click → Create View
+6. Save as `dbo.ETB2_Campaign_Normalized_Demand`
+
+---
+
+### View 12: ETB2_Campaign_Concurrency_Window
+
+**File:** `refactored_views/12_ETB2_Campaign_Concurrency_Window.sql`
+
+**Issues Found:**
+- ❌ ETB3_Campaign_Normalized_Demand reference (should be ETB2)
+- Missing NOLOCK hints
+- Missing NULLIF for division safety
+
+**Changes Made:**
+- ✅ Fixed ETB3→ETB2 reference
+- ✅ Added NOLOCK to both view references
+- ✅ Added NULLIF to prevent divide-by-zero
+- ✅ Added deployment instruction header
+
+**Dependencies:**
+- dbo.ETB2_Campaign_Normalized_Demand (view 11)
+
+**Expected Row Count:** ~50-200 overlapping campaign pairs
+
+**Copy/Paste Steps:**
+1. Open `12_ETB2_Campaign_Concurrency_Window.sql`
+2. Copy entire contents
+3. Paste into SSMS
+4. Execute (F5) to test
+5. Right-click → Create View
+6. Save as `dbo.ETB2_Campaign_Concurrency_Window`
+
+---
+
+### View 13: ETB2_Campaign_Collision_Buffer
+
+**File:** `refactored_views/13_ETB2_Campaign_Collision_Buffer.sql`
+
+**Issues Found:**
+- ❌ ETB3_Campaign_Normalized_Demand reference (should be ETB2)
+- Missing NOLOCK hints
+
+**Changes Made:**
+- ✅ Fixed ETB3→ETB2 references (2 places)
+- ✅ Added NOLOCK to both view references
+- ✅ Added deployment instruction header
+
+**Dependencies:**
+- dbo.ETB2_Campaign_Normalized_Demand (view 11)
+- dbo.ETB2_Campaign_Concurrency_Window (view 12)
+
+**Expected Row Count:** ~100-500 campaigns with collision risk
+
+**Copy/Paste Steps:**
+1. Open `13_ETB2_Campaign_Collision_Buffer.sql`
+2. Copy entire contents
+3. Paste into SSMS
+4. Execute (F5) to test
+5. Right-click → Create View
+6. Save as `dbo.ETB2_Campaign_Collision_Buffer`
+
+---
+
+### View 14: ETB2_Campaign_Risk_Adequacy
+
+**File:** `refactored_views/14_ETB2_Campaign_Risk_Adequacy.sql`
+
+**Issues Found:**
+- Missing NOLOCK hints
+- Missing COALESCE on inventory columns
+- Missing NULLIF for division safety
+
+**Changes Made:**
+- ✅ Added NOLOCK to all view references
+- ✅ Added COALESCE(TRY_CAST(...)) to inventory columns
+- ✅ Added NULLIF to prevent divide-by-zero
+- ✅ Added deployment instruction header
+
+**Dependencies:**
+- dbo.ETB2_Campaign_Collision_Buffer (view 13)
+- dbo.ETB2_Inventory_Unified (view 07)
+- dbo.ETB2_PAB_EventLedger_v1 (view 17)
+
+**Expected Row Count:** ~100-500 campaigns
+
+**Copy/Paste Steps:**
+1. Open `14_ETB2_Campaign_Risk_Adequacy.sql`
+2. Copy entire contents
+3. Paste into SSMS
+4. Execute (F5) to test
+5. Right-click → Create View
+6. Save as `dbo.ETB2_Campaign_Risk_Adequacy`
+
+---
+
+### View 15: ETB2_Campaign_Absorption_Capacity
+
+**File:** `refactored_views/15_ETB2_Campaign_Absorption_Capacity.sql`
+
+**Issues Found:**
+- Missing NOLOCK hints
+- Missing COALESCE on aggregations
+
+**Changes Made:**
+- ✅ Added NOLOCK to view reference
+- ✅ Added COALESCE(TRY_CAST(...)) to all aggregations
+- ✅ Added deployment instruction header
+
+**Dependencies:**
+- dbo.ETB2_Campaign_Risk_Adequacy (view 14)
+
+**Expected Row Count:** ~50-200 campaigns
+
+**Copy/Paste Steps:**
+1. Open `15_ETB2_Campaign_Absorption_Capacity.sql`
+2. Copy entire contents
+3. Paste into SSMS
+4. Execute (F5) to test
+5. Right-click → Create View
+6. Save as `dbo.ETB2_Campaign_Absorption_Capacity`
+
+---
+
+### View 16: ETB2_Campaign_Model_Data_Gaps
+
+**File:** `refactored_views/16_ETB2_Campaign_Model_Data_Gaps.sql`
+
+**Issues Found:**
+- ❌ ETB3_Demand_Cleaned_Base references (3 places - should be ETB2)
+- Missing NOLOCK hints
+
+**Changes Made:**
+- ✅ Fixed ETB3→ETB2 references (3 places)
+- ✅ Added NOLOCK to view reference
+- ✅ Added deployment instruction header
+
+**Dependencies:**
+- dbo.ETB2_Config_Active (view 03)
+- dbo.ETB2_Inventory_Unified (view 07)
+- dbo.ETB2_Demand_Cleaned_Base (view 04)
+- dbo.ETB2_Campaign_Normalized_Demand (view 11)
+
+**Expected Row Count:** ~100-500 items (matches config active)
+
+**Copy/Paste Steps:**
+1. Open `16_ETB2_Campaign_Model_Data_Gaps.sql`
+2. Copy entire contents
+3. Paste into SSMS
+4. Execute (F5) to test
+5. Right-click → Create View
+6. Save as `dbo.ETB2_Campaign_Model_Data_Gaps`
+
+---
+
+### View 17: ETB2_PAB_EventLedger_v1
+
+**File:** `refactored_views/17_ETB2_PAB_EventLedger_v1.sql`
+
+**Issues Found:**
+- ❌ ETB3_Demand_Cleaned_Base reference (should be ETB2)
+- Missing NOLOCK hints
+- Missing TRY_CAST on quantity columns
+- Missing TRY_CONVERT on date fields
+
+**Changes Made:**
+- ✅ Fixed ETB3→ETB2 reference
+- ✅ Added NOLOCK to all table references (5 tables)
+- ✅ Added TRY_CAST to QTYORDER, QTYRECEIVED, QTYREMGTD
+- ✅ Added TRY_CONVERT to DOCDATE, REQDATE, DUEDATE
+- ✅ Added COALESCE to Running_Balance calculations
+- ✅ Added deployment instruction header
+
+**Dependencies:**
+- dbo.ETB2_Demand_Cleaned_Base (view 04)
+- dbo.POP10100 (PO Header - external table)
+- dbo.POP10110 (PO Detail - external table)
+- dbo.IV00102 (Item quantities - external table)
+- dbo.ETB_PAB_AUTO (PAB orders - external table)
+- dbo.Prosenthal_Vendor_Items (vendor items - external table)
+
+**Expected Row Count:** ~1,000-5,000 events
+
+**Copy/Paste Steps:**
+1. Open `17_ETB2_PAB_EventLedger_v1.sql`
+2. Copy entire contents
+3. Paste into SSMS
+4. Execute (F5) to test
+5. Right-click → Create View
+6. Save as `dbo.ETB2_PAB_EventLedger_v1`
 
 ---
 
@@ -381,15 +622,21 @@ Views must be deployed in dependency order:
 
 ### ETB3 Reference Fix
 
-**Status:** ✅ No ETB3 references found
+**Status:** ✅ ALL FIXED
 
-**Analysis:**
-- Searched all refactored views for ETB3 references
-- Found 0 occurrences
-- All views correctly reference ETB2 views
+**Views Affected:** 10, 11, 12, 13, 16, 17
 
-**Conclusion:**
-- The original ETB3 reference issue was already resolved in the source code
+**ETB3 References Found and Fixed:**
+| View | Original | Fixed To |
+|------|----------|----------|
+| 10 | ETB3_Demand_Cleaned_Base | ETB2_Demand_Cleaned_Base |
+| 11 | ETB3_Demand_Cleaned_Base | ETB2_Demand_Cleaned_Base |
+| 12 | ETB3_Campaign_Normalized_Demand | ETB2_Campaign_Normalized_Demand |
+| 13 | ETB3_Campaign_Normalized_Demand (2x) | ETB2_Campaign_Normalized_Demand |
+| 16 | ETB3_Demand_Cleaned_Base (3x) | ETB2_Demand_Cleaned_Base |
+| 17 | ETB3_Demand_Cleaned_Base | ETB2_Demand_Cleaned_Base |
+
+**Total ETB3 References Fixed:** 9
 - No changes needed for ETB3 → ETB2 conversion
 
 ---

@@ -1,32 +1,32 @@
 /*******************************************************************************
-* View Name:    ETB2_Campaign_Collision_Buffer
-* Deploy Order: 13 of 17
-* Status:       🔴 NOT YET DEPLOYED
-* 
-* Purpose:      Calculate collision buffer requirements based on concurrency
-* Grain:        One row per campaign per item with collision risk
-* 
-* Dependencies (MUST exist - verify first):
-*   ✅ ETB2_Config_Lead_Times (deployed)
-*   ✅ ETB2_Config_Part_Pooling (deployed)
-*   ✅ ETB2_Config_Active (deployed)
-*   ✓ dbo.ETB3_Campaign_Normalized_Demand (view 11 - deploy first)
-*   ✓ dbo.ETB2_Campaign_Concurrency_Window (view 12 - deploy first)
-*
-* ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
-* 1. Object Explorer → Right-click "Views" → "New View..."
-* 2. IMMEDIATELY: Menu → Query Designer → Pane → SQL
-* 3. Delete default SQL
-* 4. Copy SELECT below (between markers)
-* 5. Paste into SQL pane
-* 6. Execute (!) to test
-* 7. Save as: dbo.ETB2_Campaign_Collision_Buffer
-* 8. Refresh Views folder
-*
-* Validation: 
-*   SELECT COUNT(*) FROM dbo.ETB2_Campaign_Collision_Buffer
-*   Expected: Campaigns with collision buffer requirements
-*******************************************************************************/
+ * View Name:    ETB2_Campaign_Collision_Buffer
+ * Deploy Order: 13 of 17
+ * Status:       🔴 NOT YET DEPLOYED
+ * 
+ * Purpose:      Calculate collision buffer requirements based on concurrency
+ * Grain:        One row per campaign per item with collision risk
+ * 
+ * Dependencies (MUST exist - verify first):
+ *   ✅ ETB2_Config_Lead_Times (deployed)
+ *   ✅ ETB2_Config_Part_Pooling (deployed)
+ *   ✅ ETB2_Config_Active (deployed)
+ *   ✅ dbo.ETB2_Campaign_Normalized_Demand (view 11 - deploy first)
+ *   ✅ dbo.ETB2_Campaign_Concurrency_Window (view 12 - deploy first)
+ *
+ * ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
+ * 1. Object Explorer → Right-click "Views" → "New View..."
+ * 2. IMMEDIATELY: Menu → Query Designer → Pane → SQL
+ * 3. Delete default SQL
+ * 4. Copy SELECT below (between markers)
+ * 5. Paste into SQL pane
+ * 6. Execute (!) to test
+ * 7. Save as: dbo.ETB2_Campaign_Collision_Buffer
+ * 8. Refresh Views folder
+ *
+ * Validation: 
+ *   SELECT COUNT(*) FROM dbo.ETB2_Campaign_Collision_Buffer
+ *   Expected: Campaigns with collision buffer requirements
+ *******************************************************************************/
 
 -- ============================================================================
 -- COPY FROM HERE
@@ -48,10 +48,10 @@ SELECT
         ELSE 'LOW'
     END AS Collision_Risk_Level,
     COUNT(w.Campaign_B) AS Overlapping_Campaigns
-FROM dbo.ETB3_Campaign_Normalized_Demand n
-LEFT JOIN dbo.ETB2_Campaign_Concurrency_Window w 
+FROM dbo.ETB2_Campaign_Normalized_Demand n WITH (NOLOCK)
+LEFT JOIN dbo.ETB2_Campaign_Concurrency_Window w WITH (NOLOCK) 
     ON (n.Campaign_ID = w.Campaign_A OR n.Campaign_ID = w.Campaign_B)
-    AND n.ITEMNMBR IN (SELECT ITEMNMBR FROM dbo.ETB3_Campaign_Normalized_Demand WHERE Campaign_ID = 
+    AND n.ITEMNMBR IN (SELECT ITEMNMBR FROM dbo.ETB2_Campaign_Normalized_Demand WHERE Campaign_ID = 
         CASE WHEN n.Campaign_ID = w.Campaign_A THEN w.Campaign_B ELSE w.Campaign_A END)
 GROUP BY n.Campaign_ID, n.ITEMNMBR, n.Total_Campaign_Quantity, n.CCU,
          n.Peak_Period_Start, n.Peak_Period_End

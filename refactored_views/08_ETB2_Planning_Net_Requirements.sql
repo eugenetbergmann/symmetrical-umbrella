@@ -19,18 +19,18 @@
 
 WITH Demand_Aggregated AS (
     SELECT
-        ITEMNMBR,
+        ITEMNMBR AS Item_Number,
         SUM(COALESCE(TRY_CAST(Base_Demand_Qty AS NUMERIC(18, 4)), 0)) AS Total_Demand,
-        COUNT(DISTINCT CAST(DUEDATE AS DATE)) AS Demand_Days,
-        COUNT(DISTINCT ORDERNUMBER) AS Order_Count,
-        MIN(CAST(DUEDATE AS DATE)) AS Earliest_Demand_Date,
-        MAX(CAST(DUEDATE AS DATE)) AS Latest_Demand_Date
+        COUNT(DISTINCT CAST(Due_Date AS DATE)) AS Demand_Days,
+        COUNT(DISTINCT Order_Number) AS Order_Count,
+        MIN(CAST(Due_Date AS DATE)) AS Earliest_Demand_Date,
+        MAX(CAST(Due_Date AS DATE)) AS Latest_Demand_Date
     FROM dbo.ETB2_Demand_Cleaned_Base WITH (NOLOCK)
     WHERE Is_Within_Active_Planning_Window = 1
     GROUP BY ITEMNMBR
 )
 SELECT
-    ITEMNMBR,
+    Item_Number,
     CAST(Total_Demand AS NUMERIC(18, 4)) AS Net_Requirement_Qty,
     CAST(0 AS NUMERIC(18, 4)) AS Safety_Stock_Level,
     Demand_Days AS Days_Of_Supply,
@@ -57,4 +57,8 @@ ORDER BY
         WHEN Total_Demand <= 500 THEN 2
         ELSE 1
     END ASC,
-    Total_Demand DESC
+    Total_Demand DESC;
+
+-- ============================================================================
+-- END OF VIEW 08
+-- ============================================================================

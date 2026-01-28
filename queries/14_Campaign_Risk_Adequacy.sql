@@ -12,7 +12,7 @@
  *   ✅ ETB2_Config_Active (deployed)
  *   ✅ dbo.ETB2_Inventory_Unified (view 07 - deploy first)
  *   ✅ dbo.ETB2_PAB_EventLedger_v1 (view 17 - MUST BE DEPLOYED FIRST)
- *   ✅ dbo.ETB3_Demand_Cleaned_Base (view 04 - deploy first)
+ *   ✅ dbo.ETB2_Demand_Cleaned_Base (view 04 - deploy first)
  *   ✅ dbo.ETB2_Campaign_Collision_Buffer (view 13 - deploy first)
  *
  * ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
@@ -37,30 +37,30 @@
 SELECT 
     b.ITEMNMBR,
     b.Campaign_ID,
-    COALESCE(SUM(i.QTY), 0) AS Available_Inventory,
+    COALESCE(SUM(COALESCE(TRY_CAST(i.QTY AS DECIMAL(18,4)), 0)), 0) AS Available_Inventory,
     SUM(b.collision_buffer_qty) AS Required_Buffer,
     CASE 
         WHEN SUM(b.collision_buffer_qty) > 0 
-        THEN CAST(COALESCE(SUM(i.QTY), 0) AS DECIMAL(10,2)) / SUM(b.collision_buffer_qty)
+        THEN CAST(COALESCE(SUM(COALESCE(TRY_CAST(i.QTY AS DECIMAL(18,4)), 0)), 0) AS DECIMAL(10,2)) / SUM(b.collision_buffer_qty)
         ELSE 1.0
     END AS Adequacy_Score,
     CASE 
-        WHEN COALESCE(SUM(i.QTY), 0) < SUM(b.collision_buffer_qty) * 0.5 THEN 'HIGH'
-        WHEN COALESCE(SUM(i.QTY), 0) < SUM(b.collision_buffer_qty) THEN 'MEDIUM'
+        WHEN COALESCE(SUM(COALESCE(TRY_CAST(i.QTY AS DECIMAL(18,4)), 0)), 0) < SUM(b.collision_buffer_qty) * 0.5 THEN 'HIGH'
+        WHEN COALESCE(SUM(COALESCE(TRY_CAST(i.QTY AS DECIMAL(18,4)), 0)), 0) < SUM(b.collision_buffer_qty) THEN 'MEDIUM'
         ELSE 'LOW'
     END AS campaign_collision_risk,
     CASE 
         WHEN SUM(b.collision_buffer_qty) > 0 
-        THEN CAST(COALESCE(SUM(i.QTY), 0) / SUM(b.collision_buffer_qty) * 30 AS INT)
+        THEN CAST(COALESCE(SUM(COALESCE(TRY_CAST(i.QTY AS DECIMAL(18,4)), 0)), 0) / NULLIF(SUM(b.collision_buffer_qty), 0) * 30 AS INT)
         ELSE 30
     END AS Days_Buffer_Coverage,
     CASE 
-        WHEN COALESCE(SUM(i.QTY), 0) < SUM(b.collision_buffer_qty) * 0.5 THEN 'URGENT_PROCUREMENT'
-        WHEN COALESCE(SUM(i.QTY), 0) < SUM(b.collision_buffer_qty) THEN 'SCHEDULE_PROCUREMENT'
+        WHEN COALESCE(SUM(COALESCE(TRY_CAST(i.QTY AS DECIMAL(18,4)), 0)), 0) < SUM(b.collision_buffer_qty) * 0.5 THEN 'URGENT_PROCUREMENT'
+        WHEN COALESCE(SUM(COALESCE(TRY_CAST(i.QTY AS DECIMAL(18,4)), 0)), 0) < SUM(b.collision_buffer_qty) THEN 'SCHEDULE_PROCUREMENT'
         ELSE 'ADEQUATE'
     END AS Recommendation
-FROM dbo.ETB2_Campaign_Collision_Buffer b
-LEFT JOIN dbo.ETB2_Inventory_Unified i ON b.ITEMNMBR = i.ITEMNMBR
+FROM dbo.ETB2_Campaign_Collision_Buffer b WITH (NOLOCK)
+LEFT JOIN dbo.ETB2_Inventory_Unified i WITH (NOLOCK) ON b.ITEMNMBR = i.ITEMNMBR
 GROUP BY b.ITEMNMBR, b.Campaign_ID;
 
 -- ============================================================================

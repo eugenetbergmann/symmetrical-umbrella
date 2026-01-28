@@ -10,7 +10,7 @@
  *   ✅ ETB2_Config_Lead_Times (deployed)
  *   ✅ ETB2_Config_Part_Pooling (deployed)
  *   ✅ ETB2_Config_Active (deployed)
- *   ✅ dbo.ETB3_Demand_Cleaned_Base (view 04 - deploy first)
+ *   ✅ dbo.ETB2_Demand_Cleaned_Base (view 04 - deploy first)
  *
  * ⚠️ DEPLOYMENT METHOD (Same as views 1-3):
  * 1. Object Explorer → Right-click "Views" → "New View..."
@@ -34,14 +34,14 @@
 SELECT 
     d.Order_Number AS Campaign_ID,
     d.ITEMNMBR,
-    SUM(d.Base_Demand_Qty) AS Total_Campaign_Quantity,
-    SUM(d.Base_Demand_Qty) / 30.0 AS CCU,
+    SUM(COALESCE(TRY_CAST(d.Base_Demand_Qty AS DECIMAL(18,4)), 0)) AS Total_Campaign_Quantity,
+    SUM(COALESCE(TRY_CAST(d.Base_Demand_Qty AS DECIMAL(18,4)), 0)) / 30.0 AS CCU,
     'DAILY' AS CCU_Unit,
     MIN(d.DUEDATE) AS Peak_Period_Start,
     MAX(d.DUEDATE) AS Peak_Period_End,
     DATEDIFF(DAY, MIN(d.DUEDATE), MAX(d.DUEDATE)) AS Campaign_Duration_Days,
     COUNT(DISTINCT d.DUEDATE) AS Active_Days_Count
-FROM dbo.ETB3_Demand_Cleaned_Base d
+FROM dbo.ETB2_Demand_Cleaned_Base d WITH (NOLOCK)
 WHERE d.Is_Within_Active_Planning_Window = 1
 GROUP BY d.Order_Number, d.ITEMNMBR;
 

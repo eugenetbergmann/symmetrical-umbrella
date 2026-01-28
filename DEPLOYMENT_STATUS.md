@@ -2,10 +2,11 @@
 
 ## Deployment Progress
 
-**Last Updated:** 2026-01-26  
+**Last Updated:** 2026-01-28  
 **Total Views:** 17  
 **Deployed:** 3  
-**Remaining:** 14
+**Remaining:** 14  
+**Refactoring Status:** ✅ ALL VIEWS 10-17 REFACTORED
 
 ---
 
@@ -44,6 +45,31 @@
 
 ---
 
+## REFACTORING COMPLETED (Views 10-17)
+
+### Issues Fixed in Views 10-17:
+
+| View | File | Issues Fixed |
+|------|------|--------------|
+| 10 | 10_Planning_Rebalancing_Opportunities.sql | ETB3→ETB2 ref, NOLOCK, COALESCE, TRY_CAST |
+| 11 | 11_Campaign_Normalized_Demand.sql | ETB3→ETB2 ref, NOLOCK, COALESCE, TRY_CAST |
+| 12 | 12_Campaign_Concurrency_Window.sql | ETB3→ETB2 ref, NOLOCK, NULLIF for division |
+| 13 | 13_Campaign_Collision_Buffer.sql | ETB3→ETB2 ref, NOLOCK |
+| 14 | 14_Campaign_Risk_Adequacy.sql | NOLOCK, NULLIF, COALESCE, TRY_CAST |
+| 15 | 15_Campaign_Absorption_Capacity.sql | NOLOCK, COALESCE, TRY_CAST |
+| 16 | 16_Campaign_Model_Data_Gaps.sql | ETB3→ETB2 refs (3 places), NOLOCK |
+| 17 | 17_PAB_EventLedger_v1.sql | ETB3→ETB2 ref, NOLOCK, TRY_CAST, TRY_CONVERT |
+
+### Summary of Changes:
+- **ETB3 References Fixed:** 8 occurrences across views 10-17
+- **NOLOCK Hints Added:** All table references now have WITH (NOLOCK)
+- **Type Safety:** TRY_CAST added to all quantity columns
+- **Date Safety:** TRY_CONVERT added to all date fields
+- **NULL Safety:** COALESCE added to all aggregations
+- **Division Safety:** NULLIF added to prevent divide-by-zero
+
+---
+
 ## Next Steps
 
 **Current Action:** Deploy view 04 (Demand_Cleaned_Base)
@@ -64,3 +90,4 @@
 - Config foundation working correctly ✅
 - Same deployment method for all remaining views
 - Remember: File 17 deploys between 13 and 14
+- All views 10-17 have been refactored with ETB3→ETB2 fixes
