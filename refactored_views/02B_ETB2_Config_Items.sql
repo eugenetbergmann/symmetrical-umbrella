@@ -30,7 +30,7 @@ WITH ItemMaster AS (
         ITEMNMBR AS Item_Number,
         ITEMDESC AS Item_Description,
         UOMSCHDL AS UOM_Schedule,
-        'TBD_PRCHSUOM' AS Purchasing_UOM
+        PRCHSUOM AS Purchasing_UOM
     FROM dbo.IV00101 WITH (NOLOCK)
 ),
 
