@@ -29,7 +29,20 @@ WITH VendorItems AS (
         ITEMDESC AS Item_Description,
         PRCHSUOM AS Purchasing_UOM,
         UOMSCHDL AS UOM_Schedule,
-        Active AS Is_Active
+        PRCHSUOM AS Purchasing_UOM
+    FROM dbo.IV00101 WITH (NOLOCK)
+),
+
+VendorDetails AS (
+    SELECT
+        [Item Number] AS Item_Number,
+        [Item Description] AS Vendor_Item_Description,
+        UOMSCHDL AS Vendor_UOM_Schedule,
+        Active AS Is_Active,
+        ROW_NUMBER() OVER (
+            PARTITION BY [Item Number] 
+            ORDER BY [Item Description] DESC
+        ) AS RowNum
     FROM dbo.Prosenthal_Vendor_Items WITH (NOLOCK)
     WHERE Active = 'Yes'
 )
