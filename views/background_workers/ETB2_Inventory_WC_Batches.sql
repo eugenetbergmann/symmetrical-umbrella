@@ -17,10 +17,8 @@ RawWCInventory AS (
         pib.SITE AS LOCNCODE,
         pib.QTY_Available,
         pib.DATERECD,
-        pib.EXPNDATE,
-        ext.BINTYPE AS Bin_Type_Raw
+        pib.EXPNDATE
     FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE pib
-    LEFT JOIN dbo.EXT_BINTYPE ext ON pib.[QTY TYPE] = ext.BINTYPE
     WHERE pib.SITE LIKE 'WC[_-]%'
       AND pib.QTY_Available > 0
       AND pib.LOT_NUMBER IS NOT NULL
@@ -41,7 +39,6 @@ ParsedInventory AS (
         ) AS Expiry_Date,
         DATEDIFF(DAY, CAST(ri.DATERECD AS DATE), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
         LEFT(ri.LOCNCODE, PATINDEX('%[-_]%', ri.LOCNCODE + '-') - 1) AS Client_ID,
-        COALESCE(ri.Bin_Type_Raw, 'UNKNOWN') AS Bin_Type,
         itm.ITEMDESC AS Item_Description,
         itm.UOMSCHDL AS Unit_Of_Measure
     FROM RawWCInventory ri
