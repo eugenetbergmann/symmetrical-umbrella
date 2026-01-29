@@ -23,37 +23,13 @@
 -- Last Updated: 2026-01-28
 -- ============================================================================
 
-WITH VendorItems AS (
-    SELECT
-        [Item Number] AS Item_Number,
-        ITEMDESC AS Item_Description,
-        PRCHSUOM AS Purchasing_UOM,
-        UOMSCHDL AS UOM_Schedule,
-        PRCHSUOM AS Purchasing_UOM
-    FROM dbo.IV00101 WITH (NOLOCK)
-),
-
-VendorDetails AS (
-    SELECT
-        [Item Number] AS Item_Number,
-        [Item Description] AS Vendor_Item_Description,
-        UOMSCHDL AS Vendor_UOM_Schedule,
-        Active AS Is_Active,
-        ROW_NUMBER() OVER (
-            PARTITION BY [Item Number] 
-            ORDER BY [Item Description] DESC
-        ) AS RowNum
-    FROM dbo.Prosenthal_Vendor_Items WITH (NOLOCK)
-    WHERE Active = 'Yes'
-)
-
 SELECT
-    Item_Number,
-    Item_Description,
-    UOM_Schedule,
-    Purchasing_UOM,
-    Is_Active
-FROM VendorItems;
+    [Item Number] AS Item_Number,
+    ITEMDESC AS Item_Description,
+    PRCHSUOM AS Purchasing_UOM,
+    UOMSCHDL AS UOM_Schedule
+FROM dbo.Prosenthal_Vendor_Items WITH (NOLOCK)
+WHERE Active = 'Yes';
 
 -- ============================================================================
 -- END OF VIEW 02B
