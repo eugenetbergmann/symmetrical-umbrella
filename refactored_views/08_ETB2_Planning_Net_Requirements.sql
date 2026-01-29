@@ -54,15 +54,7 @@ SELECT
     da.Latest_Demand_Date
 FROM Demand_Aggregated da
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
-    ON da.Item_Number = ci.Item_Number
-ORDER BY
-    CASE
-        WHEN da.Total_Demand = 0 THEN 4
-        WHEN da.Total_Demand <= 100 THEN 3
-        WHEN da.Total_Demand <= 500 THEN 2
-        ELSE 1
-    END ASC,
-    da.Total_Demand DESC;
+    ON da.Item_Number = ci.Item_Number;
 
 -- ============================================================================
 -- END OF VIEW 08
