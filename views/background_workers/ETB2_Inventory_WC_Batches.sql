@@ -11,17 +11,17 @@ WITH GlobalShelfLife AS (
 
 RawWCInventory AS (
     SELECT
-        pib.ITEMNMBR,
+        pib.Item_Number AS ITEMNMBR,
         pib.LOT_NUMBER,
-        pib.BIN,
-        pib.LOCNCODE,
+        pib.Bin AS BIN,
+        pib.SITE AS LOCNCODE,
         pib.QTY_Available,
         pib.DATERECD,
         pib.EXPNDATE,
         ext.BINTYPE AS Bin_Type_Raw
     FROM dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE pib
-    LEFT JOIN dbo.EXT_BINTYPE ext ON pib.BINTYPE = ext.BINTYPE
-    WHERE pib.LOCNCODE LIKE 'WC[_-]%'
+    LEFT JOIN dbo.EXT_BINTYPE ext ON pib.[QTY TYPE] = ext.BINTYPE
+    WHERE pib.SITE LIKE 'WC[_-]%'
       AND pib.QTY_Available > 0
       AND pib.LOT_NUMBER IS NOT NULL
       AND pib.LOT_NUMBER <> ''
