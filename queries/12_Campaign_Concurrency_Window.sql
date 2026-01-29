@@ -70,9 +70,9 @@ INNER JOIN dbo.ETB2_Campaign_Normalized_Demand c2 WITH (NOLOCK)
     ON c1.ITEMNMBR = c2.ITEMNMBR
     AND c1.Campaign_ID < c2.Campaign_ID  -- Avoid duplicates
 WHERE 
-    -- Only consider overlapping periods
-    c1.Peak_Period_Start < c2.Peak_Period_End
-    AND c2.Peak_Period_Start < c1.Peak_Period_End
+    -- Only consider overlapping periods (inclusive boundaries)
+    c1.Peak_Period_Start <= c2.Peak_Period_End
+    AND c2.Peak_Period_Start <= c1.Peak_Period_End
 
 -- ============================================================================
 -- COPY TO HERE
