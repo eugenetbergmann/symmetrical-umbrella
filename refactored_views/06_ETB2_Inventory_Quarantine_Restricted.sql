@@ -156,7 +156,3 @@ SELECT
     ) AS Use_Sequence
 
 FROM ParsedRMQTYInventory
-
-ORDER BY
-    Item_Number ASC,
-    Use_Sequence ASC
