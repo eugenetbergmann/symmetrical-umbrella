@@ -20,7 +20,7 @@
 
 WITH Demand_Aggregated AS (
     SELECT
-        ITEMNMBR AS Item_Number,
+        Item_Number,
         SUM(COALESCE(TRY_CAST(Base_Demand_Qty AS NUMERIC(18, 4)), 0)) AS Total_Demand,
         COUNT(DISTINCT CAST(Due_Date AS DATE)) AS Demand_Days,
         COUNT(DISTINCT Order_Number) AS Order_Count,
@@ -28,7 +28,7 @@ WITH Demand_Aggregated AS (
         MAX(CAST(Due_Date AS DATE)) AS Latest_Demand_Date
     FROM dbo.ETB2_Demand_Cleaned_Base WITH (NOLOCK)
     WHERE Is_Within_Active_Planning_Window = 1
-    GROUP BY ITEMNMBR
+    GROUP BY Item_Number
 )
 SELECT
     da.Item_Number,
