@@ -98,6 +98,3 @@ SELECT
     'WC_BATCH'              AS Batch_Type
 
 FROM ParsedInventory
-ORDER BY
-    Item_Number ASC,
-    Use_Sequence ASC

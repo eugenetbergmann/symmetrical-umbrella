@@ -83,10 +83,7 @@ SELECT
     ) AS Use_Sequence,
     'WC_BATCH'              AS Batch_Type
     
-FROM ParsedInventory
-ORDER BY
-    Item_Number ASC,
-    Use_Sequence ASC;
+FROM ParsedInventory;
 
 
 /*
