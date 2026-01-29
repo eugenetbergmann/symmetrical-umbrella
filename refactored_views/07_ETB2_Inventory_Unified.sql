@@ -76,8 +76,3 @@ SELECT
 FROM dbo.ETB2_Inventory_Quarantine_Restricted WITH (NOLOCK)
 WHERE Hold_Type = 'RMQTY'
   AND Can_Allocate = 1
-
-ORDER BY
-    Item_Number ASC,
-    Allocation_Priority ASC,
-    Use_Sequence ASC
