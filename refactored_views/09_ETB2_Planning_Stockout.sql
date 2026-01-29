@@ -24,7 +24,7 @@ WITH
 -- Net requirements from demand
 NetRequirements AS (
     SELECT
-        ITEMNMBR AS Item_Number,
+        Item_Number,
         Net_Requirement_Qty,
         Order_Count,
         Requirement_Priority,
@@ -98,8 +98,3 @@ LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
 
 WHERE COALESCE(nr.Net_Requirement_Qty, 0) > 0
    OR COALESCE(ai.Total_Available, 0) > 0
-
-ORDER BY
-    Priority ASC,
-    Shortage_Quantity DESC,
-    Item_Number ASC
