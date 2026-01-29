@@ -142,11 +142,7 @@ SELECT
         ORDER BY Release_Date ASC, Receipt_Date ASC
     ) AS Use_Sequence
 
-FROM ParsedRMQTYInventory
-
-ORDER BY
-    Item_Number ASC,
-    Use_Sequence ASC;
+FROM ParsedRMQTYInventory;
 
 GO
 
