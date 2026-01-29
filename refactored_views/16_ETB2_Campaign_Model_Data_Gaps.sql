@@ -12,23 +12,23 @@
 
 SELECT 
     c.ITEMNMBR AS Item_Number,
-    CASE WHEN c.Lead_Time_Days = 30 AND c.Config_Source = 'SYSTEM_DEFAULT' THEN 1 ELSE 0 END AS Missing_Lead_Time_Config,
-    CASE WHEN c.Pooling_Classification = 'Dedicated' AND c.Config_Source = 'SYSTEM_DEFAULT' THEN 1 ELSE 0 END AS Missing_Pooling_Config,
+    CASE WHEN c.Lead_Time_Days = 30 AND c.Config_Status = 'Default' THEN 1 ELSE 0 END AS Missing_Lead_Time_Config,
+    CASE WHEN c.Pooling_Classification = 'Dedicated' AND c.Config_Status = 'Default' THEN 1 ELSE 0 END AS Missing_Pooling_Config,
     CASE WHEN c.ITEMNMBR NOT IN (SELECT Item_Number FROM dbo.ETB2_Inventory_Unified) THEN 1 ELSE 0 END AS Missing_Inventory_Data,
     CASE WHEN c.ITEMNMBR NOT IN (SELECT Item_Number FROM dbo.ETB2_Demand_Cleaned_Base) THEN 1 ELSE 0 END AS Missing_Demand_Data,
     CASE WHEN c.ITEMNMBR NOT IN (SELECT Item_Number FROM dbo.ETB2_Campaign_Normalized_Demand) THEN 1 ELSE 0 END AS Missing_Campaign_Data,
-    CASE WHEN c.Lead_Time_Days = 30 AND c.Config_Source = 'SYSTEM_DEFAULT' THEN 1 ELSE 0 END +
-    CASE WHEN c.Pooling_Classification = 'Dedicated' AND c.Config_Source = 'SYSTEM_DEFAULT' THEN 1 ELSE 0 END +
+    CASE WHEN c.Lead_Time_Days = 30 AND c.Config_Status = 'Default' THEN 1 ELSE 0 END +
+    CASE WHEN c.Pooling_Classification = 'Dedicated' AND c.Config_Status = 'Default' THEN 1 ELSE 0 END +
     CASE WHEN c.ITEMNMBR NOT IN (SELECT Item_Number FROM dbo.ETB2_Inventory_Unified) THEN 1 ELSE 0 END +
     CASE WHEN c.ITEMNMBR NOT IN (SELECT Item_Number FROM dbo.ETB2_Demand_Cleaned_Base) THEN 1 ELSE 0 END +
     CASE WHEN c.ITEMNMBR NOT IN (SELECT Item_Number FROM dbo.ETB2_Campaign_Normalized_Demand) THEN 1 ELSE 0 END AS Total_Gap_Count,
     'LOW' AS data_confidence,
     CASE 
-        WHEN c.Lead_Time_Days = 30 AND c.Config_Source = 'SYSTEM_DEFAULT' THEN 'Lead time uses system default (30 days);'
+        WHEN c.Lead_Time_Days = 30 AND c.Config_Status = 'Default' THEN 'Lead time uses system default (30 days);'
         ELSE ''
     END +
     CASE 
-        WHEN c.Pooling_Classification = 'Dedicated' AND c.Config_Source = 'SYSTEM_DEFAULT' THEN 'Pooling classification uses system default (Dedicated);'
+        WHEN c.Pooling_Classification = 'Dedicated' AND c.Config_Status = 'Default' THEN 'Pooling classification uses system default (Dedicated);'
         ELSE ''
     END +
     CASE 
