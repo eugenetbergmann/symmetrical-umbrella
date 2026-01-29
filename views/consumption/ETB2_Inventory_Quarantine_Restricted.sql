@@ -109,6 +109,7 @@ SELECT
     
     -- TIME (when relevant?) - 4 columns
     Receipt_Date,
+    Expiry_Date,
     Age_Days,
     Release_Date,
     DATEDIFF(DAY, GETDATE(), Release_Date) AS Days_To_Release,
@@ -133,6 +134,7 @@ SELECT
     Available_Quantity      AS Quantity,
     Available_Quantity      AS Usable_Qty,
     Receipt_Date,
+    Expiry_Date,
     Age_Days,
     Release_Date,
     DATEDIFF(DAY, GETDATE(), Release_Date) AS Days_To_Release,
