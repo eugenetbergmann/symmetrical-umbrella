@@ -67,7 +67,7 @@ SELECT
     (c1.CCU + c2.CCU) / NULLIF(c1.Campaign_Duration_Days, 0) AS Concurrency_Intensity
 FROM dbo.ETB2_Campaign_Normalized_Demand c1 WITH (NOLOCK)
 INNER JOIN dbo.ETB2_Campaign_Normalized_Demand c2 WITH (NOLOCK) 
-    ON c1.ITEMNMBR = c2.ITEMNMBR
+    ON c1.Item_Number = c2.Item_Number
     AND c1.Campaign_ID < c2.Campaign_ID  -- Avoid duplicates
 WHERE 
     -- Only consider overlapping periods (inclusive boundaries)
