@@ -119,10 +119,10 @@ CleanedDemand AS (
 )
 
 SELECT
-    -- Context columns preserved
-    client,
-    contract,
-    run,
+    -- Context columns preserved (qualified with cd. alias to avoid ambiguity)
+    cd.client,
+    cd.contract,
+    cd.run,
     
     Clean_Order_Number AS Order_Number,
     ITEMNMBR AS Item_Number,
