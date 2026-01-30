@@ -1,19 +1,16 @@
 -- ============================================================================
--- VIEW 08: dbo.ETB2_Planning_Net_Requirements (REFACTORED - ETB2)
+-- VIEW 08: dbo.ETB2_Planning_Net_Requirements (CONSOLIDATED FINAL)
 -- ============================================================================
 -- Purpose: Net requirements calculation from demand within planning window
 -- Grain: Item
 -- Dependencies:
 --   - dbo.ETB2_Demand_Cleaned_Base (view 04)
---   - dbo.ETB2_Config_Items (view 02B) - for Item_Description, UOM_Schedule
--- Refactoring Applied:
---   - Added context columns: client, contract, run
---   - Preserve context in all GROUP BY clauses
---   - Added Is_Suppressed flag with filter
---   - Filter out ITEMNMBR LIKE 'MO-%'
---   - Date window expanded to ±90 days
---   - Context preserved in subqueries
--- Last Updated: 2026-01-29
+--   - dbo.ETB2_Config_Items (view 02B)
+-- Features:
+--   - Context columns: client, contract, run
+--   - FG + Construct aggregated from demand
+--   - Is_Suppressed flag
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 WITH Demand_Aggregated AS (
@@ -30,12 +27,18 @@ WITH Demand_Aggregated AS (
         MIN(CAST(Due_Date AS DATE)) AS Earliest_Demand_Date,
         MAX(CAST(Due_Date AS DATE)) AS Latest_Demand_Date,
         
+        -- FG SOURCE (PAB-style): Carry primary FG from demand
+        MAX(FG_Item_Number) AS FG_Item_Number,
+        MAX(FG_Description) AS FG_Description,
+        -- Construct SOURCE (PAB-style): Carry primary Construct from demand
+        MAX(Construct) AS Construct,
+        
         -- Suppression flag (aggregate - if any suppressed, mark all)
         MAX(CASE WHEN Is_Suppressed = 1 THEN 1 ELSE 0 END) AS Has_Suppressed
         
     FROM dbo.ETB2_Demand_Cleaned_Base WITH (NOLOCK)
     WHERE Is_Within_Active_Planning_Window = 1
-      AND Item_Number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+      AND Item_Number NOT LIKE 'MO-%'
     GROUP BY client, contract, run, Item_Number
 )
 SELECT
@@ -66,6 +69,12 @@ SELECT
     da.Earliest_Demand_Date,
     da.Latest_Demand_Date,
     
+    -- FG SOURCE (PAB-style): Carried through from demand aggregation
+    da.FG_Item_Number,
+    da.FG_Description,
+    -- Construct SOURCE (PAB-style): Carried through from demand aggregation
+    da.Construct,
+    
     -- Suppression flag
     CAST(CASE WHEN da.Has_Suppressed = 1 OR COALESCE(ci.Is_Suppressed, 0) = 1 THEN 1 ELSE 0 END AS BIT) AS Is_Suppressed
     
@@ -75,9 +84,9 @@ LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
     AND da.client = ci.client
     AND da.contract = ci.contract
     AND da.run = ci.run
-WHERE da.Item_Number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
-  AND CAST(CASE WHEN da.Has_Suppressed = 1 OR COALESCE(ci.Is_Suppressed, 0) = 1 THEN 1 ELSE 0 END AS BIT) = 0;  -- Is_Suppressed filter
+WHERE da.Item_Number NOT LIKE 'MO-%'
+  AND CAST(CASE WHEN da.Has_Suppressed = 1 OR COALESCE(ci.Is_Suppressed, 0) = 1 THEN 1 ELSE 0 END AS BIT) = 0;
 
 -- ============================================================================
--- END OF VIEW 08 (REFACTORED)
+-- END OF VIEW 08 (CONSOLIDATED FINAL)
 -- ============================================================================

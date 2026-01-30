@@ -1,5 +1,5 @@
 -- ============================================================================
--- VIEW 16: dbo.ETB2_Campaign_Model_Data_Gaps (REFACTORED - ETB2)
+-- VIEW 16: dbo.ETB2_Campaign_Model_Data_Gaps (CONSOLIDATED FINAL)
 -- ============================================================================
 -- Purpose: Data quality flags and confidence levels for model inputs
 -- Grain: One row per item from active configuration
@@ -8,14 +8,11 @@
 --   - dbo.ETB2_Inventory_Unified (view 07)
 --   - dbo.ETB2_Demand_Cleaned_Base (view 04)
 --   - dbo.ETB2_Campaign_Normalized_Demand (view 11)
--- Refactoring Applied:
---   - Added context columns: client, contract, run
---   - Preserve context in all GROUP BY clauses
---   - Added Is_Suppressed flag with filter
---   - Filter out ITEMNMBR LIKE 'MO-%'
---   - Context preserved in subqueries
---   - Context filters added to subqueries
--- Last Updated: 2026-01-29
+-- Features:
+--   - Context columns: client, contract, run
+--   - FG + Construct linked from demand base
+--   - Is_Suppressed flag
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 SELECT 
@@ -106,13 +103,28 @@ SELECT
         ELSE 3
     END AS Remediation_Priority,
     
+    -- FG SOURCE (PAB-style): Link to demand for FG info
+    (SELECT TOP 1 d.FG_Item_Number 
+     FROM dbo.ETB2_Demand_Cleaned_Base d 
+     WHERE d.Item_Number = c.ITEMNMBR
+       AND d.client = c.client AND d.contract = c.contract AND d.run = c.run) AS FG_Item_Number,
+    (SELECT TOP 1 d.FG_Description 
+     FROM dbo.ETB2_Demand_Cleaned_Base d 
+     WHERE d.Item_Number = c.ITEMNMBR
+       AND d.client = c.client AND d.contract = c.contract AND d.run = c.run) AS FG_Description,
+    -- Construct SOURCE (PAB-style): Link to demand for Construct info
+    (SELECT TOP 1 d.Construct 
+     FROM dbo.ETB2_Demand_Cleaned_Base d 
+     WHERE d.Item_Number = c.ITEMNMBR
+       AND d.client = c.client AND d.contract = c.contract AND d.run = c.run) AS Construct,
+    
     -- Suppression flag
     c.Is_Suppressed
     
 FROM dbo.ETB2_Config_Active c WITH (NOLOCK)
-WHERE c.ITEMNMBR NOT LIKE 'MO-%'  -- Filter out MO- conflated items
-  AND c.Is_Suppressed = 0;  -- Is_Suppressed filter
+WHERE c.ITEMNMBR NOT LIKE 'MO-%'
+  AND c.Is_Suppressed = 0;
 
 -- ============================================================================
--- END OF VIEW 16 (REFACTORED)
+-- END OF VIEW 16 (CONSOLIDATED FINAL)
 -- ============================================================================

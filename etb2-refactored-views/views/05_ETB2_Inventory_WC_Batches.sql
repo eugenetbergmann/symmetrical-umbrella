@@ -1,5 +1,5 @@
 -- ============================================================================
--- VIEW 05: dbo.ETB2_Inventory_WC_Batches (REFACTORED - ETB2)
+-- VIEW 05: dbo.ETB2_Inventory_WC_Batches (CONSOLIDATED FINAL)
 -- ============================================================================
 -- Purpose: Work Center batch inventory with FEFO ordering
 -- Grain: Batch/Lot
@@ -7,18 +7,49 @@
 --   - dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE (external table)
 --   - dbo.EXT_BINTYPE (external table)
 --   - dbo.IV00101 (Item master - external table)
--- Refactoring Applied:
---   - Added context columns: client, contract, run
---   - Preserve context in all GROUP BY clauses
---   - Added Is_Suppressed flag with filter
---   - Filter out ITEMNMBR LIKE 'MO-%'
+--   - dbo.ETB_PAB_MO (external table) - FG SOURCE (PAB-style)
+-- Features:
+--   - Context columns: client, contract, run
+--   - FG + Construct from ETB_PAB_MO via lot-to-order pattern matching
+--   - Is_Suppressed flag
 --   - Date window: ±90 days
---   - Added context to ROW_NUMBER PARTITION BY
--- Last Updated: 2026-01-29
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 WITH GlobalShelfLife AS (
     SELECT 180 AS Default_WC_Shelf_Life_Days
+),
+
+-- ============================================================================
+-- FG SOURCE (PAB-style): Derive FG from ETB_PAB_MO
+-- ============================================================================
+FG_From_MO AS (
+    SELECT
+        m.ORDERNUMBER,
+        m.FG AS FG_Item_Number,
+        m.[FG Desc] AS FG_Description,
+        m.Customer AS Construct,
+        UPPER(
+            REPLACE(
+                REPLACE(
+                    REPLACE(
+                        REPLACE(
+                            REPLACE(
+                                REPLACE(m.ORDERNUMBER, 'MO', ''),
+                                '-', ''
+                            ),
+                            ' ', ''
+                        ),
+                        '/', ''
+                    ),
+                    '.', ''
+                ),
+                '#', ''
+            )
+        ) AS CleanOrder
+    FROM dbo.ETB_PAB_MO m WITH (NOLOCK)
+    WHERE m.FG IS NOT NULL
+      AND m.FG <> ''
 ),
 
 RawWCInventory AS (
@@ -40,50 +71,88 @@ RawWCInventory AS (
       AND pib.QTY_Available > 0
       AND pib.LOT_NUMBER IS NOT NULL
       AND pib.LOT_NUMBER <> ''
-      AND pib.Item_Number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+      AND pib.Item_Number NOT LIKE 'MO-%'
       AND CAST(GETDATE() AS DATE) BETWEEN 
           DATEADD(DAY, -90, CAST(GETDATE() AS DATE))
           AND DATEADD(DAY, 90, CAST(GETDATE() AS DATE))
 ),
 
-ParsedInventory AS (
+-- ============================================================================
+-- Link inventory to FG via Lot Number pattern matching
+-- ============================================================================
+InventoryWithFG AS (
     SELECT
-        -- Context columns preserved
         ri.client,
         ri.contract,
         ri.run,
-        
         ri.ITEMNMBR,
         ri.LOT_NUMBER,
         ri.BIN,
         ri.LOCNCODE,
         ri.QTY_Available,
-        CAST(ri.DATERECD AS DATE) AS Receipt_Date,
+        ri.DATERECD,
+        ri.EXPNDATE,
+        -- FG SOURCE (PAB-style): Link via lot/order patterns
+        fg.FG_Item_Number,
+        fg.FG_Description,
+        fg.Construct,
+        ROW_NUMBER() OVER (
+            PARTITION BY ri.ITEMNMBR, ri.LOT_NUMBER
+            ORDER BY 
+                CASE WHEN fg.FG_Item_Number IS NOT NULL THEN 0 ELSE 1 END,
+                fg.FG_Item_Number
+        ) AS FG_Priority
+    FROM RawWCInventory ri
+    LEFT JOIN FG_From_MO fg
+        ON ri.LOT_NUMBER LIKE '%' + fg.CleanOrder + '%'
+        OR fg.CleanOrder LIKE '%' + REPLACE(ri.LOT_NUMBER, '-', '') + '%'
+),
+
+ParsedInventory AS (
+    SELECT
+        -- Context columns preserved
+        ii.client,
+        ii.contract,
+        ii.run,
+        
+        ii.ITEMNMBR,
+        ii.LOT_NUMBER,
+        ii.BIN,
+        ii.LOCNCODE,
+        ii.QTY_Available,
+        CAST(ii.DATERECD AS DATE) AS Receipt_Date,
         COALESCE(
-            TRY_CONVERT(DATE, ri.EXPNDATE),
-            DATEADD(DAY, gsl.Default_WC_Shelf_Life_Days, CAST(ri.DATERECD AS DATE))
+            TRY_CONVERT(DATE, ii.EXPNDATE),
+            DATEADD(DAY, gsl.Default_WC_Shelf_Life_Days, CAST(ii.DATERECD AS DATE))
         ) AS Expiry_Date,
-        DATEDIFF(DAY, CAST(ri.DATERECD AS DATE), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
-        LEFT(ri.LOCNCODE, PATINDEX('%[-_]%', ri.LOCNCODE + '-') - 1) AS Client_ID,
+        DATEDIFF(DAY, CAST(ii.DATERECD AS DATE), CAST(GETDATE() AS DATE)) AS Batch_Age_Days,
+        LEFT(ii.LOCNCODE, PATINDEX('%[-_]%', ii.LOCNCODE + '-') - 1) AS Client_ID,
         itm.ITEMDESC AS Item_Description,
         itm.UOMSCHDL AS Unit_Of_Measure,
         
         -- Suppression flag
-        CAST(0 AS BIT) AS Is_Suppressed
+        CAST(0 AS BIT) AS Is_Suppressed,
         
-    FROM RawWCInventory ri
+        -- FG SOURCE (PAB-style): Carried through from MO linkage
+        ii.FG_Item_Number,
+        ii.FG_Description,
+        -- Construct SOURCE (PAB-style): Carried through from MO linkage
+        ii.Construct
+        
+    FROM InventoryWithFG ii
     CROSS JOIN GlobalShelfLife gsl
     LEFT JOIN dbo.IV00101 itm WITH (NOLOCK)
-        ON LTRIM(RTRIM(ri.ITEMNMBR)) = LTRIM(RTRIM(itm.ITEMNMBR))
-    WHERE COALESCE(
-            TRY_CONVERT(DATE, ri.EXPNDATE),
-            DATEADD(DAY, gsl.Default_WC_Shelf_Life_Days, CAST(ri.DATERECD AS DATE))
+        ON LTRIM(RTRIM(ii.ITEMNMBR)) = LTRIM(RTRIM(itm.ITEMNMBR))
+    WHERE ii.FG_Priority = 1  -- Select best FG match per lot
+      AND COALESCE(
+            TRY_CONVERT(DATE, ii.EXPNDATE),
+            DATEADD(DAY, gsl.Default_WC_Shelf_Life_Days, CAST(ii.DATERECD AS DATE))
           ) >= CAST(GETDATE() AS DATE)  -- Exclude expired
 )
 
 -- ============================================================
--- FINAL OUTPUT: 17 columns, planner-optimized order
--- LEFT → RIGHT = IDENTIFY → LOCATE → QUANTIFY → TIME → DECIDE
+-- FINAL OUTPUT: 20 columns, planner-optimized order
+-- LEFT → RIGHT = IDENTIFY → LOCATE → QUANTIFY → TIME → DECIDE → FG/CONSTRUCT
 -- ============================================================
 SELECT
     -- Context columns preserved
@@ -104,7 +173,7 @@ SELECT
 
     -- QUANTIFY (how much?) - 2 columns
     QTY_Available           AS Quantity,
-    QTY_Available           AS Usable_Qty,  -- Same for WC (no degradation yet)
+    QTY_Available           AS Usable_Qty,
 
     -- TIME (when relevant?) - 3 columns
     Receipt_Date,
@@ -119,11 +188,17 @@ SELECT
     'WC_BATCH'              AS Batch_Type,
     
     -- Suppression flag
-    Is_Suppressed
+    Is_Suppressed,
+
+    -- FG SOURCE (PAB-style): Exposed in final output
+    FG_Item_Number,
+    FG_Description,
+    -- Construct SOURCE (PAB-style): Exposed in final output
+    Construct
 
 FROM ParsedInventory
-WHERE Is_Suppressed = 0;  -- Is_Suppressed filter
+WHERE Is_Suppressed = 0;
 
 -- ============================================================================
--- END OF VIEW 05 (REFACTORED)
+-- END OF VIEW 05 (CONSOLIDATED FINAL)
 -- ============================================================================

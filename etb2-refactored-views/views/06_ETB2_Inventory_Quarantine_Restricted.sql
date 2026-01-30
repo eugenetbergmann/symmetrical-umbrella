@@ -1,20 +1,18 @@
 -- ============================================================================
--- VIEW 06: dbo.ETB2_Inventory_Quarantine_Restricted (REFACTORED - ETB2)
+-- VIEW 06: dbo.ETB2_Inventory_Quarantine_Restricted (CONSOLIDATED FINAL)
 -- ============================================================================
 -- Purpose: WFQ/RMQTY inventory with hold period management
 -- Grain: Item/Lot
 -- Dependencies:
 --   - dbo.IV00300 (Serial/Lot - external table)
 --   - dbo.IV00101 (Item master - external table)
--- Refactoring Applied:
---   - Added context columns: client, contract, run
---   - Preserve context in all GROUP BY clauses
---   - Added Is_Suppressed flag with filter
---   - Filter out ITEMNMBR LIKE 'MO-%'
+--   - dbo.ETB_PAB_MO (external table) - FG SOURCE (PAB-style)
+-- Features:
+--   - Context columns: client, contract, run
+--   - FG + Construct from ETB_PAB_MO via lot-to-order pattern matching
+--   - Is_Suppressed flag
 --   - Date window: ±90 days
---   - Added context to ROW_NUMBER PARTITION BY
---   - Context preserved in all UNION parts
--- Last Updated: 2026-01-29
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 WITH GlobalConfig AS (
@@ -22,6 +20,38 @@ WITH GlobalConfig AS (
         14 AS WFQ_Hold_Days,
         7 AS RMQTY_Hold_Days,
         90 AS Expiry_Filter_Days
+),
+
+-- ============================================================================
+-- FG SOURCE (PAB-style): Derive FG from ETB_PAB_MO
+-- ============================================================================
+FG_From_MO AS (
+    SELECT
+        m.ORDERNUMBER,
+        m.FG AS FG_Item_Number,
+        m.[FG Desc] AS FG_Description,
+        m.Customer AS Construct,
+        UPPER(
+            REPLACE(
+                REPLACE(
+                    REPLACE(
+                        REPLACE(
+                            REPLACE(
+                                REPLACE(m.ORDERNUMBER, 'MO', ''),
+                                '-', ''
+                            ),
+                            ' ', ''
+                        ),
+                        '/', ''
+                    ),
+                    '.', ''
+                ),
+                '#', ''
+            )
+        ) AS CleanOrder
+    FROM dbo.ETB_PAB_MO m WITH (NOLOCK)
+    WHERE m.FG IS NOT NULL
+      AND m.FG <> ''
 ),
 
 RawWFQInventory AS (
@@ -34,6 +64,7 @@ RawWFQInventory AS (
         inv.ITEMNMBR,
         inv.LOCNCODE,
         inv.RCTSEQNM,
+        inv.LOTNUMBR,
         COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0) AS QTY_ON_HAND,
         inv.DATERECD,
         inv.EXPNDATE,
@@ -42,7 +73,7 @@ RawWFQInventory AS (
     FROM dbo.IV00300 inv WITH (NOLOCK)
     LEFT JOIN dbo.IV00101 itm WITH (NOLOCK) ON inv.ITEMNMBR = itm.ITEMNMBR
     WHERE TRIM(inv.LOCNCODE) = 'WF-Q'
-      AND inv.ITEMNMBR NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+      AND inv.ITEMNMBR NOT LIKE 'MO-%'
       AND (COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0)) <> 0
       AND (inv.EXPNDATE IS NULL
            OR inv.EXPNDATE > DATEADD(DAY, (SELECT Expiry_Filter_Days FROM GlobalConfig), GETDATE()))
@@ -61,6 +92,7 @@ RawRMQTYInventory AS (
         inv.ITEMNMBR,
         inv.LOCNCODE,
         inv.RCTSEQNM,
+        inv.LOTNUMBR,
         COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0) AS QTY_ON_HAND,
         inv.DATERECD,
         inv.EXPNDATE,
@@ -69,7 +101,7 @@ RawRMQTYInventory AS (
     FROM dbo.IV00300 inv WITH (NOLOCK)
     LEFT JOIN dbo.IV00101 itm WITH (NOLOCK) ON inv.ITEMNMBR = itm.ITEMNMBR
     WHERE TRIM(inv.LOCNCODE) = 'RMQTY'
-      AND inv.ITEMNMBR NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+      AND inv.ITEMNMBR NOT LIKE 'MO-%'
       AND (COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0)) <> 0
       AND (inv.EXPNDATE IS NULL
            OR inv.EXPNDATE > DATEADD(DAY, (SELECT Expiry_Filter_Days FROM GlobalConfig), GETDATE()))
@@ -78,13 +110,47 @@ RawRMQTYInventory AS (
           AND DATEADD(DAY, 90, CAST(GETDATE() AS DATE))
 ),
 
+-- ============================================================================
+-- Link WFQ inventory to FG via Lot Number
+-- ============================================================================
+WFQWithFG AS (
+    SELECT
+        ri.client, ri.contract, ri.run,
+        ri.ITEMNMBR, ri.LOCNCODE, ri.RCTSEQNM, ri.QTY_ON_HAND,
+        ri.DATERECD, ri.EXPNDATE, ri.UOMSCHDL, ri.ITEMDESC,
+        fg.FG_Item_Number, fg.FG_Description, fg.Construct,
+        ROW_NUMBER() OVER (
+            PARTITION BY ri.ITEMNMBR, ri.RCTSEQNM
+            ORDER BY CASE WHEN fg.FG_Item_Number IS NOT NULL THEN 0 ELSE 1 END, fg.FG_Item_Number
+        ) AS FG_Priority
+    FROM RawWFQInventory ri
+    LEFT JOIN FG_From_MO fg
+        ON ri.LOTNUMBR LIKE '%' + fg.CleanOrder + '%'
+        OR fg.CleanOrder LIKE '%' + REPLACE(ri.LOTNUMBR, '-', '') + '%'
+),
+
+-- ============================================================================
+-- Link RMQTY inventory to FG via Lot Number
+-- ============================================================================
+RMQTYWithFG AS (
+    SELECT
+        ri.client, ri.contract, ri.run,
+        ri.ITEMNMBR, ri.LOCNCODE, ri.RCTSEQNM, ri.QTY_ON_HAND,
+        ri.DATERECD, ri.EXPNDATE, ri.UOMSCHDL, ri.ITEMDESC,
+        fg.FG_Item_Number, fg.FG_Description, fg.Construct,
+        ROW_NUMBER() OVER (
+            PARTITION BY ri.ITEMNMBR, ri.RCTSEQNM
+            ORDER BY CASE WHEN fg.FG_Item_Number IS NOT NULL THEN 0 ELSE 1 END, fg.FG_Item_Number
+        ) AS FG_Priority
+    FROM RawRMQTYInventory ri
+    LEFT JOIN FG_From_MO fg
+        ON ri.LOTNUMBR LIKE '%' + fg.CleanOrder + '%'
+        OR fg.CleanOrder LIKE '%' + REPLACE(ri.LOTNUMBR, '-', '') + '%'
+),
+
 ParsedWFQInventory AS (
     SELECT
-        -- Context columns preserved
-        client,
-        contract,
-        run,
-        
+        client, contract, run,
         ITEMNMBR,
         MAX(ITEMDESC) AS Item_Description,
         MAX(UOMSCHDL) AS Unit_Of_Measure,
@@ -99,22 +165,20 @@ ParsedWFQInventory AS (
             THEN 1 ELSE 0
         END AS Is_Released,
         'WFQ' AS Hold_Type,
-        
-        -- Suppression flag
-        CAST(0 AS BIT) AS Is_Suppressed
-        
-    FROM RawWFQInventory
+        CAST(0 AS BIT) AS Is_Suppressed,
+        -- FG SOURCE (PAB-style)
+        MAX(FG_Item_Number) AS FG_Item_Number,
+        MAX(FG_Description) AS FG_Description,
+        MAX(Construct) AS Construct
+    FROM WFQWithFG
+    WHERE FG_Priority = 1
     GROUP BY client, contract, run, ITEMNMBR, LOCNCODE
     HAVING SUM(QTY_ON_HAND) <> 0
 ),
 
 ParsedRMQTYInventory AS (
     SELECT
-        -- Context columns preserved
-        client,
-        contract,
-        run,
-        
+        client, contract, run,
         ITEMNMBR,
         MAX(ITEMDESC) AS Item_Description,
         MAX(UOMSCHDL) AS Unit_Of_Measure,
@@ -129,90 +193,76 @@ ParsedRMQTYInventory AS (
             THEN 1 ELSE 0
         END AS Is_Released,
         'RMQTY' AS Hold_Type,
-        
-        -- Suppression flag
-        CAST(0 AS BIT) AS Is_Suppressed
-        
-    FROM RawRMQTYInventory
+        CAST(0 AS BIT) AS Is_Suppressed,
+        -- FG SOURCE (PAB-style)
+        MAX(FG_Item_Number) AS FG_Item_Number,
+        MAX(FG_Description) AS FG_Description,
+        MAX(Construct) AS Construct
+    FROM RMQTYWithFG
+    WHERE FG_Priority = 1
     GROUP BY client, contract, run, ITEMNMBR, LOCNCODE
     HAVING SUM(QTY_ON_HAND) <> 0
 )
 
 -- ============================================================
--- FINAL OUTPUT: 16 columns, planner-optimized order
--- Context preserved in all UNION parts
+-- FINAL OUTPUT: 19 columns with FG/Construct
 -- ============================================================
 SELECT
-    -- Context columns preserved
-    client,
-    contract,
-    run,
-    
-    -- IDENTIFY (what item?) - 3 columns
-    ITEMNMBR                AS Item_Number,
+    client, contract, run,
+    ITEMNMBR AS Item_Number,
     Item_Description,
     Unit_Of_Measure,
-
-    -- LOCATE (where is it?) - 2 columns
-    LOCNCODE                AS Site,
+    LOCNCODE AS Site,
     Hold_Type,
-
-    -- QUANTIFY (how much?) - 2 columns
-    Available_Quantity      AS Quantity,
-    Available_Quantity      AS Usable_Qty,
-
-    -- TIME (when relevant?) - 4 columns
+    Available_Quantity AS Quantity,
+    Available_Quantity AS Usable_Qty,
     Receipt_Date,
     Expiry_Date,
     Age_Days,
     Release_Date,
     DATEDIFF(DAY, GETDATE(), Release_Date) AS Days_To_Release,
-
-    -- DECIDE (what action?) - 3 columns
-    Is_Released             AS Can_Allocate,
+    Is_Released AS Can_Allocate,
     ROW_NUMBER() OVER (
         PARTITION BY client, contract, run, ITEMNMBR
         ORDER BY Release_Date ASC, Receipt_Date ASC
     ) AS Use_Sequence,
-    
-    -- Suppression flag
-    Is_Suppressed
-
+    Is_Suppressed,
+    -- FG SOURCE (PAB-style)
+    FG_Item_Number,
+    FG_Description,
+    Construct
 FROM ParsedWFQInventory
 WHERE Is_Suppressed = 0
 
 UNION ALL
 
 SELECT
-    -- Context columns preserved
-    client,
-    contract,
-    run,
-    
-    ITEMNMBR                AS Item_Number,
+    client, contract, run,
+    ITEMNMBR AS Item_Number,
     Item_Description,
     Unit_Of_Measure,
-    LOCNCODE                AS Site,
+    LOCNCODE AS Site,
     Hold_Type,
-    Available_Quantity      AS Quantity,
-    Available_Quantity      AS Usable_Qty,
+    Available_Quantity AS Quantity,
+    Available_Quantity AS Usable_Qty,
     Receipt_Date,
     Expiry_Date,
     Age_Days,
     Release_Date,
     DATEDIFF(DAY, GETDATE(), Release_Date) AS Days_To_Release,
-    Is_Released             AS Can_Allocate,
+    Is_Released AS Can_Allocate,
     ROW_NUMBER() OVER (
         PARTITION BY client, contract, run, ITEMNMBR
         ORDER BY Release_Date ASC, Receipt_Date ASC
     ) AS Use_Sequence,
-    
-    -- Suppression flag
-    Is_Suppressed
-
+    Is_Suppressed,
+    -- FG SOURCE (PAB-style)
+    FG_Item_Number,
+    FG_Description,
+    Construct
 FROM ParsedRMQTYInventory
 WHERE Is_Suppressed = 0;
 
 -- ============================================================================
--- END OF VIEW 06 (REFACTORED)
+-- END OF VIEW 06 (CONSOLIDATED FINAL)
 -- ============================================================================

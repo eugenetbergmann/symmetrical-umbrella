@@ -1,17 +1,15 @@
 -- ============================================================================
--- VIEW 15: dbo.ETB2_Campaign_Absorption_Capacity (REFACTORED - ETB2)
+-- VIEW 15: dbo.ETB2_Campaign_Absorption_Capacity (CONSOLIDATED FINAL)
 -- ============================================================================
 -- Purpose: Executive KPI - campaign absorption capacity vs inventory
 -- Grain: One row per campaign item (aggregated)
 -- Dependencies:
 --   - dbo.ETB2_Campaign_Risk_Adequacy (view 14)
--- Refactoring Applied:
---   - Added context columns: client, contract, run
---   - Preserve context in all GROUP BY clauses
---   - Added Is_Suppressed flag with filter
---   - Filter out ITEMNMBR LIKE 'MO-%'
---   - Context preserved in subqueries
--- Last Updated: 2026-01-29
+-- Features:
+--   - Context columns: client, contract, run
+--   - FG + Construct aggregated from risk adequacy
+--   - Is_Suppressed flag
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 SELECT 
@@ -38,14 +36,20 @@ SELECT
     AVG(COALESCE(TRY_CAST(r.Adequacy_Score AS DECIMAL(10,2)), 0)) AS Avg_Adequacy,
     GETDATE() AS Calculated_Date,
     
+    -- FG SOURCE (PAB-style): Carry primary FG from first item in campaign
+    MAX(r.FG_Item_Number) AS FG_Item_Number,
+    MAX(r.FG_Description) AS FG_Description,
+    -- Construct SOURCE (PAB-style): Carry primary Construct from first item in campaign
+    MAX(r.Construct) AS Construct,
+    
     -- Suppression flag (aggregate - if any suppressed, mark all)
     MAX(CASE WHEN r.Is_Suppressed = 1 THEN 1 ELSE 0 END) AS Is_Suppressed
     
 FROM dbo.ETB2_Campaign_Risk_Adequacy r WITH (NOLOCK)
-WHERE r.Item_Number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+WHERE r.Item_Number NOT LIKE 'MO-%'
 GROUP BY r.client, r.contract, r.run, r.Campaign_ID
-HAVING MAX(CASE WHEN r.Is_Suppressed = 1 THEN 1 ELSE 0 END) = 0;  -- Is_Suppressed filter
+HAVING MAX(CASE WHEN r.Is_Suppressed = 1 THEN 1 ELSE 0 END) = 0;
 
 -- ============================================================================
--- END OF VIEW 15 (REFACTORED)
+-- END OF VIEW 15 (CONSOLIDATED FINAL)
 -- ============================================================================

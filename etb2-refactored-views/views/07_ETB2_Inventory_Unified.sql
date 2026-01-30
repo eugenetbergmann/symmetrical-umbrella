@@ -1,21 +1,20 @@
 -- ============================================================================
--- VIEW 07: dbo.ETB2_Inventory_Unified (REFACTORED - ETB2)
+-- VIEW 07: dbo.ETB2_Inventory_Unified (CONSOLIDATED FINAL)
 -- ============================================================================
 -- Purpose: All eligible inventory consolidated (WC + released holds)
 -- Grain: Item/Lot
 -- Dependencies:
 --   - dbo.ETB2_Inventory_WC_Batches (view 05)
 --   - dbo.ETB2_Inventory_Quarantine_Restricted (view 06)
--- Refactoring Applied:
---   - Added context columns: client, contract, run
---   - Preserve context in all UNION parts
---   - Added Is_Suppressed flag with filter
---   - Filter out ITEMNMBR LIKE 'MO-%'
---   - Date window: ±90 days
--- Last Updated: 2026-01-29
+-- Features:
+--   - Context columns: client, contract, run
+--   - FG + Construct carried through from source views
+--   - Is_Suppressed flag
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 -- WC Batches (always eligible)
+-- FG/Construct carried through from view 05
 SELECT
     -- Context columns preserved
     client,
@@ -34,10 +33,16 @@ SELECT
     Days_To_Expiry,
     Use_Sequence,
     'AVAILABLE' AS Inventory_Type,
-    1 AS Allocation_Priority,  -- WC first
+    1 AS Allocation_Priority,
     
     -- Suppression flag
-    Is_Suppressed
+    Is_Suppressed,
+    
+    -- FG SOURCE (PAB-style): Carried through from view 05
+    FG_Item_Number,
+    FG_Description,
+    -- Construct SOURCE (PAB-style): Carried through from view 05
+    Construct
     
 FROM dbo.ETB2_Inventory_WC_Batches WITH (NOLOCK)
 WHERE Is_Suppressed = 0
@@ -45,6 +50,7 @@ WHERE Is_Suppressed = 0
 UNION ALL
 
 -- WFQ Batches (released only)
+-- FG/Construct carried through from view 06
 SELECT
     -- Context columns preserved
     client,
@@ -63,10 +69,16 @@ SELECT
     DATEDIFF(DAY, GETDATE(), Expiry_Date) AS Days_To_Expiry,
     Use_Sequence,
     'QUARANTINE_WFQ' AS Inventory_Type,
-    2 AS Allocation_Priority,  -- After WC
+    2 AS Allocation_Priority,
     
     -- Suppression flag
-    Is_Suppressed
+    Is_Suppressed,
+    
+    -- FG SOURCE (PAB-style): Carried through from view 06
+    FG_Item_Number,
+    FG_Description,
+    -- Construct SOURCE (PAB-style): Carried through from view 06
+    Construct
     
 FROM dbo.ETB2_Inventory_Quarantine_Restricted WITH (NOLOCK)
 WHERE Hold_Type = 'WFQ'
@@ -76,6 +88,7 @@ WHERE Hold_Type = 'WFQ'
 UNION ALL
 
 -- RMQTY Batches (released only)
+-- FG/Construct carried through from view 06
 SELECT
     -- Context columns preserved
     client,
@@ -94,10 +107,16 @@ SELECT
     DATEDIFF(DAY, GETDATE(), Expiry_Date) AS Days_To_Expiry,
     Use_Sequence,
     'RESTRICTED_RMQTY' AS Inventory_Type,
-    3 AS Allocation_Priority,  -- After WFQ
+    3 AS Allocation_Priority,
     
     -- Suppression flag
-    Is_Suppressed
+    Is_Suppressed,
+    
+    -- FG SOURCE (PAB-style): Carried through from view 06
+    FG_Item_Number,
+    FG_Description,
+    -- Construct SOURCE (PAB-style): Carried through from view 06
+    Construct
     
 FROM dbo.ETB2_Inventory_Quarantine_Restricted WITH (NOLOCK)
 WHERE Hold_Type = 'RMQTY'
@@ -105,5 +124,5 @@ WHERE Hold_Type = 'RMQTY'
   AND Is_Suppressed = 0;
 
 -- ============================================================================
--- END OF VIEW 07 (REFACTORED)
+-- END OF VIEW 07 (CONSOLIDATED FINAL)
 -- ============================================================================
