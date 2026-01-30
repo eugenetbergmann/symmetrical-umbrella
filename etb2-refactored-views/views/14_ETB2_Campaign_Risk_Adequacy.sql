@@ -21,7 +21,8 @@ SELECT
     b.contract,
     b.run,
     
-    b.Item_Number,
+    b.item_number,
+    b.customer_number,
     b.Campaign_ID,
     COALESCE(SUM(COALESCE(TRY_CAST(i.Usable_Qty AS DECIMAL(18,4)), 0)), 0) AS Available_Inventory,
     SUM(b.collision_buffer_qty) AS Required_Buffer,
@@ -51,12 +52,13 @@ SELECT
     
 FROM dbo.ETB2_Campaign_Collision_Buffer b WITH (NOLOCK)
 LEFT JOIN dbo.ETB2_Inventory_Unified i WITH (NOLOCK) 
-    ON b.Item_Number = i.Item_Number
+    ON b.item_number = i.item_number
+    AND b.customer_number = i.customer_number
     AND b.client = i.client
     AND b.contract = i.contract
     AND b.run = i.run
-WHERE b.Item_Number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
-GROUP BY b.client, b.contract, b.run, b.Item_Number, b.Campaign_ID
+WHERE b.item_number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+GROUP BY b.client, b.contract, b.run, b.item_number, b.customer_number, b.Campaign_ID
 HAVING MAX(CASE WHEN b.Is_Suppressed = 1 OR COALESCE(i.Is_Suppressed, 0) = 1 THEN 1 ELSE 0 END) = 0;  -- Is_Suppressed filter
 
 -- ============================================================================

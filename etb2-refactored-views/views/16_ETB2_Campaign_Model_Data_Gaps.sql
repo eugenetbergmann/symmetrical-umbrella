@@ -24,38 +24,39 @@ SELECT
     c.contract,
     c.run,
     
-    c.ITEMNMBR AS Item_Number,
+    c.ITEMNMBR AS item_number,
+    NULL AS customer_number,
     CASE WHEN c.Lead_Time_Days = 30 AND c.Config_Status = 'Default' THEN 1 ELSE 0 END AS Missing_Lead_Time_Config,
     CASE WHEN c.Pooling_Classification = 'Dedicated' AND c.Config_Status = 'Default' THEN 1 ELSE 0 END AS Missing_Pooling_Config,
     CASE WHEN c.ITEMNMBR NOT IN (
-        SELECT Item_Number 
+        SELECT item_number 
         FROM dbo.ETB2_Inventory_Unified 
         WHERE client = c.client AND contract = c.contract AND run = c.run
     ) THEN 1 ELSE 0 END AS Missing_Inventory_Data,
     CASE WHEN c.ITEMNMBR NOT IN (
-        SELECT Item_Number 
+        SELECT item_number 
         FROM dbo.ETB2_Demand_Cleaned_Base 
         WHERE client = c.client AND contract = c.contract AND run = c.run
     ) THEN 1 ELSE 0 END AS Missing_Demand_Data,
     CASE WHEN c.ITEMNMBR NOT IN (
-        SELECT Item_Number 
+        SELECT item_number 
         FROM dbo.ETB2_Campaign_Normalized_Demand 
         WHERE client = c.client AND contract = c.contract AND run = c.run
     ) THEN 1 ELSE 0 END AS Missing_Campaign_Data,
     CASE WHEN c.Lead_Time_Days = 30 AND c.Config_Status = 'Default' THEN 1 ELSE 0 END +
     CASE WHEN c.Pooling_Classification = 'Dedicated' AND c.Config_Status = 'Default' THEN 1 ELSE 0 END +
     CASE WHEN c.ITEMNMBR NOT IN (
-        SELECT Item_Number 
+        SELECT item_number 
         FROM dbo.ETB2_Inventory_Unified 
         WHERE client = c.client AND contract = c.contract AND run = c.run
     ) THEN 1 ELSE 0 END +
     CASE WHEN c.ITEMNMBR NOT IN (
-        SELECT Item_Number 
+        SELECT item_number 
         FROM dbo.ETB2_Demand_Cleaned_Base 
         WHERE client = c.client AND contract = c.contract AND run = c.run
     ) THEN 1 ELSE 0 END +
     CASE WHEN c.ITEMNMBR NOT IN (
-        SELECT Item_Number 
+        SELECT item_number 
         FROM dbo.ETB2_Campaign_Normalized_Demand 
         WHERE client = c.client AND contract = c.contract AND run = c.run
     ) THEN 1 ELSE 0 END AS Total_Gap_Count,
@@ -70,7 +71,7 @@ SELECT
     END +
     CASE 
         WHEN c.ITEMNMBR NOT IN (
-            SELECT Item_Number 
+            SELECT item_number 
             FROM dbo.ETB2_Inventory_Unified 
             WHERE client = c.client AND contract = c.contract AND run = c.run
         ) THEN ' No inventory data in work centers;'
@@ -78,7 +79,7 @@ SELECT
     END +
     CASE 
         WHEN c.ITEMNMBR NOT IN (
-            SELECT Item_Number 
+            SELECT item_number 
             FROM dbo.ETB2_Demand_Cleaned_Base 
             WHERE client = c.client AND contract = c.contract AND run = c.run
         ) THEN ' No demand history;'
@@ -86,7 +87,7 @@ SELECT
     END +
     CASE 
         WHEN c.ITEMNMBR NOT IN (
-            SELECT Item_Number 
+            SELECT item_number 
             FROM dbo.ETB2_Campaign_Normalized_Demand 
             WHERE client = c.client AND contract = c.contract AND run = c.run
         ) THEN ' No campaign data.'
@@ -94,12 +95,12 @@ SELECT
     END AS Gap_Description,
     CASE 
         WHEN c.ITEMNMBR NOT IN (
-            SELECT Item_Number 
+            SELECT item_number 
             FROM dbo.ETB2_Demand_Cleaned_Base 
             WHERE client = c.client AND contract = c.contract AND run = c.run
         ) THEN 1
         WHEN c.ITEMNMBR NOT IN (
-            SELECT Item_Number 
+            SELECT item_number 
             FROM dbo.ETB2_Inventory_Unified 
             WHERE client = c.client AND contract = c.contract AND run = c.run
         ) THEN 2

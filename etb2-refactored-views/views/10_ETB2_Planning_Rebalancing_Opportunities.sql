@@ -23,7 +23,8 @@ SELECT
     Surplus.contract,
     Surplus.run,
     
-    Surplus.Item_Number,
+    Surplus.item_number,
+    Surplus.customer_number,
     Surplus.From_Work_Center,
     Surplus.Surplus_Qty,
     Deficit.To_Work_Center,
@@ -47,7 +48,8 @@ FROM (
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
         
-        pib.ITEMNMBR AS Item_Number,
+        pib.ITEMNMBR AS item_number,
+        NULL AS customer_number,
         pib.LOCNID AS From_Work_Center,
         SUM(COALESCE(TRY_CAST(pib.QTY AS DECIMAL(18,4)), 0)) AS Surplus_Qty,
         
@@ -70,7 +72,8 @@ INNER JOIN (
         d.contract,
         d.run,
         
-        d.Item_Number,
+        d.item_number,
+        d.customer_number,
         i.Site AS To_Work_Center,
         SUM(COALESCE(TRY_CAST(d.Base_Demand_Qty AS DECIMAL(18,4)), 0)) - COALESCE(SUM(COALESCE(TRY_CAST(i.Usable_Qty AS DECIMAL(18,4)), 0)), 0) AS Deficit_Qty,
         
@@ -79,16 +82,18 @@ INNER JOIN (
         
     FROM dbo.ETB2_Demand_Cleaned_Base d WITH (NOLOCK)
     LEFT JOIN dbo.ETB2_Inventory_Unified i WITH (NOLOCK) 
-        ON d.Item_Number = i.Item_Number
+        ON d.item_number = i.item_number
+        AND d.customer_number = i.customer_number
         AND d.client = i.client
         AND d.contract = i.contract
         AND d.run = i.run
     WHERE d.Is_Within_Active_Planning_Window = 1
-      AND d.Item_Number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
-    GROUP BY d.client, d.contract, d.run, d.Item_Number, i.Site
+      AND d.item_number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+    GROUP BY d.client, d.contract, d.run, d.item_number, d.customer_number, i.Site
     HAVING SUM(COALESCE(TRY_CAST(d.Base_Demand_Qty AS DECIMAL(18,4)), 0)) - COALESCE(SUM(COALESCE(TRY_CAST(i.Usable_Qty AS DECIMAL(18,4)), 0)), 0) > 0
 ) Deficit 
-    ON Surplus.Item_Number = Deficit.Item_Number
+    ON Surplus.item_number = Deficit.item_number
+    AND Surplus.customer_number = Deficit.customer_number
     AND Surplus.client = Deficit.client
     AND Surplus.contract = Deficit.contract
     AND Surplus.run = Deficit.run

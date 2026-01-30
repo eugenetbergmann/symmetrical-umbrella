@@ -22,7 +22,8 @@ SELECT
     n.run,
     
     n.Campaign_ID,
-    n.Item_Number,
+    n.item_number,
+    n.customer_number,
     n.Total_Campaign_Quantity,
     n.CCU,
     COALESCE(SUM(w.Combined_CCU) * 0.20, 0) AS collision_buffer_qty,
@@ -41,12 +42,13 @@ SELECT
 FROM dbo.ETB2_Campaign_Normalized_Demand n WITH (NOLOCK)
 LEFT JOIN dbo.ETB2_Campaign_Concurrency_Window w WITH (NOLOCK) 
     ON (n.Campaign_ID = w.Campaign_A OR n.Campaign_ID = w.Campaign_B)
-    AND n.Item_Number = w.Item_Number
+    AND n.item_number = w.item_number
+    AND n.customer_number = w.customer_number
     AND n.client = w.client
     AND n.contract = w.contract
     AND n.run = w.run
-WHERE n.Item_Number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
-GROUP BY n.client, n.contract, n.run, n.Campaign_ID, n.Item_Number, n.Total_Campaign_Quantity, n.CCU,
+WHERE n.item_number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+GROUP BY n.client, n.contract, n.run, n.Campaign_ID, n.item_number, n.customer_number, n.Total_Campaign_Quantity, n.CCU,
          n.Peak_Period_Start, n.Peak_Period_End
 HAVING MAX(CASE WHEN n.Is_Suppressed = 1 OR COALESCE(w.Is_Suppressed, 0) = 1 THEN 1 ELSE 0 END) = 0;  -- Is_Suppressed filter
 

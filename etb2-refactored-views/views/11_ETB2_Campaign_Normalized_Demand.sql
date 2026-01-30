@@ -21,7 +21,8 @@ SELECT
     d.run,
     
     d.Order_Number AS Campaign_ID,
-    d.Item_Number,
+    d.item_number,
+    d.customer_number,
     SUM(COALESCE(TRY_CAST(d.Base_Demand_Qty AS DECIMAL(18,4)), 0)) AS Total_Campaign_Quantity,
     SUM(COALESCE(TRY_CAST(d.Base_Demand_Qty AS DECIMAL(18,4)), 0)) / 30.0 AS CCU,
     'DAILY' AS CCU_Unit,
@@ -35,8 +36,8 @@ SELECT
     
 FROM dbo.ETB2_Demand_Cleaned_Base d WITH (NOLOCK)
 WHERE d.Is_Within_Active_Planning_Window = 1
-  AND d.Item_Number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
-GROUP BY d.client, d.contract, d.run, d.Order_Number, d.Item_Number
+  AND d.item_number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+GROUP BY d.client, d.contract, d.run, d.Order_Number, d.item_number, d.customer_number
 HAVING MAX(CASE WHEN d.Is_Suppressed = 1 THEN 1 ELSE 0 END) = 0;  -- Is_Suppressed filter
 
 -- ============================================================================

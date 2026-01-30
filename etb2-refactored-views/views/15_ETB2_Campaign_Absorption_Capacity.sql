@@ -34,7 +34,7 @@ SELECT
         WHEN SUM(COALESCE(TRY_CAST(r.Available_Inventory AS DECIMAL(18,4)), 0)) < SUM(COALESCE(TRY_CAST(r.Required_Buffer AS DECIMAL(18,4)), 0)) * 1.5 THEN 'HEALTHY'
         ELSE 'OVER_STOCKED'
     END AS Campaign_Health,
-    COUNT(DISTINCT r.Item_Number) AS Items_In_Campaign,
+    COUNT(DISTINCT r.item_number, r.customer_number) AS Items_In_Campaign,
     AVG(COALESCE(TRY_CAST(r.Adequacy_Score AS DECIMAL(10,2)), 0)) AS Avg_Adequacy,
     GETDATE() AS Calculated_Date,
     
@@ -42,7 +42,7 @@ SELECT
     MAX(CASE WHEN r.Is_Suppressed = 1 THEN 1 ELSE 0 END) AS Is_Suppressed
     
 FROM dbo.ETB2_Campaign_Risk_Adequacy r WITH (NOLOCK)
-WHERE r.Item_Number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+WHERE r.item_number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
 GROUP BY r.client, r.contract, r.run, r.Campaign_ID
 HAVING MAX(CASE WHEN r.Is_Suppressed = 1 THEN 1 ELSE 0 END) = 0;  -- Is_Suppressed filter
 
