@@ -29,6 +29,7 @@ WITH RawDemand AS (
         
         ORDERNUMBER,
         ITEMNMBR,
+        CUSTNMBR,
         DUEDATE,
         REMAINING,
         DEDUCTIONS,
@@ -62,7 +63,8 @@ CleanedDemand AS (
         run,
         
         ORDERNUMBER,
-        ITEMNMBR,
+        ITEMNMBR AS item_number,
+        CUSTNMBR AS customer_number,
         STSDESCR,
         Site,
         Item_Description,
@@ -125,7 +127,8 @@ SELECT
     cd.run,
     
     Clean_Order_Number AS Order_Number,
-    ITEMNMBR AS Item_Number,
+    item_number,
+    customer_number,
     COALESCE(ci.Item_Description, cd.Item_Description) AS Item_Description,
     ci.UOM_Schedule,
     Site,
@@ -147,13 +150,13 @@ SELECT
     
     -- ROW_NUMBER with context in PARTITION BY
     ROW_NUMBER() OVER (
-        PARTITION BY client, contract, run, ITEMNMBR
+        PARTITION BY client, contract, run, item_number, customer_number
         ORDER BY Due_Date ASC, Event_Sort_Priority ASC
     ) AS Demand_Sequence
     
 FROM CleanedDemand cd
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
-    ON cd.ITEMNMBR = ci.Item_Number
+    ON cd.item_number = ci.Item_Number
     AND cd.client = ci.client
     AND cd.contract = ci.contract
     AND cd.run = ci.run

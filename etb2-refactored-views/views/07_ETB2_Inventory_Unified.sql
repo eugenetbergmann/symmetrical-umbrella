@@ -22,7 +22,8 @@ SELECT
     contract,
     run,
     
-    Item_Number,
+    item_number,
+    customer_number,
     Item_Description,
     Unit_Of_Measure,
     Site,
@@ -51,7 +52,8 @@ SELECT
     contract,
     run,
     
-    Item_Number,
+    item_number,
+    customer_number,
     Item_Description,
     Unit_Of_Measure,
     Site,
@@ -82,7 +84,8 @@ SELECT
     contract,
     run,
     
-    Item_Number,
+    item_number,
+    customer_number,
     Item_Description,
     Unit_Of_Measure,
     Site,

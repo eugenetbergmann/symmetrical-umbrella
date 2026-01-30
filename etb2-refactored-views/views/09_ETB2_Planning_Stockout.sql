@@ -26,7 +26,8 @@ NetRequirements AS (
         contract,
         run,
         
-        Item_Number,
+        item_number,
+        customer_number,
         Net_Requirement_Qty,
         Order_Count,
         Requirement_Priority,
@@ -46,12 +47,13 @@ AvailableInventory AS (
         contract,
         run,
         
-        Item_Number,
+        item_number,
+        customer_number,
         SUM(Usable_Qty) AS Total_Available,
         MAX(CASE WHEN Is_Suppressed = 1 THEN 1 ELSE 0 END) AS Has_Suppressed
     FROM dbo.ETB2_Inventory_Unified WITH (NOLOCK)
-    WHERE Item_Number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
-    GROUP BY client, contract, run, Item_Number
+    WHERE item_number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+    GROUP BY client, contract, run, item_number, customer_number
 )
 
 -- ============================================================
@@ -64,7 +66,8 @@ SELECT
     COALESCE(nr.run, ai.run, 'CURRENT_RUN') AS run,
     
     -- IDENTIFY (what item?) - 4 columns
-    COALESCE(nr.Item_Number, ai.Item_Number) AS Item_Number,
+    COALESCE(nr.item_number, ai.item_number) AS item_number,
+    COALESCE(nr.customer_number, ai.customer_number) AS customer_number,
     ci.Item_Description,
     ci.UOM_Schedule AS Unit_Of_Measure_Schedule,
     
@@ -113,17 +116,18 @@ SELECT
 
 FROM NetRequirements nr
 FULL OUTER JOIN AvailableInventory ai
-    ON nr.Item_Number = ai.Item_Number
+    ON nr.item_number = ai.item_number
+    AND nr.customer_number = ai.customer_number
     AND nr.client = ai.client
     AND nr.contract = ai.contract
     AND nr.run = ai.run
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
-    ON COALESCE(nr.Item_Number, ai.Item_Number) = ci.Item_Number
+    ON COALESCE(nr.item_number, ai.item_number) = ci.item_number
     AND COALESCE(nr.client, ai.client, 'DEFAULT_CLIENT') = ci.client
     AND COALESCE(nr.contract, ai.contract, 'DEFAULT_CONTRACT') = ci.contract
     AND COALESCE(nr.run, ai.run, 'CURRENT_RUN') = ci.run
 
-WHERE COALESCE(nr.Item_Number, ai.Item_Number) NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+WHERE COALESCE(nr.item_number, ai.item_number) NOT LIKE 'MO-%'  -- Filter out MO- conflated items
   AND (COALESCE(nr.Net_Requirement_Qty, 0) > 0 OR COALESCE(ai.Total_Available, 0) > 0)
   AND CAST(CASE 
         WHEN COALESCE(nr.Is_Suppressed, 0) = 1 OR COALESCE(ai.Has_Suppressed, 0) = 1 OR COALESCE(ci.Is_Suppressed, 0) = 1 

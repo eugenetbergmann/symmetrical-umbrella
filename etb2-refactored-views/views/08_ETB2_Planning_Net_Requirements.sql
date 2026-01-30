@@ -23,7 +23,8 @@ WITH Demand_Aggregated AS (
         contract,
         run,
         
-        Item_Number,
+        item_number,
+        customer_number,
         SUM(COALESCE(TRY_CAST(Base_Demand_Qty AS NUMERIC(18, 4)), 0)) AS Total_Demand,
         COUNT(DISTINCT CAST(Due_Date AS DATE)) AS Demand_Days,
         COUNT(DISTINCT Order_Number) AS Order_Count,
@@ -35,8 +36,8 @@ WITH Demand_Aggregated AS (
         
     FROM dbo.ETB2_Demand_Cleaned_Base WITH (NOLOCK)
     WHERE Is_Within_Active_Planning_Window = 1
-      AND Item_Number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
-    GROUP BY client, contract, run, Item_Number
+      AND item_number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+    GROUP BY client, contract, run, item_number, customer_number
 )
 SELECT
     -- Context columns preserved
@@ -44,7 +45,8 @@ SELECT
     da.contract,
     da.run,
     
-    da.Item_Number,
+    da.item_number,
+    da.customer_number,
     ci.Item_Description,
     ci.UOM_Schedule,
     CAST(da.Total_Demand AS NUMERIC(18, 4)) AS Net_Requirement_Qty,
@@ -71,11 +73,11 @@ SELECT
     
 FROM Demand_Aggregated da
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
-    ON da.Item_Number = ci.Item_Number
+    ON da.item_number = ci.item_number
     AND da.client = ci.client
     AND da.contract = ci.contract
     AND da.run = ci.run
-WHERE da.Item_Number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
+WHERE da.item_number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
   AND CAST(CASE WHEN da.Has_Suppressed = 1 OR COALESCE(ci.Is_Suppressed, 0) = 1 THEN 1 ELSE 0 END AS BIT) = 0;  -- Is_Suppressed filter
 
 -- ============================================================================

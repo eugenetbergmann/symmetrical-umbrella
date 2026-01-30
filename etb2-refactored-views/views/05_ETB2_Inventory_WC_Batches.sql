@@ -28,7 +28,9 @@ RawWCInventory AS (
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
         
-        pib.Item_Number AS ITEMNMBR,
+        pib.Item_Number AS item_number,
+        -- Note: We don't have custnmbr in inventory tables, so we need to get it from item master
+        NULL AS customer_number,
         pib.LOT_NUMBER,
         pib.Bin AS BIN,
         pib.SITE AS LOCNCODE,
@@ -53,7 +55,8 @@ ParsedInventory AS (
         ri.contract,
         ri.run,
         
-        ri.ITEMNMBR,
+        ri.item_number,
+        ri.customer_number,
         ri.LOT_NUMBER,
         ri.BIN,
         ri.LOCNCODE,
@@ -74,7 +77,7 @@ ParsedInventory AS (
     FROM RawWCInventory ri
     CROSS JOIN GlobalShelfLife gsl
     LEFT JOIN dbo.IV00101 itm WITH (NOLOCK)
-        ON LTRIM(RTRIM(ri.ITEMNMBR)) = LTRIM(RTRIM(itm.ITEMNMBR))
+        ON LTRIM(RTRIM(ri.item_number)) = LTRIM(RTRIM(itm.ITEMNMBR))
     WHERE COALESCE(
             TRY_CONVERT(DATE, ri.EXPNDATE),
             DATEADD(DAY, gsl.Default_WC_Shelf_Life_Days, CAST(ri.DATERECD AS DATE))
@@ -92,7 +95,8 @@ SELECT
     run,
     
     -- IDENTIFY (what item?) - 3 columns
-    ITEMNMBR                AS Item_Number,
+    item_number,
+    customer_number,
     Item_Description,
     Unit_Of_Measure,
 
@@ -113,7 +117,7 @@ SELECT
 
     -- DECIDE (what action?) - 3 columns
     ROW_NUMBER() OVER (
-        PARTITION BY client, contract, run, ITEMNMBR
+        PARTITION BY client, contract, run, item_number, customer_number
         ORDER BY Expiry_Date ASC, Receipt_Date ASC
     ) AS Use_Sequence,
     'WC_BATCH'              AS Batch_Type,

@@ -31,7 +31,8 @@ RawWFQInventory AS (
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
         
-        inv.ITEMNMBR,
+        inv.ITEMNMBR AS item_number,
+        NULL AS customer_number,
         inv.LOCNCODE,
         inv.RCTSEQNM,
         COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0) AS QTY_ON_HAND,
@@ -58,7 +59,8 @@ RawRMQTYInventory AS (
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
         
-        inv.ITEMNMBR,
+        inv.ITEMNMBR AS item_number,
+        NULL AS customer_number,
         inv.LOCNCODE,
         inv.RCTSEQNM,
         COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0) AS QTY_ON_HAND,
@@ -85,7 +87,8 @@ ParsedWFQInventory AS (
         contract,
         run,
         
-        ITEMNMBR,
+        item_number,
+        customer_number,
         MAX(ITEMDESC) AS Item_Description,
         MAX(UOMSCHDL) AS Unit_Of_Measure,
         LOCNCODE,
@@ -104,7 +107,7 @@ ParsedWFQInventory AS (
         CAST(0 AS BIT) AS Is_Suppressed
         
     FROM RawWFQInventory
-    GROUP BY client, contract, run, ITEMNMBR, LOCNCODE
+    GROUP BY client, contract, run, item_number, customer_number, LOCNCODE
     HAVING SUM(QTY_ON_HAND) <> 0
 ),
 
@@ -115,7 +118,8 @@ ParsedRMQTYInventory AS (
         contract,
         run,
         
-        ITEMNMBR,
+        item_number,
+        customer_number,
         MAX(ITEMDESC) AS Item_Description,
         MAX(UOMSCHDL) AS Unit_Of_Measure,
         LOCNCODE,
@@ -134,7 +138,7 @@ ParsedRMQTYInventory AS (
         CAST(0 AS BIT) AS Is_Suppressed
         
     FROM RawRMQTYInventory
-    GROUP BY client, contract, run, ITEMNMBR, LOCNCODE
+    GROUP BY client, contract, run, item_number, customer_number, LOCNCODE
     HAVING SUM(QTY_ON_HAND) <> 0
 )
 
@@ -149,7 +153,8 @@ SELECT
     run,
     
     -- IDENTIFY (what item?) - 3 columns
-    ITEMNMBR                AS Item_Number,
+    item_number,
+    customer_number,
     Item_Description,
     Unit_Of_Measure,
 
@@ -171,7 +176,7 @@ SELECT
     -- DECIDE (what action?) - 3 columns
     Is_Released             AS Can_Allocate,
     ROW_NUMBER() OVER (
-        PARTITION BY client, contract, run, ITEMNMBR
+        PARTITION BY client, contract, run, item_number, customer_number
         ORDER BY Release_Date ASC, Receipt_Date ASC
     ) AS Use_Sequence,
     
@@ -189,7 +194,8 @@ SELECT
     contract,
     run,
     
-    ITEMNMBR                AS Item_Number,
+    item_number,
+    customer_number,
     Item_Description,
     Unit_Of_Measure,
     LOCNCODE                AS Site,
@@ -203,7 +209,7 @@ SELECT
     DATEDIFF(DAY, GETDATE(), Release_Date) AS Days_To_Release,
     Is_Released             AS Can_Allocate,
     ROW_NUMBER() OVER (
-        PARTITION BY client, contract, run, ITEMNMBR
+        PARTITION BY client, contract, run, item_number, customer_number
         ORDER BY Release_Date ASC, Receipt_Date ASC
     ) AS Use_Sequence,
     
