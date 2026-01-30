@@ -19,7 +19,12 @@ SELECT
     MIN(d.Due_Date) AS Peak_Period_Start,
     MAX(d.Due_Date) AS Peak_Period_End,
     DATEDIFF(DAY, MIN(d.Due_Date), MAX(d.Due_Date)) AS Campaign_Duration_Days,
-    COUNT(DISTINCT d.Due_Date) AS Active_Days_Count
+    COUNT(DISTINCT d.Due_Date) AS Active_Days_Count,
+    -- FG SOURCE (PAB-style): Carried through from demand base
+    MAX(d.FG_Item_Number) AS FG_Item_Number,
+    MAX(d.FG_Description) AS FG_Description,
+    -- Construct SOURCE (PAB-style): Carried through from demand base
+    MAX(d.Construct) AS Construct
 FROM dbo.ETB2_Demand_Cleaned_Base d WITH (NOLOCK)
 WHERE d.Is_Within_Active_Planning_Window = 1
 GROUP BY d.Order_Number, d.Item_Number;

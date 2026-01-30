@@ -15,7 +15,8 @@
 -- Dependencies:
 --   - dbo.IV00300 (Serial/Lot - external table)
 --   - dbo.IV00101 (Item master - external table)
--- Last Updated: 2026-01-28
+--   - dbo.ETB_PAB_MO (external table) - FG SOURCE (PAB-style)
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 WITH GlobalConfig AS (
@@ -25,11 +26,44 @@ WITH GlobalConfig AS (
         90 AS Expiry_Filter_Days
 ),
 
+-- ============================================================================
+-- FG SOURCE (PAB-style): Derive FG from ETB_PAB_MO
+-- ============================================================================
+FG_From_MO AS (
+    SELECT
+        m.ORDERNUMBER,
+        m.FG AS FG_Item_Number,
+        m.[FG Desc] AS FG_Description,
+        m.Customer AS Construct,
+        UPPER(
+            REPLACE(
+                REPLACE(
+                    REPLACE(
+                        REPLACE(
+                            REPLACE(
+                                REPLACE(m.ORDERNUMBER, 'MO', ''),
+                                '-', ''
+                            ),
+                            ' ', ''
+                        ),
+                        '/', ''
+                    ),
+                    '.', ''
+                ),
+                '#', ''
+            )
+        ) AS CleanOrder
+    FROM dbo.ETB_PAB_MO m WITH (NOLOCK)
+    WHERE m.FG IS NOT NULL
+      AND m.FG <> ''
+),
+
 RawWFQInventory AS (
     SELECT
         inv.ITEMNMBR,
         inv.LOCNCODE,
         inv.RCTSEQNM,
+        inv.LOTNUMBR,  -- Lot number for FG linking
         COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0) AS QTY_ON_HAND,
         inv.DATERECD,
         inv.EXPNDATE,
@@ -48,6 +82,7 @@ RawRMQTYInventory AS (
         inv.ITEMNMBR,
         inv.LOCNCODE,
         inv.RCTSEQNM,
+        inv.LOTNUMBR,  -- Lot number for FG linking
         COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0) AS QTY_ON_HAND,
         inv.DATERECD,
         inv.EXPNDATE,
@@ -59,6 +94,62 @@ RawRMQTYInventory AS (
       AND (COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0)) <> 0
       AND (inv.EXPNDATE IS NULL
            OR inv.EXPNDATE > DATEADD(DAY, (SELECT Expiry_Filter_Days FROM GlobalConfig), GETDATE()))
+),
+
+-- ============================================================================
+-- Link WFQ inventory to FG via Lot Number
+-- ============================================================================
+WFQWithFG AS (
+    SELECT
+        ri.ITEMNMBR,
+        ri.LOCNCODE,
+        ri.RCTSEQNM,
+        ri.QTY_ON_HAND,
+        ri.DATERECD,
+        ri.EXPNDATE,
+        ri.UOMSCHDL,
+        ri.ITEMDESC,
+        fg.FG_Item_Number,
+        fg.FG_Description,
+        fg.Construct,
+        ROW_NUMBER() OVER (
+            PARTITION BY ri.ITEMNMBR, ri.RCTSEQNM
+            ORDER BY 
+                CASE WHEN fg.FG_Item_Number IS NOT NULL THEN 0 ELSE 1 END,
+                fg.FG_Item_Number
+        ) AS FG_Priority
+    FROM RawWFQInventory ri
+    LEFT JOIN FG_From_MO fg
+        ON ri.LOTNUMBR LIKE '%' + fg.CleanOrder + '%'
+        OR fg.CleanOrder LIKE '%' + REPLACE(ri.LOTNUMBR, '-', '') + '%'
+),
+
+-- ============================================================================
+-- Link RMQTY inventory to FG via Lot Number
+-- ============================================================================
+RMQTYWithFG AS (
+    SELECT
+        ri.ITEMNMBR,
+        ri.LOCNCODE,
+        ri.RCTSEQNM,
+        ri.QTY_ON_HAND,
+        ri.DATERECD,
+        ri.EXPNDATE,
+        ri.UOMSCHDL,
+        ri.ITEMDESC,
+        fg.FG_Item_Number,
+        fg.FG_Description,
+        fg.Construct,
+        ROW_NUMBER() OVER (
+            PARTITION BY ri.ITEMNMBR, ri.RCTSEQNM
+            ORDER BY 
+                CASE WHEN fg.FG_Item_Number IS NOT NULL THEN 0 ELSE 1 END,
+                fg.FG_Item_Number
+        ) AS FG_Priority
+    FROM RawRMQTYInventory ri
+    LEFT JOIN FG_From_MO fg
+        ON ri.LOTNUMBR LIKE '%' + fg.CleanOrder + '%'
+        OR fg.CleanOrder LIKE '%' + REPLACE(ri.LOTNUMBR, '-', '') + '%'
 ),
 
 ParsedWFQInventory AS (
@@ -76,8 +167,13 @@ ParsedWFQInventory AS (
             WHEN DATEADD(DAY, (SELECT WFQ_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) <= GETDATE()
             THEN 1 ELSE 0
         END AS Is_Released,
-        'WFQ' AS Hold_Type
-    FROM RawWFQInventory
+        'WFQ' AS Hold_Type,
+        -- FG SOURCE (PAB-style): Carried through from MO linkage
+        MAX(FG_Item_Number) AS FG_Item_Number,
+        MAX(FG_Description) AS FG_Description,
+        MAX(Construct) AS Construct
+    FROM WFQWithFG
+    WHERE FG_Priority = 1
     GROUP BY ITEMNMBR, LOCNCODE
     HAVING SUM(QTY_ON_HAND) <> 0
 ),
@@ -97,14 +193,19 @@ ParsedRMQTYInventory AS (
             WHEN DATEADD(DAY, (SELECT RMQTY_Hold_Days FROM GlobalConfig), MAX(CAST(DATERECD AS DATE))) <= GETDATE()
             THEN 1 ELSE 0
         END AS Is_Released,
-        'RMQTY' AS Hold_Type
-    FROM RawRMQTYInventory
+        'RMQTY' AS Hold_Type,
+        -- FG SOURCE (PAB-style): Carried through from MO linkage
+        MAX(FG_Item_Number) AS FG_Item_Number,
+        MAX(FG_Description) AS FG_Description,
+        MAX(Construct) AS Construct
+    FROM RMQTYWithFG
+    WHERE FG_Priority = 1
     GROUP BY ITEMNMBR, LOCNCODE
     HAVING SUM(QTY_ON_HAND) <> 0
 )
 
 -- ============================================================
--- FINAL OUTPUT: 13 columns, planner-optimized order
+-- FINAL OUTPUT: 16 columns, planner-optimized order
 -- ============================================================
 SELECT
     -- IDENTIFY (what item?) - 3 columns
@@ -132,7 +233,13 @@ SELECT
     ROW_NUMBER() OVER (
         PARTITION BY ITEMNMBR
         ORDER BY Release_Date ASC, Receipt_Date ASC
-    ) AS Use_Sequence
+    ) AS Use_Sequence,
+
+    -- FG SOURCE (PAB-style): Exposed in final output
+    FG_Item_Number,
+    FG_Description,
+    -- Construct SOURCE (PAB-style): Exposed in final output
+    Construct
 
 FROM ParsedWFQInventory
 
@@ -155,6 +262,15 @@ SELECT
     ROW_NUMBER() OVER (
         PARTITION BY ITEMNMBR
         ORDER BY Release_Date ASC, Receipt_Date ASC
-    ) AS Use_Sequence
+    ) AS Use_Sequence,
+    -- FG SOURCE (PAB-style): Exposed in final output
+    FG_Item_Number,
+    FG_Description,
+    -- Construct SOURCE (PAB-style): Exposed in final output
+    Construct
 
-FROM ParsedRMQTYInventory
+FROM ParsedRMQTYInventory;
+
+-- ============================================================================
+-- END OF VIEW 06
+-- ============================================================================

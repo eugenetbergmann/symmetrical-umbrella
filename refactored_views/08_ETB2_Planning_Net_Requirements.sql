@@ -15,7 +15,7 @@
 -- Dependencies:
 --   - dbo.ETB2_Demand_Cleaned_Base (view 04)
 --   - dbo.ETB2_Config_Items (view 02B) - for Item_Description, UOM_Schedule
--- Last Updated: 2026-01-28
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 WITH Demand_Aggregated AS (
@@ -25,7 +25,12 @@ WITH Demand_Aggregated AS (
         COUNT(DISTINCT CAST(Due_Date AS DATE)) AS Demand_Days,
         COUNT(DISTINCT Order_Number) AS Order_Count,
         MIN(CAST(Due_Date AS DATE)) AS Earliest_Demand_Date,
-        MAX(CAST(Due_Date AS DATE)) AS Latest_Demand_Date
+        MAX(CAST(Due_Date AS DATE)) AS Latest_Demand_Date,
+        -- FG SOURCE (PAB-style): Carry primary FG from demand
+        MAX(FG_Item_Number) AS FG_Item_Number,
+        MAX(FG_Description) AS FG_Description,
+        -- Construct SOURCE (PAB-style): Carry primary Construct from demand
+        MAX(Construct) AS Construct
     FROM dbo.ETB2_Demand_Cleaned_Base WITH (NOLOCK)
     WHERE Is_Within_Active_Planning_Window = 1
     GROUP BY Item_Number
@@ -51,7 +56,12 @@ SELECT
         ELSE 'HIGH_PRIORITY'
     END AS Requirement_Status,
     da.Earliest_Demand_Date,
-    da.Latest_Demand_Date
+    da.Latest_Demand_Date,
+    -- FG SOURCE (PAB-style): Carried through from demand aggregation
+    da.FG_Item_Number,
+    da.FG_Description,
+    -- Construct SOURCE (PAB-style): Carried through from demand aggregation
+    da.Construct
 FROM Demand_Aggregated da
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
     ON da.Item_Number = ci.Item_Number;

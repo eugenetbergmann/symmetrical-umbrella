@@ -16,12 +16,13 @@
 --   - dbo.ETB2_Planning_Net_Requirements (view 08)
 --   - dbo.ETB2_Inventory_Unified (view 07)
 --   - dbo.ETB2_Config_Items (view 02B) - for Item_Description, UOM_Schedule
--- Last Updated: 2026-01-28
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 WITH
 
 -- Net requirements from demand
+-- FG/Construct carried through from view 08
 NetRequirements AS (
     SELECT
         Item_Number,
@@ -30,22 +31,33 @@ NetRequirements AS (
         Requirement_Priority,
         Requirement_Status,
         Earliest_Demand_Date,
-        Latest_Demand_Date
+        Latest_Demand_Date,
+        -- FG SOURCE (PAB-style): Carried through from view 08
+        FG_Item_Number,
+        FG_Description,
+        -- Construct SOURCE (PAB-style): Carried through from view 08
+        Construct
     FROM dbo.ETB2_Planning_Net_Requirements WITH (NOLOCK)
     WHERE Net_Requirement_Qty > 0
 ),
 
 -- Available inventory (all eligible)
+-- FG/Construct aggregated from view 07
 AvailableInventory AS (
     SELECT
         Item_Number,
-        SUM(Usable_Qty) AS Total_Available
+        SUM(Usable_Qty) AS Total_Available,
+        -- FG SOURCE (PAB-style): Carry primary FG from inventory
+        MAX(FG_Item_Number) AS FG_Item_Number,
+        MAX(FG_Description) AS FG_Description,
+        -- Construct SOURCE (PAB-style): Carry primary Construct from inventory
+        MAX(Construct) AS Construct
     FROM dbo.ETB2_Inventory_Unified WITH (NOLOCK)
     GROUP BY Item_Number
 )
 
 -- ============================================================
--- FINAL OUTPUT: 13 columns, planner-optimized order
+-- FINAL OUTPUT: 18 columns, planner-optimized order
 -- ============================================================
 SELECT
     -- IDENTIFY (what item?) - 4 columns
@@ -88,7 +100,13 @@ SELECT
         ELSE 'OK: Adequate coverage'
     END AS Recommendation,
     nr.Requirement_Priority,
-    nr.Requirement_Status
+    nr.Requirement_Status,
+
+    -- FG SOURCE (PAB-style): Coalesce from demand and inventory sources
+    COALESCE(nr.FG_Item_Number, ai.FG_Item_Number) AS FG_Item_Number,
+    COALESCE(nr.FG_Description, ai.FG_Description) AS FG_Description,
+    -- Construct SOURCE (PAB-style): Coalesce from demand and inventory sources
+    COALESCE(nr.Construct, ai.Construct) AS Construct
 
 FROM NetRequirements nr
 FULL OUTER JOIN AvailableInventory ai
@@ -97,4 +115,8 @@ LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
     ON COALESCE(nr.Item_Number, ai.Item_Number) = ci.Item_Number
 
 WHERE COALESCE(nr.Net_Requirement_Qty, 0) > 0
-   OR COALESCE(ai.Total_Available, 0) > 0
+   OR COALESCE(ai.Total_Available, 0) > 0;
+
+-- ============================================================================
+-- END OF VIEW 09
+-- ============================================================================

@@ -47,7 +47,18 @@ SELECT
         WHEN c.ITEMNMBR NOT IN (SELECT Item_Number FROM dbo.ETB2_Demand_Cleaned_Base) THEN 1
         WHEN c.ITEMNMBR NOT IN (SELECT Item_Number FROM dbo.ETB2_Inventory_Unified) THEN 2
         ELSE 3
-    END AS Remediation_Priority
+    END AS Remediation_Priority,
+    -- FG SOURCE (PAB-style): Link to demand for FG info
+    (SELECT TOP 1 d.FG_Item_Number 
+     FROM dbo.ETB2_Demand_Cleaned_Base d 
+     WHERE d.Item_Number = c.ITEMNMBR) AS FG_Item_Number,
+    (SELECT TOP 1 d.FG_Description 
+     FROM dbo.ETB2_Demand_Cleaned_Base d 
+     WHERE d.Item_Number = c.ITEMNMBR) AS FG_Description,
+    -- Construct SOURCE (PAB-style): Link to demand for Construct info
+    (SELECT TOP 1 d.Construct 
+     FROM dbo.ETB2_Demand_Cleaned_Base d 
+     WHERE d.Item_Number = c.ITEMNMBR) AS Construct
 FROM dbo.ETB2_Config_Active c WITH (NOLOCK);
 
 -- ============================================================================

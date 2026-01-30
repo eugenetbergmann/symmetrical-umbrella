@@ -40,7 +40,12 @@ SELECT
         ELSE 0
     END AS Concurrency_Days,
     c1.CCU + c2.CCU AS Combined_CCU,
-    (c1.CCU + c2.CCU) / NULLIF(c1.Campaign_Duration_Days, 0) AS Concurrency_Intensity
+    (c1.CCU + c2.CCU) / NULLIF(c1.Campaign_Duration_Days, 0) AS Concurrency_Intensity,
+    -- FG SOURCE (PAB-style): Carry from campaign A (same item)
+    c1.FG_Item_Number,
+    c1.FG_Description,
+    -- Construct SOURCE (PAB-style): Carry from campaign A (same item)
+    c1.Construct
 FROM dbo.ETB2_Campaign_Normalized_Demand c1 WITH (NOLOCK)
 INNER JOIN dbo.ETB2_Campaign_Normalized_Demand c2 WITH (NOLOCK) 
     ON c1.Item_Number = c2.Item_Number

@@ -34,10 +34,15 @@ SELECT
         WHEN COALESCE(SUM(COALESCE(TRY_CAST(i.Usable_Qty AS DECIMAL(18,4)), 0)), 0) < SUM(b.collision_buffer_qty) * 0.5 THEN 'URGENT_PROCUREMENT'
         WHEN COALESCE(SUM(COALESCE(TRY_CAST(i.Usable_Qty AS DECIMAL(18,4)), 0)), 0) < SUM(b.collision_buffer_qty) THEN 'SCHEDULE_PROCUREMENT'
         ELSE 'ADEQUATE'
-    END AS Recommendation
+    END AS Recommendation,
+    -- FG SOURCE (PAB-style): Carried through from collision buffer
+    b.FG_Item_Number,
+    b.FG_Description,
+    -- Construct SOURCE (PAB-style): Carried through from collision buffer
+    b.Construct
 FROM dbo.ETB2_Campaign_Collision_Buffer b WITH (NOLOCK)
 LEFT JOIN dbo.ETB2_Inventory_Unified i WITH (NOLOCK) ON b.Item_Number = i.Item_Number
-GROUP BY b.Item_Number, b.Campaign_ID;
+GROUP BY b.Item_Number, b.Campaign_ID, b.FG_Item_Number, b.FG_Description, b.Construct;
 
 -- ============================================================================
 -- END OF VIEW 14

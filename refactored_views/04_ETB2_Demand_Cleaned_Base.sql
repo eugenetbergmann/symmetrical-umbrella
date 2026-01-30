@@ -17,30 +17,130 @@
 --   - Window: ±21 days from GETDATE()
 -- Dependencies:
 --   - dbo.ETB_PAB_AUTO (external table)
+--   - dbo.ETB_PAB_MO (external table) - FG SOURCE (PAB-style)
+--   - dbo.ETB_ActiveDemand_Union_FG_MO (external table) - FG SOURCE (PAB-style)
 --   - Prosenthal_Vendor_Items (external table)
 --   - dbo.ETB2_Config_Items (view 02B) - for Item_Description, UOM_Schedule
--- Last Updated: 2026-01-28
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
-WITH RawDemand AS (
+WITH GlobalConfig AS (
+    SELECT 21 AS Planning_Window_Days
+),
+
+-- ============================================================================
+-- CleanOrder normalization logic (PAB-style)
+-- ============================================================================
+CleanOrderLogic AS (
+    SELECT 
+        ORDERNUMBER,
+        -- CleanOrder: Strip MO, hyphens, spaces, punctuation, uppercase
+        UPPER(
+            REPLACE(
+                REPLACE(
+                    REPLACE(
+                        REPLACE(
+                            REPLACE(
+                                REPLACE(ORDERNUMBER, 'MO', ''),
+                                '-', ''
+                            ),
+                            ' ', ''
+                        ),
+                        '/', ''
+                    ),
+                    '.', ''
+                ),
+                '#', ''
+            )
+        ) AS CleanOrder
+    FROM dbo.ETB_PAB_AUTO
+    WHERE ITEMNMBR NOT LIKE '60.%'
+      AND ITEMNMBR NOT LIKE '70.%'
+      AND STSDESCR <> 'Partially Received'
+),
+
+-- ============================================================================
+-- FG SOURCE (PAB-style): Join to ETB_PAB_MO for FG + Construct derivation
+-- Uses ROW_NUMBER partitioning by CleanOrder + FG for deterministic selection
+-- ============================================================================
+FG_Source AS (
+    SELECT
+        col.ORDERNUMBER,
+        col.CleanOrder,
+        -- FG SOURCE (PAB-style): Direct from MO table
+        m.FG AS FG_Item_Number,
+        -- FG Desc SOURCE (PAB-style): Direct from MO table
+        m.[FG Desc] AS FG_Description,
+        -- Construct SOURCE (PAB-style): Derived from Customer field
+        m.Customer AS Construct,
+        -- Deduplication: Select deterministic FG row per CleanOrder
+        ROW_NUMBER() OVER (
+            PARTITION BY col.CleanOrder, m.FG
+            ORDER BY m.Customer, m.[FG Desc], col.ORDERNUMBER
+        ) AS FG_RowNum
+    FROM CleanOrderLogic col
+    INNER JOIN dbo.ETB_PAB_MO m WITH (NOLOCK)
+        ON col.CleanOrder = UPPER(
+            REPLACE(
+                REPLACE(
+                    REPLACE(
+                        REPLACE(
+                            REPLACE(
+                                REPLACE(m.ORDERNUMBER, 'MO', ''),
+                                '-', ''
+                            ),
+                            ' ', ''
+                        ),
+                        '/', ''
+                    ),
+                    '.', ''
+                ),
+                '#', ''
+            )
+        )
+),
+
+-- ============================================================================
+-- Deduplicated FG rows (rn = 1 per CleanOrder + FG)
+-- ============================================================================
+FG_Deduped AS (
     SELECT
         ORDERNUMBER,
-        ITEMNMBR,
-        DUEDATE,
-        REMAINING,
-        DEDUCTIONS,
-        EXPIRY,
-        STSDESCR,
-        [Date + Expiry] AS Date_Expiry_String,
-        MRP_IssueDate,
-        TRY_CONVERT(DATE, DUEDATE) AS Due_Date_Clean,
-        TRY_CONVERT(DATE, [Date + Expiry]) AS Expiry_Date_Clean,
+        CleanOrder,
+        FG_Item_Number,
+        FG_Description,
+        Construct
+    FROM FG_Source
+    WHERE FG_RowNum = 1
+),
+
+RawDemand AS (
+    SELECT
+        pa.ORDERNUMBER,
+        pa.ITEMNMBR,
+        pa.DUEDATE,
+        pa.REMAINING,
+        pa.DEDUCTIONS,
+        pa.EXPIRY,
+        pa.STSDESCR,
+        pa.[Date + Expiry] AS Date_Expiry_String,
+        pa.MRP_IssueDate,
+        TRY_CONVERT(DATE, pa.DUEDATE) AS Due_Date_Clean,
+        TRY_CONVERT(DATE, pa.[Date + Expiry]) AS Expiry_Date_Clean,
         pvi.ITEMDESC AS Item_Description,
         pvi.UOMSCHDL,
-        'MAIN' AS Site  -- Default site for demand
+        'MAIN' AS Site,
+        -- FG SOURCE (PAB-style): Carried through from deduped FG join
+        fd.FG_Item_Number,
+        fd.FG_Description,
+        -- Construct SOURCE (PAB-style): Carried through from deduped FG join
+        fd.Construct
     FROM dbo.ETB_PAB_AUTO pa WITH (NOLOCK)
     INNER JOIN Prosenthal_Vendor_Items pvi WITH (NOLOCK)
       ON LTRIM(RTRIM(pa.ITEMNMBR)) = LTRIM(RTRIM(pvi.[Item Number]))
+    -- FG SOURCE (PAB-style): Left join to carry FG/Construct forward
+    LEFT JOIN FG_Deduped fd
+        ON pa.ORDERNUMBER = fd.ORDERNUMBER
     WHERE pa.ITEMNMBR NOT LIKE '60.%'
       AND pa.ITEMNMBR NOT LIKE '70.%'
       AND pa.STSDESCR <> 'Partially Received'
@@ -75,8 +175,8 @@ CleanedDemand AS (
         END AS Demand_Priority_Type,
         CASE
             WHEN Due_Date_Clean BETWEEN
-                DATEADD(DAY, -21, CAST(GETDATE() AS DATE))
-                AND DATEADD(DAY, 21, CAST(GETDATE() AS DATE))
+                DATEADD(DAY, -gc.Planning_Window_Days, CAST(GETDATE() AS DATE))
+                AND DATEADD(DAY, gc.Planning_Window_Days, CAST(GETDATE() AS DATE))
             THEN 1 ELSE 0
         END AS Is_Within_Active_Planning_Window,
         CASE
@@ -85,23 +185,39 @@ CleanedDemand AS (
             WHEN COALESCE(TRY_CAST(EXPIRY AS DECIMAL(18,4)), 0) > 0 THEN 4
             ELSE 5
         END AS Event_Sort_Priority,
-        TRIM(
+        -- CleanOrder: Strip MO, hyphens, spaces, punctuation, uppercase
+        UPPER(
             REPLACE(
                 REPLACE(
                     REPLACE(
-                        REPLACE(ORDERNUMBER, 'MO-', ''),
-                        '-', ''
+                        REPLACE(
+                            REPLACE(
+                                REPLACE(ORDERNUMBER, 'MO', ''),
+                                '-', ''
+                            ),
+                            ' ', ''
+                        ),
+                        '/', ''
                     ),
-                    '/', ''
+                    '.', ''
                 ),
                 '#', ''
             )
-        ) AS Clean_Order_Number
+        ) AS Clean_Order_Number,
+        -- FG SOURCE (PAB-style): Carried through from base
+        FG_Item_Number,
+        FG_Description,
+        -- Construct SOURCE (PAB-style): Carried through from base
+        Construct
     FROM RawDemand
+    CROSS JOIN GlobalConfig gc
     WHERE Due_Date_Clean IS NOT NULL
       AND (COALESCE(TRY_CAST(REMAINING AS DECIMAL(18,4)), 0) + COALESCE(TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)), 0) + COALESCE(TRY_CAST(EXPIRY AS DECIMAL(18,4)), 0)) > 0
 )
 
+-- ============================================================
+-- FINAL OUTPUT: Demand with FG + Construct carried through
+-- ============================================================
 SELECT
     Clean_Order_Number AS Order_Number,
     ITEMNMBR AS Item_Number,
@@ -119,7 +235,12 @@ SELECT
     Demand_Priority_Type,
     Is_Within_Active_Planning_Window,
     Event_Sort_Priority,
-    MRP_IssueDate
+    MRP_IssueDate,
+    -- FG SOURCE (PAB-style): Exposed in final output
+    FG_Item_Number,
+    FG_Description,
+    -- Construct SOURCE (PAB-style): Exposed in final output
+    Construct
 FROM CleanedDemand cd
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
     ON cd.ITEMNMBR = ci.Item_Number;

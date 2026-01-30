@@ -27,7 +27,12 @@ SELECT
     END AS Campaign_Health,
     COUNT(DISTINCT r.Item_Number) AS Items_In_Campaign,
     AVG(COALESCE(TRY_CAST(r.Adequacy_Score AS DECIMAL(10,2)), 0)) AS Avg_Adequacy,
-    GETDATE() AS Calculated_Date
+    GETDATE() AS Calculated_Date,
+    -- FG SOURCE (PAB-style): Carry primary FG from first item in campaign
+    MAX(r.FG_Item_Number) AS FG_Item_Number,
+    MAX(r.FG_Description) AS FG_Description,
+    -- Construct SOURCE (PAB-style): Carry primary Construct from first item in campaign
+    MAX(r.Construct) AS Construct
 FROM dbo.ETB2_Campaign_Risk_Adequacy r WITH (NOLOCK)
 GROUP BY r.Campaign_ID;
 

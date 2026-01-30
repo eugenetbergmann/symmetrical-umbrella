@@ -15,10 +15,11 @@
 -- Dependencies:
 --   - dbo.ETB2_Inventory_WC_Batches (view 05)
 --   - dbo.ETB2_Inventory_Quarantine_Restricted (view 06)
--- Last Updated: 2026-01-28
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 -- WC Batches (always eligible)
+-- FG/Construct carried through from view 05
 SELECT
     Item_Number,
     Item_Description,
@@ -32,12 +33,18 @@ SELECT
     Days_To_Expiry,
     Use_Sequence,
     'AVAILABLE' AS Inventory_Type,
-    1 AS Allocation_Priority  -- WC first
+    1 AS Allocation_Priority,  -- WC first
+    -- FG SOURCE (PAB-style): Carried through from view 05
+    FG_Item_Number,
+    FG_Description,
+    -- Construct SOURCE (PAB-style): Carried through from view 05
+    Construct
 FROM dbo.ETB2_Inventory_WC_Batches WITH (NOLOCK)
 
 UNION ALL
 
 -- WFQ Batches (released only)
+-- FG/Construct carried through from view 06
 SELECT
     Item_Number,
     Item_Description,
@@ -51,7 +58,12 @@ SELECT
     DATEDIFF(DAY, GETDATE(), Expiry_Date) AS Days_To_Expiry,
     Use_Sequence,
     'QUARANTINE_WFQ' AS Inventory_Type,
-    2 AS Allocation_Priority  -- After WC
+    2 AS Allocation_Priority,  -- After WC
+    -- FG SOURCE (PAB-style): Carried through from view 06
+    FG_Item_Number,
+    FG_Description,
+    -- Construct SOURCE (PAB-style): Carried through from view 06
+    Construct
 FROM dbo.ETB2_Inventory_Quarantine_Restricted WITH (NOLOCK)
 WHERE Hold_Type = 'WFQ'
   AND Can_Allocate = 1
@@ -59,6 +71,7 @@ WHERE Hold_Type = 'WFQ'
 UNION ALL
 
 -- RMQTY Batches (released only)
+-- FG/Construct carried through from view 06
 SELECT
     Item_Number,
     Item_Description,
@@ -72,7 +85,16 @@ SELECT
     DATEDIFF(DAY, GETDATE(), Expiry_Date) AS Days_To_Expiry,
     Use_Sequence,
     'RESTRICTED_RMQTY' AS Inventory_Type,
-    3 AS Allocation_Priority  -- After WFQ
+    3 AS Allocation_Priority,  -- After WFQ
+    -- FG SOURCE (PAB-style): Carried through from view 06
+    FG_Item_Number,
+    FG_Description,
+    -- Construct SOURCE (PAB-style): Carried through from view 06
+    Construct
 FROM dbo.ETB2_Inventory_Quarantine_Restricted WITH (NOLOCK)
 WHERE Hold_Type = 'RMQTY'
-  AND Can_Allocate = 1
+  AND Can_Allocate = 1;
+
+-- ============================================================================
+-- END OF VIEW 07
+-- ============================================================================
