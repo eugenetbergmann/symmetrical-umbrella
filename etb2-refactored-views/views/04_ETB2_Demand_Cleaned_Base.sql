@@ -1,24 +1,3 @@
--- ============================================================================
--- VIEW 04: dbo.ETB2_Demand_Cleaned_Base (CONSOLIDATED FINAL)
--- ============================================================================
--- Purpose: Cleaned base demand excluding partial/invalid orders
--- Grain: Order Line
---   - Excludes: 60.x/70.x order types, partial receives
---   - Priority: Remaining > Deductions > Expiry
--- Dependencies:
---   - dbo.ETB_PAB_AUTO (external table)
---   - dbo.ETB_PAB_MO (external table) - FG SOURCE (PAB-style)
---   - Prosenthal_Vendor_Items (external table)
---   - dbo.ETB2_Config_Items (view 02B) - for Item_Description, UOM_Schedule
--- Features:
---   - Context columns: client, contract, run
---   - FG + Construct from ETB_PAB_MO (PAB-style derivation)
---   - CleanOrder normalization
---   - Is_Suppressed flag
---   - Date window: ±90 days
--- Last Updated: 2026-01-30
--- ============================================================================
-
 WITH GlobalConfig AS (
     SELECT 90 AS Planning_Window_Days
 ),
@@ -278,7 +257,3 @@ SELECT
 FROM CleanedDemand cd
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
     ON cd.ITEMNMBR = ci.Item_Number;
-
--- ============================================================================
--- END OF VIEW 04 (CONSOLIDATED FINAL)
--- ============================================================================

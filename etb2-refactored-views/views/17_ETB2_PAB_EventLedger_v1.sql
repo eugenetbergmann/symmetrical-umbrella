@@ -1,23 +1,4 @@
 -- ============================================================================
--- VIEW 17: dbo.ETB2_PAB_EventLedger_v1 (CONSOLIDATED FINAL)
--- ============================================================================
--- Purpose: Audit trail for PAB order changes - tracks all order modifications
--- Grain: One row per order event (order created, modified, received, cancelled)
--- Dependencies:
---   - dbo.POP10100, dbo.POP10110 (external tables)
---   - dbo.ETB_PAB_AUTO (external table)
---   - dbo.ETB_PAB_MO (external table) - FG SOURCE (PAB-style)
---   - dbo.IV00102 (external table)
---   - dbo.Prosenthal_Vendor_Items (external table)
--- Features:
---   - Context columns: client, contract, run
---   - FG + Construct from ETB_PAB_MO for demand events
---   - Is_Suppressed flag
---   - Date window: ±90 days
--- Last Updated: 2026-01-30
--- ============================================================================
-
--- ============================================================================
 -- FG SOURCE (FIXED): Pre-calculate FG/Construct from ETB_ActiveDemand_Union_FG_MO
 -- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
 -- to resolve invalid column 'FG' errors.
@@ -177,7 +158,3 @@ LEFT JOIN dbo.Prosenthal_Vendor_Items vi WITH (NOLOCK)
     ON LTRIM(RTRIM(pco.ITEMNMBR)) = LTRIM(RTRIM(vi.[Item Number]))
 LEFT JOIN FG_From_MO fg
     ON pco.CleanOrder = fg.CleanOrder;
-
--- ============================================================================
--- END OF VIEW 17 (CONSOLIDATED FINAL)
--- ============================================================================
