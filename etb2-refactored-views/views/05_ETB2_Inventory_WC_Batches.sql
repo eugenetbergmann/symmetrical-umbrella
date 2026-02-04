@@ -1,3 +1,9 @@
+-- VIEW 05: Fixed Source Table & Column Mapping
+-- Change Log:
+-- 1. Swapped source to ETB_ActiveDemand_Union_FG_MO
+-- 2. Mapped source columns [FG], [FG Desc] -> output aliases FG_Item_Number, FG_Description
+CREATE OR ALTER VIEW [dbo].[ETB2_Inventory_WC_Batches]
+AS
 WITH GlobalShelfLife AS (
     SELECT 180 AS Default_WC_Shelf_Life_Days
 ),
@@ -5,13 +11,16 @@ WITH GlobalShelfLife AS (
 -- ============================================================================
 -- FG SOURCE (FIXED): Derive FG from ETB_ActiveDemand_Union_FG_MO
 -- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
--- to resolve invalid column 'FG' errors.
+-- Uses actual column names from source table: FG, [FG Desc], Construct
 -- ============================================================================
 FG_From_MO AS (
     SELECT
         m.ORDERNUMBER,
-        m.FG_Item_Number AS FG_Item_Number,
-        m.FG_Description AS FG_Description,
+        -- FG SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
+        m.FG AS FG_Item_Number,
+        -- FG Desc SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
+        m.[FG Desc] AS FG_Description,
+        -- Construct SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
         m.Construct AS Construct,
         UPPER(
             REPLACE(
@@ -32,8 +41,8 @@ FG_From_MO AS (
             )
         ) AS CleanOrder
     FROM dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
-    WHERE m.FG_Item_Number IS NOT NULL
-      AND m.FG_Item_Number <> ''
+    WHERE m.FG IS NOT NULL
+      AND m.FG <> ''
 ),
 
 RawWCInventory AS (
@@ -42,7 +51,7 @@ RawWCInventory AS (
         'DEFAULT_CLIENT' AS client,
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
-        
+
         pib.Item_Number AS ITEMNMBR,
         pib.LOT_NUMBER,
         pib.Bin AS BIN,
@@ -56,7 +65,7 @@ RawWCInventory AS (
       AND pib.LOT_NUMBER IS NOT NULL
       AND pib.LOT_NUMBER <> ''
       AND pib.Item_Number NOT LIKE 'MO-%'
-      AND CAST(GETDATE() AS DATE) BETWEEN 
+      AND CAST(GETDATE() AS DATE) BETWEEN
           DATEADD(DAY, -90, CAST(GETDATE() AS DATE))
           AND DATEADD(DAY, 90, CAST(GETDATE() AS DATE))
 ),
@@ -82,7 +91,7 @@ InventoryWithFG AS (
         fg.Construct,
         ROW_NUMBER() OVER (
             PARTITION BY ri.ITEMNMBR, ri.LOT_NUMBER
-            ORDER BY 
+            ORDER BY
                 CASE WHEN fg.FG_Item_Number IS NOT NULL THEN 0 ELSE 1 END,
                 fg.FG_Item_Number
         ) AS FG_Priority
@@ -98,7 +107,7 @@ ParsedInventory AS (
         ii.client,
         ii.contract,
         ii.run,
-        
+
         ii.ITEMNMBR,
         ii.LOT_NUMBER,
         ii.BIN,
@@ -113,16 +122,16 @@ ParsedInventory AS (
         LEFT(ii.LOCNCODE, PATINDEX('%[-_]%', ii.LOCNCODE + '-') - 1) AS Client_ID,
         itm.ITEMDESC AS Item_Description,
         itm.UOMSCHDL AS Unit_Of_Measure,
-        
+
         -- Suppression flag
         CAST(0 AS BIT) AS Is_Suppressed,
-        
+
         -- FG SOURCE (PAB-style): Carried through from MO linkage
         ii.FG_Item_Number,
         ii.FG_Description,
         -- Construct SOURCE (PAB-style): Carried through from MO linkage
         ii.Construct
-        
+
     FROM InventoryWithFG ii
     CROSS JOIN GlobalShelfLife gsl
     LEFT JOIN dbo.IV00101 itm WITH (NOLOCK)
@@ -143,7 +152,7 @@ SELECT
     client,
     contract,
     run,
-    
+
     -- IDENTIFY (what item?) - 3 columns
     ITEMNMBR                AS Item_Number,
     Item_Description,
@@ -170,7 +179,7 @@ SELECT
         ORDER BY Expiry_Date ASC, Receipt_Date ASC
     ) AS Use_Sequence,
     'WC_BATCH'              AS Batch_Type,
-    
+
     -- Suppression flag
     Is_Suppressed,
 

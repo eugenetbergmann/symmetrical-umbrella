@@ -1,3 +1,9 @@
+-- VIEW 06: Fixed Source Table & Column Mapping
+-- Change Log:
+-- 1. Swapped source to ETB_ActiveDemand_Union_FG_MO
+-- 2. Mapped source columns [FG], [FG Desc] -> output aliases FG_Item_Number, FG_Description
+CREATE OR ALTER VIEW [dbo].[ETB2_Inventory_Quarantine_Restricted]
+AS
 WITH GlobalConfig AS (
     SELECT
         14 AS WFQ_Hold_Days,
@@ -8,13 +14,16 @@ WITH GlobalConfig AS (
 -- ============================================================================
 -- FG SOURCE (FIXED): Derive FG from ETB_ActiveDemand_Union_FG_MO
 -- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
--- to resolve invalid column 'FG' errors.
+-- Uses actual column names from source table: FG, [FG Desc], Construct
 -- ============================================================================
 FG_From_MO AS (
     SELECT
         m.ORDERNUMBER,
-        m.FG_Item_Number AS FG_Item_Number,
-        m.FG_Description AS FG_Description,
+        -- FG SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
+        m.FG AS FG_Item_Number,
+        -- FG Desc SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
+        m.[FG Desc] AS FG_Description,
+        -- Construct SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
         m.Construct AS Construct,
         UPPER(
             REPLACE(
@@ -35,8 +44,8 @@ FG_From_MO AS (
             )
         ) AS CleanOrder
     FROM dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
-    WHERE m.FG_Item_Number IS NOT NULL
-      AND m.FG_Item_Number <> ''
+    WHERE m.FG IS NOT NULL
+      AND m.FG <> ''
 ),
 
 RawWFQInventory AS (
@@ -45,7 +54,7 @@ RawWFQInventory AS (
         'DEFAULT_CLIENT' AS client,
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
-        
+
         inv.ITEMNMBR,
         inv.LOCNCODE,
         inv.RCTSEQNM,
@@ -62,7 +71,7 @@ RawWFQInventory AS (
       AND (COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0)) <> 0
       AND (inv.EXPNDATE IS NULL
            OR inv.EXPNDATE > DATEADD(DAY, (SELECT Expiry_Filter_Days FROM GlobalConfig), GETDATE()))
-      AND CAST(GETDATE() AS DATE) BETWEEN 
+      AND CAST(GETDATE() AS DATE) BETWEEN
           DATEADD(DAY, -90, CAST(GETDATE() AS DATE))
           AND DATEADD(DAY, 90, CAST(GETDATE() AS DATE))
 ),
@@ -73,7 +82,7 @@ RawRMQTYInventory AS (
         'DEFAULT_CLIENT' AS client,
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
-        
+
         inv.ITEMNMBR,
         inv.LOCNCODE,
         inv.RCTSEQNM,
@@ -90,7 +99,7 @@ RawRMQTYInventory AS (
       AND (COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0)) <> 0
       AND (inv.EXPNDATE IS NULL
            OR inv.EXPNDATE > DATEADD(DAY, (SELECT Expiry_Filter_Days FROM GlobalConfig), GETDATE()))
-      AND CAST(GETDATE() AS DATE) BETWEEN 
+      AND CAST(GETDATE() AS DATE) BETWEEN
           DATEADD(DAY, -90, CAST(GETDATE() AS DATE))
           AND DATEADD(DAY, 90, CAST(GETDATE() AS DATE))
 ),
