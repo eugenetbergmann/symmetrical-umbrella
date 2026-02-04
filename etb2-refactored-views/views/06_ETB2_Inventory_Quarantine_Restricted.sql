@@ -1,3 +1,7 @@
+-- VIEW 06: Fixed FG Source Mapping
+-- Mapping: m.Customer -> Construct, m.MakeItem -> FG_Item_Number, m.[Desc] -> FG_Description
+CREATE OR ALTER VIEW [dbo].[ETB2_Inventory_Quarantine_Restricted]
+AS
 WITH GlobalConfig AS (
     SELECT
         14 AS WFQ_Hold_Days,
@@ -8,35 +12,36 @@ WITH GlobalConfig AS (
 -- ============================================================================
 -- FG SOURCE (FIXED): Derive FG from ETB_ActiveDemand_Union_FG_MO
 -- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
--- to resolve invalid column 'FG' errors.
+-- Uses actual column names from source table: Customer, MakeItem, [Desc]
 -- ============================================================================
 FG_From_MO AS (
     SELECT
-        m.ORDERNUMBER,
-        m.FG_Item_Number AS FG_Item_Number,
-        m.FG_Description AS FG_Description,
-        m.Construct AS Construct,
+        m.MONumber AS ORDERNUMBER,
+        -- FG SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
+        m.MakeItem AS FG_Item_Number,
+        -- FG Desc SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
+        m.[Desc] AS FG_Description,
+        -- Construct SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
+        m.Customer AS Construct,
         UPPER(
             REPLACE(
                 REPLACE(
                     REPLACE(
                         REPLACE(
-                            REPLACE(
-                                REPLACE(m.ORDERNUMBER, 'MO', ''),
-                                '-', ''
-                            ),
-                            ' ', ''
+                            REPLACE(m.MONumber, 'MO', ''),
+                            '-', ''
                         ),
-                        '/', ''
+                        ' ', ''
                     ),
-                    '.', ''
+                    '/', ''
                 ),
-                '#', ''
-            )
+                '.', ''
+            ),
+            '#', ''
         ) AS CleanOrder
     FROM dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
-    WHERE m.FG_Item_Number IS NOT NULL
-      AND m.FG_Item_Number <> ''
+    WHERE m.MakeItem IS NOT NULL
+      AND m.MakeItem <> ''
 ),
 
 RawWFQInventory AS (
@@ -45,7 +50,7 @@ RawWFQInventory AS (
         'DEFAULT_CLIENT' AS client,
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
-        
+
         inv.ITEMNMBR,
         inv.LOCNCODE,
         inv.RCTSEQNM,
@@ -62,7 +67,7 @@ RawWFQInventory AS (
       AND (COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0)) <> 0
       AND (inv.EXPNDATE IS NULL
            OR inv.EXPNDATE > DATEADD(DAY, (SELECT Expiry_Filter_Days FROM GlobalConfig), GETDATE()))
-      AND CAST(GETDATE() AS DATE) BETWEEN 
+      AND CAST(GETDATE() AS DATE) BETWEEN
           DATEADD(DAY, -90, CAST(GETDATE() AS DATE))
           AND DATEADD(DAY, 90, CAST(GETDATE() AS DATE))
 ),
@@ -73,7 +78,7 @@ RawRMQTYInventory AS (
         'DEFAULT_CLIENT' AS client,
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
-        
+
         inv.ITEMNMBR,
         inv.LOCNCODE,
         inv.RCTSEQNM,
@@ -90,7 +95,7 @@ RawRMQTYInventory AS (
       AND (COALESCE(TRY_CAST(inv.QTYRECVD AS DECIMAL(18,4)), 0) - COALESCE(TRY_CAST(inv.QTYSOLD AS DECIMAL(18,4)), 0)) <> 0
       AND (inv.EXPNDATE IS NULL
            OR inv.EXPNDATE > DATEADD(DAY, (SELECT Expiry_Filter_Days FROM GlobalConfig), GETDATE()))
-      AND CAST(GETDATE() AS DATE) BETWEEN 
+      AND CAST(GETDATE() AS DATE) BETWEEN
           DATEADD(DAY, -90, CAST(GETDATE() AS DATE))
           AND DATEADD(DAY, 90, CAST(GETDATE() AS DATE))
 ),

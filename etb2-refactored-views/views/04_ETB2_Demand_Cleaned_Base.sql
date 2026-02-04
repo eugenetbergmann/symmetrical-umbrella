@@ -1,3 +1,7 @@
+-- VIEW 04: Fixed FG Source Mapping
+-- Mapping: m.Customer -> Construct, m.MakeItem -> FG_Item_Number, m.[Desc] -> FG_Description
+CREATE OR ALTER VIEW [dbo].[ETB2_Demand_Cleaned_Base]
+AS
 WITH GlobalConfig AS (
     SELECT 90 AS Planning_Window_Days
 ),
@@ -6,7 +10,7 @@ WITH GlobalConfig AS (
 -- CleanOrder normalization logic (PAB-style)
 -- ============================================================================
 CleanOrderLogic AS (
-    SELECT 
+    SELECT
         ORDERNUMBER,
         -- CleanOrder: Strip MO, hyphens, spaces, punctuation, uppercase
         UPPER(
@@ -37,23 +41,23 @@ CleanOrderLogic AS (
 -- ============================================================================
 -- FG SOURCE (FIXED): Join to ETB_ActiveDemand_Union_FG_MO for FG + Construct derivation
 -- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
--- to resolve invalid column 'FG' errors.
+-- Uses actual column names from source table: Customer, MakeItem, [Desc]
 -- Uses ROW_NUMBER partitioning by CleanOrder + FG for deterministic selection
 -- ============================================================================
 FG_Source AS (
     SELECT
         col.ORDERNUMBER,
         col.CleanOrder,
-        -- FG SOURCE (FIXED): Direct from ETB_ActiveDemand_Union_FG_MO table
-        m.FG_Item_Number AS FG_Item_Number,
-        -- FG Desc SOURCE (FIXED): Direct from ETB_ActiveDemand_Union_FG_MO table
-        m.FG_Description AS FG_Description,
-        -- Construct SOURCE (FIXED): Direct from ETB_ActiveDemand_Union_FG_MO table
-        m.Construct AS Construct,
+        -- FG SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
+        m.MakeItem AS FG_Item_Number,
+        -- FG Desc SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
+        m.[Desc] AS FG_Description,
+        -- Construct SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
+        m.Customer AS Construct,
         -- Deduplication: Select deterministic FG row per CleanOrder
         ROW_NUMBER() OVER (
-            PARTITION BY col.CleanOrder, m.FG_Item_Number
-            ORDER BY m.Construct, m.FG_Description, col.ORDERNUMBER
+            PARTITION BY col.CleanOrder, m.MakeItem
+            ORDER BY m.Customer, m.[Desc], col.ORDERNUMBER
         ) AS FG_RowNum
     FROM CleanOrderLogic col
     INNER JOIN dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
@@ -63,7 +67,7 @@ FG_Source AS (
                     REPLACE(
                         REPLACE(
                             REPLACE(
-                                REPLACE(m.ORDERNUMBER, 'MO', ''),
+                                REPLACE(m.MONumber, 'MO', ''),
                                 '-', ''
                             ),
                             ' ', ''
@@ -97,7 +101,7 @@ RawDemand AS (
         'DEFAULT_CLIENT' AS client,
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
-        
+
         pa.ORDERNUMBER,
         pa.ITEMNMBR,
         pa.DUEDATE,
@@ -112,13 +116,13 @@ RawDemand AS (
         pvi.ITEMDESC AS Item_Description,
         pvi.UOMSCHDL,
         'MAIN' AS Site,
-        
+
         -- FG SOURCE (PAB-style): Carried through from deduped FG join
         fd.FG_Item_Number,
         fd.FG_Description,
         -- Construct SOURCE (PAB-style): Carried through from deduped FG join
         fd.Construct
-        
+
     FROM dbo.ETB_PAB_AUTO pa WITH (NOLOCK)
     INNER JOIN Prosenthal_Vendor_Items pvi WITH (NOLOCK)
       ON LTRIM(RTRIM(pa.ITEMNMBR)) = LTRIM(RTRIM(pvi.[Item Number]))
@@ -141,7 +145,7 @@ CleanedDemand AS (
         client,
         contract,
         run,
-        
+
         ORDERNUMBER,
         ITEMNMBR,
         STSDESCR,
@@ -197,16 +201,16 @@ CleanedDemand AS (
                 '#', ''
             )
         ) AS Clean_Order_Number,
-        
+
         -- Suppression flag
         CAST(0 AS BIT) AS Is_Suppressed,
-        
+
         -- FG SOURCE (PAB-style): Carried through from base
         FG_Item_Number,
         FG_Description,
         -- Construct SOURCE (PAB-style): Carried through from base
         Construct
-        
+
     FROM RawDemand
     WHERE Due_Date_Clean IS NOT NULL
       AND (COALESCE(TRY_CAST(REMAINING AS DECIMAL(18,4)), 0) + COALESCE(TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)), 0) + COALESCE(TRY_CAST(EXPIRY AS DECIMAL(18,4)), 0)) > 0
@@ -220,7 +224,7 @@ SELECT
     cd.client,
     cd.contract,
     cd.run,
-    
+
     Clean_Order_Number AS Order_Number,
     ITEMNMBR AS Item_Number,
     COALESCE(ci.Item_Description, cd.Item_Description) AS Item_Description,
@@ -238,22 +242,22 @@ SELECT
     Is_Within_Active_Planning_Window,
     Event_Sort_Priority,
     MRP_IssueDate,
-    
+
     -- Suppression flag
     CAST(cd.Is_Suppressed | COALESCE(ci.Is_Suppressed, 0) AS BIT) AS Is_Suppressed,
-    
+
     -- ROW_NUMBER with context in PARTITION BY
     ROW_NUMBER() OVER (
         PARTITION BY client, contract, run, ITEMNMBR
         ORDER BY Due_Date ASC, Base_Demand_Qty DESC
     ) AS Demand_Sequence,
-    
+
     -- FG SOURCE (PAB-style): Exposed in final output
     FG_Item_Number,
     FG_Description,
     -- Construct SOURCE (PAB-style): Exposed in final output
     Construct
-    
+
 FROM CleanedDemand cd
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
     ON cd.ITEMNMBR = ci.Item_Number;
