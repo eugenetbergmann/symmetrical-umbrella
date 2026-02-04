@@ -18,14 +18,16 @@
 -- ============================================================================
 
 -- ============================================================================
--- FG SOURCE (PAB-style): Pre-calculate FG/Construct from ETB_PAB_MO
+-- FG SOURCE (FIXED): Pre-calculate FG/Construct from ETB_ActiveDemand_Union_FG_MO
+-- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
+-- to resolve invalid column 'FG' errors.
 -- ============================================================================
 WITH FG_From_MO AS (
     SELECT
         m.ORDERNUMBER,
-        m.FG AS FG_Item_Number,
-        m.[FG Desc] AS FG_Description,
-        m.Customer AS Construct,
+        m.FG_Item_Number AS FG_Item_Number,
+        m.FG_Description AS FG_Description,
+        m.Construct AS Construct,
         UPPER(
             REPLACE(
                 REPLACE(
@@ -44,9 +46,9 @@ WITH FG_From_MO AS (
                 '#', ''
             )
         ) AS CleanOrder
-    FROM dbo.ETB_PAB_MO m WITH (NOLOCK)
-    WHERE m.FG IS NOT NULL
-      AND m.FG <> ''
+    FROM dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
+    WHERE m.FG_Item_Number IS NOT NULL
+      AND m.FG_Item_Number <> ''
 ),
 
 -- ============================================================================
