@@ -1,20 +1,3 @@
--- ============================================================================
--- VIEW 06: dbo.ETB2_Inventory_Quarantine_Restricted (CONSOLIDATED FINAL)
--- ============================================================================
--- Purpose: WFQ/RMQTY inventory with hold period management
--- Grain: Item/Lot
--- Dependencies:
---   - dbo.IV00300 (Serial/Lot - external table)
---   - dbo.IV00101 (Item master - external table)
---   - dbo.ETB_PAB_MO (external table) - FG SOURCE (PAB-style)
--- Features:
---   - Context columns: client, contract, run
---   - FG + Construct from ETB_PAB_MO via lot-to-order pattern matching
---   - Is_Suppressed flag
---   - Date window: ±90 days
--- Last Updated: 2026-01-30
--- ============================================================================
-
 WITH GlobalConfig AS (
     SELECT
         14 AS WFQ_Hold_Days,
@@ -23,14 +6,16 @@ WITH GlobalConfig AS (
 ),
 
 -- ============================================================================
--- FG SOURCE (PAB-style): Derive FG from ETB_PAB_MO
+-- FG SOURCE (FIXED): Derive FG from ETB_ActiveDemand_Union_FG_MO
+-- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
+-- to resolve invalid column 'FG' errors.
 -- ============================================================================
 FG_From_MO AS (
     SELECT
         m.ORDERNUMBER,
-        m.FG AS FG_Item_Number,
-        m.[FG Desc] AS FG_Description,
-        m.Customer AS Construct,
+        m.FG_Item_Number AS FG_Item_Number,
+        m.FG_Description AS FG_Description,
+        m.Construct AS Construct,
         UPPER(
             REPLACE(
                 REPLACE(
@@ -49,9 +34,9 @@ FG_From_MO AS (
                 '#', ''
             )
         ) AS CleanOrder
-    FROM dbo.ETB_PAB_MO m WITH (NOLOCK)
-    WHERE m.FG IS NOT NULL
-      AND m.FG <> ''
+    FROM dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
+    WHERE m.FG_Item_Number IS NOT NULL
+      AND m.FG_Item_Number <> ''
 ),
 
 RawWFQInventory AS (
@@ -262,7 +247,3 @@ SELECT
     Construct
 FROM ParsedRMQTYInventory
 WHERE Is_Suppressed = 0;
-
--- ============================================================================
--- END OF VIEW 06 (CONSOLIDATED FINAL)
--- ============================================================================

@@ -1,24 +1,3 @@
--- ============================================================================
--- VIEW 04: dbo.ETB2_Demand_Cleaned_Base (CONSOLIDATED FINAL)
--- ============================================================================
--- Purpose: Cleaned base demand excluding partial/invalid orders
--- Grain: Order Line
---   - Excludes: 60.x/70.x order types, partial receives
---   - Priority: Remaining > Deductions > Expiry
--- Dependencies:
---   - dbo.ETB_PAB_AUTO (external table)
---   - dbo.ETB_PAB_MO (external table) - FG SOURCE (PAB-style)
---   - Prosenthal_Vendor_Items (external table)
---   - dbo.ETB2_Config_Items (view 02B) - for Item_Description, UOM_Schedule
--- Features:
---   - Context columns: client, contract, run
---   - FG + Construct from ETB_PAB_MO (PAB-style derivation)
---   - CleanOrder normalization
---   - Is_Suppressed flag
---   - Date window: ±90 days
--- Last Updated: 2026-01-30
--- ============================================================================
-
 WITH GlobalConfig AS (
     SELECT 90 AS Planning_Window_Days
 ),
@@ -56,26 +35,28 @@ CleanOrderLogic AS (
 ),
 
 -- ============================================================================
--- FG SOURCE (PAB-style): Join to ETB_PAB_MO for FG + Construct derivation
+-- FG SOURCE (FIXED): Join to ETB_ActiveDemand_Union_FG_MO for FG + Construct derivation
+-- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
+-- to resolve invalid column 'FG' errors.
 -- Uses ROW_NUMBER partitioning by CleanOrder + FG for deterministic selection
 -- ============================================================================
 FG_Source AS (
     SELECT
         col.ORDERNUMBER,
         col.CleanOrder,
-        -- FG SOURCE (PAB-style): Direct from MO table
-        m.FG AS FG_Item_Number,
-        -- FG Desc SOURCE (PAB-style): Direct from MO table
-        m.[FG Desc] AS FG_Description,
-        -- Construct SOURCE (PAB-style): Derived from Customer field
-        m.Customer AS Construct,
+        -- FG SOURCE (FIXED): Direct from ETB_ActiveDemand_Union_FG_MO table
+        m.FG_Item_Number AS FG_Item_Number,
+        -- FG Desc SOURCE (FIXED): Direct from ETB_ActiveDemand_Union_FG_MO table
+        m.FG_Description AS FG_Description,
+        -- Construct SOURCE (FIXED): Direct from ETB_ActiveDemand_Union_FG_MO table
+        m.Construct AS Construct,
         -- Deduplication: Select deterministic FG row per CleanOrder
         ROW_NUMBER() OVER (
-            PARTITION BY col.CleanOrder, m.FG
-            ORDER BY m.Customer, m.[FG Desc], col.ORDERNUMBER
+            PARTITION BY col.CleanOrder, m.FG_Item_Number
+            ORDER BY m.Construct, m.FG_Description, col.ORDERNUMBER
         ) AS FG_RowNum
     FROM CleanOrderLogic col
-    INNER JOIN dbo.ETB_PAB_MO m WITH (NOLOCK)
+    INNER JOIN dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
         ON col.CleanOrder = UPPER(
             REPLACE(
                 REPLACE(
@@ -276,7 +257,3 @@ SELECT
 FROM CleanedDemand cd
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
     ON cd.ITEMNMBR = ci.Item_Number;
-
--- ============================================================================
--- END OF VIEW 04 (CONSOLIDATED FINAL)
--- ============================================================================

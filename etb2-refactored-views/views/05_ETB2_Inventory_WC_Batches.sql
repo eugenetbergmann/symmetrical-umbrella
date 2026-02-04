@@ -1,34 +1,18 @@
--- ============================================================================
--- VIEW 05: dbo.ETB2_Inventory_WC_Batches (CONSOLIDATED FINAL)
--- ============================================================================
--- Purpose: Work Center batch inventory with FEFO ordering
--- Grain: Batch/Lot
--- Dependencies:
---   - dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE (external table)
---   - dbo.EXT_BINTYPE (external table)
---   - dbo.IV00101 (Item master - external table)
---   - dbo.ETB_PAB_MO (external table) - FG SOURCE (PAB-style)
--- Features:
---   - Context columns: client, contract, run
---   - FG + Construct from ETB_PAB_MO via lot-to-order pattern matching
---   - Is_Suppressed flag
---   - Date window: ±90 days
--- Last Updated: 2026-01-30
--- ============================================================================
-
 WITH GlobalShelfLife AS (
     SELECT 180 AS Default_WC_Shelf_Life_Days
 ),
 
 -- ============================================================================
--- FG SOURCE (PAB-style): Derive FG from ETB_PAB_MO
+-- FG SOURCE (FIXED): Derive FG from ETB_ActiveDemand_Union_FG_MO
+-- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
+-- to resolve invalid column 'FG' errors.
 -- ============================================================================
 FG_From_MO AS (
     SELECT
         m.ORDERNUMBER,
-        m.FG AS FG_Item_Number,
-        m.[FG Desc] AS FG_Description,
-        m.Customer AS Construct,
+        m.FG_Item_Number AS FG_Item_Number,
+        m.FG_Description AS FG_Description,
+        m.Construct AS Construct,
         UPPER(
             REPLACE(
                 REPLACE(
@@ -47,9 +31,9 @@ FG_From_MO AS (
                 '#', ''
             )
         ) AS CleanOrder
-    FROM dbo.ETB_PAB_MO m WITH (NOLOCK)
-    WHERE m.FG IS NOT NULL
-      AND m.FG <> ''
+    FROM dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
+    WHERE m.FG_Item_Number IS NOT NULL
+      AND m.FG_Item_Number <> ''
 ),
 
 RawWCInventory AS (
@@ -198,7 +182,3 @@ SELECT
 
 FROM ParsedInventory
 WHERE Is_Suppressed = 0;
-
--- ============================================================================
--- END OF VIEW 05 (CONSOLIDATED FINAL)
--- ============================================================================
