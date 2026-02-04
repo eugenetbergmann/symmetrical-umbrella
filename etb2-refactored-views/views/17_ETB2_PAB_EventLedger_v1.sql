@@ -20,16 +20,15 @@ WITH FG_From_MO AS (
             REPLACE(
                 REPLACE(
                     REPLACE(
-                        REPLACE(
-                            REPLACE(m.MONumber, 'MO', ''),
+                        REPLACE(m.MONumber, 'MO', ''),
                             '-', ''
                         ),
-                        ' ', ''
-                    ),
-                    '/', ''
+                    ' ', ''
                 ),
-                '.', ''
+                '/', ''
             ),
+            '.', ''
+        ),
             '#', ''
         ) AS CleanOrder
     FROM dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
@@ -51,16 +50,15 @@ PABWithCleanOrder AS (
             REPLACE(
                 REPLACE(
                     REPLACE(
-                        REPLACE(
-                            REPLACE(pab.ORDERNUMBER, 'MO', ''),
+                        REPLACE(pab.ORDERNUMBER, 'MO', ''),
                             '-', ''
                         ),
-                        ' ', ''
-                    ),
-                    '/', ''
+                    ' ', ''
                 ),
-                '.', ''
+                '/', ''
             ),
+            '.', ''
+        ),
             '#', ''
         ) AS CleanOrder
     FROM dbo.ETB_PAB_AUTO pab WITH (NOLOCK)
