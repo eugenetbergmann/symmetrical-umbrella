@@ -21,7 +21,8 @@ WITH SurplusInventory AS (
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
         
-        pib.ITEMNMBR AS Item_Number,
+        pib.ITEMNMBR AS item_number,
+        NULL AS customer_number,
         pib.LOCNID AS From_Work_Center,
         SUM(COALESCE(TRY_CAST(pib.QTY AS DECIMAL(18,4)), 0)) AS Surplus_Qty,
         
@@ -53,7 +54,8 @@ DeficitDemand AS (
         d.contract,
         d.run,
         
-        d.Item_Number,
+        d.item_number,
+        d.customer_number,
         i.Site AS To_Work_Center,
         SUM(COALESCE(TRY_CAST(d.Base_Demand_Qty AS DECIMAL(18,4)), 0)) - COALESCE(SUM(COALESCE(TRY_CAST(i.Usable_Qty AS DECIMAL(18,4)), 0)), 0) AS Deficit_Qty,
         
@@ -67,7 +69,8 @@ DeficitDemand AS (
         
     FROM dbo.ETB2_Demand_Cleaned_Base d WITH (NOLOCK)
     LEFT JOIN dbo.ETB2_Inventory_Unified i WITH (NOLOCK) 
-        ON d.Item_Number = i.Item_Number
+        ON d.item_number = i.item_number
+        AND d.customer_number = i.customer_number
         AND d.client = i.client
         AND d.contract = i.contract
         AND d.run = i.run

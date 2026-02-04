@@ -20,7 +20,8 @@ WITH Demand_Aggregated AS (
         contract,
         run,
         
-        Item_Number,
+        item_number,
+        customer_number,
         SUM(COALESCE(TRY_CAST(Base_Demand_Qty AS NUMERIC(18, 4)), 0)) AS Total_Demand,
         COUNT(DISTINCT CAST(Due_Date AS DATE)) AS Demand_Days,
         COUNT(DISTINCT Order_Number) AS Order_Count,
@@ -47,7 +48,8 @@ SELECT
     da.contract,
     da.run,
     
-    da.Item_Number,
+    da.item_number,
+    da.customer_number,
     ci.Item_Description,
     ci.UOM_Schedule,
     CAST(da.Total_Demand AS NUMERIC(18, 4)) AS Net_Requirement_Qty,
@@ -80,7 +82,7 @@ SELECT
     
 FROM Demand_Aggregated da
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
-    ON da.Item_Number = ci.Item_Number
+    ON da.item_number = ci.item_number
     AND da.client = ci.client
     AND da.contract = ci.contract
     AND da.run = ci.run

@@ -20,7 +20,8 @@ SELECT
     
     c1.Campaign_ID AS Campaign_A,
     c2.Campaign_ID AS Campaign_B,
-    c1.Item_Number,
+    c1.item_number,
+    c1.customer_number,
     CASE 
         WHEN c1.Peak_Period_Start > c2.Peak_Period_Start 
         THEN c1.Peak_Period_Start 
@@ -60,7 +61,8 @@ SELECT
     
 FROM dbo.ETB2_Campaign_Normalized_Demand c1 WITH (NOLOCK)
 INNER JOIN dbo.ETB2_Campaign_Normalized_Demand c2 WITH (NOLOCK) 
-    ON c1.Item_Number = c2.Item_Number
+    ON c1.item_number = c2.item_number
+    AND c1.customer_number = c2.customer_number
     AND c1.client = c2.client
     AND c1.contract = c2.contract
     AND c1.run = c2.run

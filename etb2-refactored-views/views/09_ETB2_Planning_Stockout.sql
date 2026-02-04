@@ -24,7 +24,8 @@ NetRequirements AS (
         contract,
         run,
         
-        Item_Number,
+        item_number,
+        customer_number,
         Net_Requirement_Qty,
         Order_Count,
         Requirement_Priority,
@@ -50,7 +51,8 @@ AvailableInventory AS (
         contract,
         run,
         
-        Item_Number,
+        item_number,
+        customer_number,
         SUM(Usable_Qty) AS Total_Available,
         -- FG SOURCE (PAB-style): Carry primary FG from inventory
         MAX(FG_Item_Number) AS FG_Item_Number,
@@ -73,7 +75,8 @@ SELECT
     COALESCE(nr.run, ai.run, 'CURRENT_RUN') AS run,
     
     -- IDENTIFY (what item?) - 4 columns
-    COALESCE(nr.Item_Number, ai.Item_Number) AS Item_Number,
+    COALESCE(nr.item_number, ai.item_number) AS item_number,
+    COALESCE(nr.customer_number, ai.customer_number) AS customer_number,
     ci.Item_Description,
     ci.UOM_Schedule AS Unit_Of_Measure_Schedule,
     
@@ -125,7 +128,8 @@ SELECT
 
 FROM NetRequirements nr
 FULL OUTER JOIN AvailableInventory ai
-    ON nr.Item_Number = ai.Item_Number
+    ON nr.item_number = ai.item_number
+    AND nr.customer_number = ai.customer_number
     AND nr.client = ai.client
     AND nr.contract = ai.contract
     AND nr.run = ai.run

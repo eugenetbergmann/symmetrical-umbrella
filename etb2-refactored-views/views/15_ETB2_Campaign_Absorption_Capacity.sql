@@ -32,7 +32,7 @@ SELECT
         WHEN SUM(COALESCE(TRY_CAST(r.Available_Inventory AS DECIMAL(18,4)), 0)) < SUM(COALESCE(TRY_CAST(r.Required_Buffer AS DECIMAL(18,4)), 0)) * 1.5 THEN 'HEALTHY'
         ELSE 'OVER_STOCKED'
     END AS Campaign_Health,
-    COUNT(DISTINCT r.Item_Number) AS Items_In_Campaign,
+    COUNT(DISTINCT r.item_number, r.customer_number) AS Items_In_Campaign,
     AVG(COALESCE(TRY_CAST(r.Adequacy_Score AS DECIMAL(10,2)), 0)) AS Avg_Adequacy,
     GETDATE() AS Calculated_Date,
     

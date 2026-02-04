@@ -93,7 +93,8 @@ SELECT
     
     LTRIM(RTRIM(p.PONUMBER)) AS Order_Number,
     LTRIM(RTRIM(p.VENDORID)) AS Vendor_ID,
-    pd.ITEMNMBR AS Item_Number,
+    pd.ITEMNMBR AS item_number,
+    NULL AS customer_number,
     pd.UOFM AS Unit_Of_Measure,
     COALESCE(TRY_CAST(pd.QTYORDER AS DECIMAL(18,4)), 0) AS Ordered_Qty,
     COALESCE(TRY_CAST(pd.QTYRECEIVED AS DECIMAL(18,4)), 0) AS Received_Qty,
@@ -122,7 +123,7 @@ FROM dbo.POP10100 p WITH (NOLOCK)
 INNER JOIN dbo.POP10110 pd WITH (NOLOCK) ON p.PONUMBER = pd.PONUMBER
 LEFT JOIN dbo.IV00102 i WITH (NOLOCK) ON pd.ITEMNMBR = i.ITEMNMBR
 WHERE pd.ITEMNMBR IN (
-    SELECT Item_Number 
+    SELECT item_number 
     FROM dbo.ETB2_Demand_Cleaned_Base 
     WHERE client = 'DEFAULT_CLIENT' AND contract = 'DEFAULT_CONTRACT' AND run = 'CURRENT_RUN'
 )

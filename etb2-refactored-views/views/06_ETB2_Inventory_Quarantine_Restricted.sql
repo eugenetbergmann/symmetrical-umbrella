@@ -61,7 +61,8 @@ RawWFQInventory AS (
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
         
-        inv.ITEMNMBR,
+        inv.ITEMNMBR AS item_number,
+        NULL AS customer_number,
         inv.LOCNCODE,
         inv.RCTSEQNM,
         inv.LOTNUMBR,
@@ -89,7 +90,8 @@ RawRMQTYInventory AS (
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
         
-        inv.ITEMNMBR,
+        inv.ITEMNMBR AS item_number,
+        NULL AS customer_number,
         inv.LOCNCODE,
         inv.RCTSEQNM,
         inv.LOTNUMBR,
@@ -223,7 +225,7 @@ SELECT
     DATEDIFF(DAY, GETDATE(), Release_Date) AS Days_To_Release,
     Is_Released AS Can_Allocate,
     ROW_NUMBER() OVER (
-        PARTITION BY client, contract, run, ITEMNMBR
+        PARTITION BY client, contract, run, item_number, customer_number
         ORDER BY Release_Date ASC, Receipt_Date ASC
     ) AS Use_Sequence,
     Is_Suppressed,
@@ -252,7 +254,7 @@ SELECT
     DATEDIFF(DAY, GETDATE(), Release_Date) AS Days_To_Release,
     Is_Released AS Can_Allocate,
     ROW_NUMBER() OVER (
-        PARTITION BY client, contract, run, ITEMNMBR
+        PARTITION BY client, contract, run, item_number, customer_number
         ORDER BY Release_Date ASC, Receipt_Date ASC
     ) AS Use_Sequence,
     Is_Suppressed,

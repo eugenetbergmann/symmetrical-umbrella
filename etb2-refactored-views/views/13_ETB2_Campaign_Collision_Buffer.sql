@@ -20,7 +20,8 @@ SELECT
     n.run,
     
     n.Campaign_ID,
-    n.Item_Number,
+    n.item_number,
+    n.customer_number,
     n.Total_Campaign_Quantity,
     n.CCU,
     COALESCE(SUM(w.Combined_CCU) * 0.20, 0) AS collision_buffer_qty,
@@ -45,7 +46,8 @@ SELECT
 FROM dbo.ETB2_Campaign_Normalized_Demand n WITH (NOLOCK)
 LEFT JOIN dbo.ETB2_Campaign_Concurrency_Window w WITH (NOLOCK) 
     ON (n.Campaign_ID = w.Campaign_A OR n.Campaign_ID = w.Campaign_B)
-    AND n.Item_Number = w.Item_Number
+    AND n.item_number = w.item_number
+    AND n.customer_number = w.customer_number
     AND n.client = w.client
     AND n.contract = w.contract
     AND n.run = w.run

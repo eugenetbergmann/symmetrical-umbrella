@@ -162,7 +162,8 @@ CleanedDemand AS (
         run,
         
         ORDERNUMBER,
-        ITEMNMBR,
+        ITEMNMBR AS item_number,
+        CUSTNMBR AS customer_number,
         STSDESCR,
         Site,
         Item_Description,
@@ -241,7 +242,8 @@ SELECT
     cd.run,
     
     Clean_Order_Number AS Order_Number,
-    ITEMNMBR AS Item_Number,
+    item_number,
+    customer_number,
     COALESCE(ci.Item_Description, cd.Item_Description) AS Item_Description,
     ci.UOM_Schedule,
     Site,

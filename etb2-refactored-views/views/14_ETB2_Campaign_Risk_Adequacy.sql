@@ -19,7 +19,8 @@ SELECT
     b.contract,
     b.run,
     
-    b.Item_Number,
+    b.item_number,
+    b.customer_number,
     b.Campaign_ID,
     COALESCE(SUM(COALESCE(TRY_CAST(i.Usable_Qty AS DECIMAL(18,4)), 0)), 0) AS Available_Inventory,
     SUM(b.collision_buffer_qty) AS Required_Buffer,
@@ -55,7 +56,8 @@ SELECT
     
 FROM dbo.ETB2_Campaign_Collision_Buffer b WITH (NOLOCK)
 LEFT JOIN dbo.ETB2_Inventory_Unified i WITH (NOLOCK) 
-    ON b.Item_Number = i.Item_Number
+    ON b.item_number = i.item_number
+    AND b.customer_number = i.customer_number
     AND b.client = i.client
     AND b.contract = i.contract
     AND b.run = i.run

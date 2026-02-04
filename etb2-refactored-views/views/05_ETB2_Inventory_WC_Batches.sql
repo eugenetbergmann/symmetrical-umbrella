@@ -59,7 +59,9 @@ RawWCInventory AS (
         'DEFAULT_CONTRACT' AS contract,
         'CURRENT_RUN' AS run,
         
-        pib.Item_Number AS ITEMNMBR,
+        pib.Item_Number AS item_number,
+        -- Note: We don't have custnmbr in inventory tables, so we need to get it from item master
+        NULL AS customer_number,
         pib.LOT_NUMBER,
         pib.Bin AS BIN,
         pib.SITE AS LOCNCODE,
@@ -161,7 +163,8 @@ SELECT
     run,
     
     -- IDENTIFY (what item?) - 3 columns
-    ITEMNMBR                AS Item_Number,
+    item_number,
+    customer_number,
     Item_Description,
     Unit_Of_Measure,
 
@@ -182,7 +185,7 @@ SELECT
 
     -- DECIDE (what action?) - 3 columns
     ROW_NUMBER() OVER (
-        PARTITION BY client, contract, run, ITEMNMBR
+        PARTITION BY client, contract, run, item_number, customer_number
         ORDER BY Expiry_Date ASC, Receipt_Date ASC
     ) AS Use_Sequence,
     'WC_BATCH'              AS Batch_Type,

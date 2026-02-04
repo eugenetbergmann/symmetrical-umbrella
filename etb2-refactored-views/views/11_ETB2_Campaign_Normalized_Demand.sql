@@ -19,7 +19,8 @@ SELECT
     d.run,
     
     d.Order_Number AS Campaign_ID,
-    d.Item_Number,
+    d.item_number,
+    d.customer_number,
     SUM(COALESCE(TRY_CAST(d.Base_Demand_Qty AS DECIMAL(18,4)), 0)) AS Total_Campaign_Quantity,
     SUM(COALESCE(TRY_CAST(d.Base_Demand_Qty AS DECIMAL(18,4)), 0)) / 30.0 AS CCU,
     'DAILY' AS CCU_Unit,

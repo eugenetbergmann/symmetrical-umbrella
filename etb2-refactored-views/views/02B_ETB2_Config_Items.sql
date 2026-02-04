@@ -20,7 +20,8 @@ SELECT
     'CURRENT_RUN' AS run,
     
     -- Core columns
-    [Item Number] AS Item_Number,
+    [Item Number] AS item_number,
+    NULL AS customer_number,
     ITEMDESC AS Item_Description,
     PRCHSUOM AS Purchasing_UOM,
     UOMSCHDL AS UOM_Schedule,
