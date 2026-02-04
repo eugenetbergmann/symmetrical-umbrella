@@ -1,44 +1,40 @@
--- VIEW 17: Fixed Source Table & Column Mapping
--- Change Log:
--- 1. Swapped source to ETB_ActiveDemand_Union_FG_MO
--- 2. Mapped source columns [FG], [FG Desc] -> output aliases FG_Item_Number, FG_Description
+-- VIEW 17: Fixed FG Source Mapping
+-- Mapping: m.Customer -> Construct, m.MakeItem -> FG_Item_Number, m.[Desc] -> FG_Description
 CREATE OR ALTER VIEW [dbo].[ETB2_PAB_EventLedger_v1]
 AS
 -- ============================================================================
 -- FG SOURCE (FIXED): Pre-calculate FG/Construct from ETB_ActiveDemand_Union_FG_MO
 -- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
--- Uses actual column names from source table: FG, [FG Desc], Construct
+-- Uses actual column names from source table: Customer, MakeItem, [Desc]
 -- ============================================================================
 WITH FG_From_MO AS (
     SELECT
-        m.ORDERNUMBER,
+        m.MONumber AS ORDERNUMBER,
         -- FG SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
-        m.FG AS FG_Item_Number,
+        m.MakeItem AS FG_Item_Number,
         -- FG Desc SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
-        m.[FG Desc] AS FG_Description,
+        m.[Desc] AS FG_Description,
         -- Construct SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
-        m.Construct AS Construct,
+        m.Customer AS Construct,
         UPPER(
             REPLACE(
                 REPLACE(
                     REPLACE(
                         REPLACE(
-                            REPLACE(
-                                REPLACE(m.ORDERNUMBER, 'MO', ''),
-                                '-', ''
-                            ),
-                            ' ', ''
+                            REPLACE(m.MONumber, 'MO', ''),
+                            '-', ''
                         ),
-                        '/', ''
+                        ' ', ''
                     ),
-                    '.', ''
+                    '/', ''
                 ),
-                '#', ''
-            )
+                '.', ''
+            ),
+            '#', ''
         ) AS CleanOrder
     FROM dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
-    WHERE m.FG IS NOT NULL
-      AND m.FG <> ''
+    WHERE m.MakeItem IS NOT NULL
+      AND m.MakeItem <> ''
 ),
 
 -- ============================================================================
@@ -56,18 +52,16 @@ PABWithCleanOrder AS (
                 REPLACE(
                     REPLACE(
                         REPLACE(
-                            REPLACE(
-                                REPLACE(pab.ORDERNUMBER, 'MO', ''),
-                                '-', ''
-                            ),
-                            ' ', ''
+                            REPLACE(pab.ORDERNUMBER, 'MO', ''),
+                            '-', ''
                         ),
-                        '/', ''
+                        ' ', ''
                     ),
-                    '.', ''
+                    '/', ''
                 ),
-                '#', ''
-            )
+                '.', ''
+            ),
+            '#', ''
         ) AS CleanOrder
     FROM dbo.ETB_PAB_AUTO pab WITH (NOLOCK)
     WHERE pab.STSDESCR <> 'Partially Received'

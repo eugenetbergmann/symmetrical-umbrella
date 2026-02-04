@@ -1,7 +1,5 @@
--- VIEW 04: Fixed Source Table & Column Mapping
--- Change Log:
--- 1. Swapped source to ETB_ActiveDemand_Union_FG_MO
--- 2. Mapped source columns [FG], [FG Desc] -> output aliases FG_Item_Number, FG_Description
+-- VIEW 04: Fixed FG Source Mapping
+-- Mapping: m.Customer -> Construct, m.MakeItem -> FG_Item_Number, m.[Desc] -> FG_Description
 CREATE OR ALTER VIEW [dbo].[ETB2_Demand_Cleaned_Base]
 AS
 WITH GlobalConfig AS (
@@ -43,7 +41,7 @@ CleanOrderLogic AS (
 -- ============================================================================
 -- FG SOURCE (FIXED): Join to ETB_ActiveDemand_Union_FG_MO for FG + Construct derivation
 -- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
--- Uses actual column names from source table: FG, [FG Desc], Construct
+-- Uses actual column names from source table: Customer, MakeItem, [Desc]
 -- Uses ROW_NUMBER partitioning by CleanOrder + FG for deterministic selection
 -- ============================================================================
 FG_Source AS (
@@ -51,15 +49,15 @@ FG_Source AS (
         col.ORDERNUMBER,
         col.CleanOrder,
         -- FG SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
-        m.FG AS FG_Item_Number,
+        m.MakeItem AS FG_Item_Number,
         -- FG Desc SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
-        m.[FG Desc] AS FG_Description,
+        m.[Desc] AS FG_Description,
         -- Construct SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
-        m.Construct AS Construct,
+        m.Customer AS Construct,
         -- Deduplication: Select deterministic FG row per CleanOrder
         ROW_NUMBER() OVER (
-            PARTITION BY col.CleanOrder, m.FG
-            ORDER BY m.Construct, m.[FG Desc], col.ORDERNUMBER
+            PARTITION BY col.CleanOrder, m.MakeItem
+            ORDER BY m.Customer, m.[Desc], col.ORDERNUMBER
         ) AS FG_RowNum
     FROM CleanOrderLogic col
     INNER JOIN dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
@@ -69,7 +67,7 @@ FG_Source AS (
                     REPLACE(
                         REPLACE(
                             REPLACE(
-                                REPLACE(m.ORDERNUMBER, 'MO', ''),
+                                REPLACE(m.MONumber, 'MO', ''),
                                 '-', ''
                             ),
                             ' ', ''
