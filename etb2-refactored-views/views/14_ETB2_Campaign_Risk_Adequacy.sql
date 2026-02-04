@@ -1,18 +1,16 @@
 -- ============================================================================
--- VIEW 14: dbo.ETB2_Campaign_Risk_Adequacy (REFACTORED - ETB2)
+-- VIEW 14: dbo.ETB2_Campaign_Risk_Adequacy (CONSOLIDATED FINAL)
 -- ============================================================================
 -- Purpose: Inventory adequacy assessment vs collision buffer requirements
 -- Grain: One row per campaign per item
 -- Dependencies:
 --   - dbo.ETB2_Campaign_Collision_Buffer (view 13)
 --   - dbo.ETB2_Inventory_Unified (view 07)
--- Refactoring Applied:
---   - Added context columns: client, contract, run
---   - Preserve context in all GROUP BY clauses
---   - Added Is_Suppressed flag with filter
---   - Filter out ITEMNMBR LIKE 'MO-%'
---   - Context preserved in subqueries
--- Last Updated: 2026-01-29
+-- Features:
+--   - Context columns: client, contract, run
+--   - FG + Construct carried from collision buffer
+--   - Is_Suppressed flag
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 SELECT 
@@ -47,6 +45,12 @@ SELECT
         ELSE 'ADEQUATE'
     END AS Recommendation,
     
+    -- FG SOURCE (PAB-style): Carried through from collision buffer
+    b.FG_Item_Number,
+    b.FG_Description,
+    -- Construct SOURCE (PAB-style): Carried through from collision buffer
+    b.Construct,
+    
     -- Suppression flag (combined)
     CAST(MAX(CASE WHEN b.Is_Suppressed = 1 OR COALESCE(i.Is_Suppressed, 0) = 1 THEN 1 ELSE 0 END) AS BIT) AS Is_Suppressed
     
@@ -57,10 +61,11 @@ LEFT JOIN dbo.ETB2_Inventory_Unified i WITH (NOLOCK)
     AND b.client = i.client
     AND b.contract = i.contract
     AND b.run = i.run
-WHERE b.item_number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
-GROUP BY b.client, b.contract, b.run, b.item_number, b.customer_number, b.Campaign_ID
-HAVING MAX(CASE WHEN b.Is_Suppressed = 1 OR COALESCE(i.Is_Suppressed, 0) = 1 THEN 1 ELSE 0 END) = 0;  -- Is_Suppressed filter
+WHERE b.Item_Number NOT LIKE 'MO-%'
+GROUP BY b.client, b.contract, b.run, b.Item_Number, b.Campaign_ID,
+         b.FG_Item_Number, b.FG_Description, b.Construct
+HAVING CAST(MAX(CASE WHEN b.Is_Suppressed = 1 OR COALESCE(i.Is_Suppressed, 0) = 1 THEN 1 ELSE 0 END) AS BIT) = 0;
 
 -- ============================================================================
--- END OF VIEW 14 (REFACTORED)
+-- END OF VIEW 14 (CONSOLIDATED FINAL)
 -- ============================================================================

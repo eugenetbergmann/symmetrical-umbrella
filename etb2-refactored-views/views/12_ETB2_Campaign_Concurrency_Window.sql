@@ -1,17 +1,15 @@
 -- ============================================================================
--- VIEW 12: dbo.ETB2_Campaign_Concurrency_Window (REFACTORED - ETB2)
+-- VIEW 12: dbo.ETB2_Campaign_Concurrency_Window (CONSOLIDATED FINAL)
 -- ============================================================================
 -- Purpose: Campaign Concurrency Window (CCW) - overlapping campaign periods
 -- Grain: One row per overlapping campaign pair
 -- Dependencies:
 --   - dbo.ETB2_Campaign_Normalized_Demand (view 11)
--- Refactoring Applied:
---   - Added context columns: client, contract, run
---   - Preserve context in JOIN conditions
---   - Added Is_Suppressed flag with filter
---   - Filter out ITEMNMBR LIKE 'MO-%'
---   - Context preserved in subqueries
--- Last Updated: 2026-01-29
+-- Features:
+--   - Context columns: client, contract, run
+--   - FG + Construct carried from campaign A (same item)
+--   - Is_Suppressed flag
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 SELECT 
@@ -52,6 +50,12 @@ SELECT
     c1.CCU + c2.CCU AS Combined_CCU,
     (c1.CCU + c2.CCU) / NULLIF(c1.Campaign_Duration_Days, 0) AS Concurrency_Intensity,
     
+    -- FG SOURCE (PAB-style): Carry from campaign A (same item)
+    c1.FG_Item_Number,
+    c1.FG_Description,
+    -- Construct SOURCE (PAB-style): Carry from campaign A (same item)
+    c1.Construct,
+    
     -- Suppression flag (combined)
     CAST(c1.Is_Suppressed | c2.Is_Suppressed AS BIT) AS Is_Suppressed
     
@@ -66,9 +70,9 @@ INNER JOIN dbo.ETB2_Campaign_Normalized_Demand c2 WITH (NOLOCK)
 WHERE 
     c1.Peak_Period_Start <= c2.Peak_Period_End
     AND c2.Peak_Period_Start <= c1.Peak_Period_End
-    AND c1.item_number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
-    AND CAST(c1.Is_Suppressed | c2.Is_Suppressed AS BIT) = 0;  -- Is_Suppressed filter
+    AND c1.Item_Number NOT LIKE 'MO-%'
+    AND CAST(c1.Is_Suppressed | c2.Is_Suppressed AS BIT) = 0;
 
 -- ============================================================================
--- END OF VIEW 12 (REFACTORED)
+-- END OF VIEW 12 (CONSOLIDATED FINAL)
 -- ============================================================================

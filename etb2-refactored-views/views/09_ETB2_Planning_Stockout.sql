@@ -1,24 +1,22 @@
 -- ============================================================================
--- VIEW 09: dbo.ETB2_Planning_Stockout (REFACTORED - ETB2)
+-- VIEW 09: dbo.ETB2_Planning_Stockout (CONSOLIDATED FINAL)
 -- ============================================================================
 -- Purpose: ATP balance and shortage risk analysis
 -- Grain: Item
 -- Dependencies:
 --   - dbo.ETB2_Planning_Net_Requirements (view 08)
 --   - dbo.ETB2_Inventory_Unified (view 07)
---   - dbo.ETB2_Config_Items (view 02B) - for Item_Description, UOM_Schedule
--- Refactoring Applied:
---   - Added context columns: client, contract, run
---   - Preserve context in all GROUP BY clauses
---   - Added Is_Suppressed flag with filter
---   - Filter out ITEMNMBR LIKE 'MO-%'
---   - Date window: ±90 days
---   - Context preserved in subqueries
--- Last Updated: 2026-01-29
+--   - dbo.ETB2_Config_Items (view 02B)
+-- Features:
+--   - Context columns: client, contract, run
+--   - FG + Construct coalesced from demand and inventory sources
+--   - Is_Suppressed flag
+-- Last Updated: 2026-01-30
 -- ============================================================================
 
 WITH
 -- Net requirements from demand
+-- FG/Construct carried through from view 08
 NetRequirements AS (
     SELECT
         -- Context columns preserved
@@ -34,12 +32,18 @@ NetRequirements AS (
         Requirement_Status,
         Earliest_Demand_Date,
         Latest_Demand_Date,
+        -- FG SOURCE (PAB-style): Carried through from view 08
+        FG_Item_Number,
+        FG_Description,
+        -- Construct SOURCE (PAB-style): Carried through from view 08
+        Construct,
         Is_Suppressed
     FROM dbo.ETB2_Planning_Net_Requirements WITH (NOLOCK)
     WHERE Net_Requirement_Qty > 0
 ),
 
 -- Available inventory (all eligible)
+-- FG/Construct aggregated from view 07
 AvailableInventory AS (
     SELECT
         -- Context columns preserved
@@ -50,14 +54,19 @@ AvailableInventory AS (
         item_number,
         customer_number,
         SUM(Usable_Qty) AS Total_Available,
+        -- FG SOURCE (PAB-style): Carry primary FG from inventory
+        MAX(FG_Item_Number) AS FG_Item_Number,
+        MAX(FG_Description) AS FG_Description,
+        -- Construct SOURCE (PAB-style): Carry primary Construct from inventory
+        MAX(Construct) AS Construct,
         MAX(CASE WHEN Is_Suppressed = 1 THEN 1 ELSE 0 END) AS Has_Suppressed
     FROM dbo.ETB2_Inventory_Unified WITH (NOLOCK)
-    WHERE item_number NOT LIKE 'MO-%'  -- Filter out MO- conflated items
-    GROUP BY client, contract, run, item_number, customer_number
+    WHERE Item_Number NOT LIKE 'MO-%'
+    GROUP BY client, contract, run, Item_Number
 )
 
 -- ============================================================
--- FINAL OUTPUT: 16 columns, planner-optimized order
+-- FINAL OUTPUT: ATP with FG + Construct
 -- ============================================================
 SELECT
     -- Context columns preserved
@@ -107,12 +116,15 @@ SELECT
     END AS Recommendation,
     nr.Requirement_Priority,
     nr.Requirement_Status,
+
+    -- FG SOURCE (PAB-style): Coalesce from demand and inventory sources
+    COALESCE(nr.FG_Item_Number, ai.FG_Item_Number) AS FG_Item_Number,
+    COALESCE(nr.FG_Description, ai.FG_Description) AS FG_Description,
+    -- Construct SOURCE (PAB-style): Coalesce from demand and inventory sources
+    COALESCE(nr.Construct, ai.Construct) AS Construct,
     
     -- Suppression flag
-    CAST(CASE 
-        WHEN COALESCE(nr.Is_Suppressed, 0) = 1 OR COALESCE(ai.Has_Suppressed, 0) = 1 OR COALESCE(ci.Is_Suppressed, 0) = 1 
-        THEN 1 ELSE 0 
-    END AS BIT) AS Is_Suppressed
+    CAST(CASE WHEN COALESCE(nr.Is_Suppressed, 0) = 1 OR COALESCE(ai.Has_Suppressed, 0) = 1 THEN 1 ELSE 0 END AS BIT) AS Is_Suppressed
 
 FROM NetRequirements nr
 FULL OUTER JOIN AvailableInventory ai
@@ -122,18 +134,11 @@ FULL OUTER JOIN AvailableInventory ai
     AND nr.contract = ai.contract
     AND nr.run = ai.run
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
-    ON COALESCE(nr.item_number, ai.item_number) = ci.item_number
-    AND COALESCE(nr.client, ai.client, 'DEFAULT_CLIENT') = ci.client
-    AND COALESCE(nr.contract, ai.contract, 'DEFAULT_CONTRACT') = ci.contract
-    AND COALESCE(nr.run, ai.run, 'CURRENT_RUN') = ci.run
+    ON COALESCE(nr.Item_Number, ai.Item_Number) = ci.Item_Number
 
-WHERE COALESCE(nr.item_number, ai.item_number) NOT LIKE 'MO-%'  -- Filter out MO- conflated items
-  AND (COALESCE(nr.Net_Requirement_Qty, 0) > 0 OR COALESCE(ai.Total_Available, 0) > 0)
-  AND CAST(CASE 
-        WHEN COALESCE(nr.Is_Suppressed, 0) = 1 OR COALESCE(ai.Has_Suppressed, 0) = 1 OR COALESCE(ci.Is_Suppressed, 0) = 1 
-        THEN 1 ELSE 0 
-    END AS BIT) = 0;  -- Is_Suppressed filter
+WHERE COALESCE(nr.Net_Requirement_Qty, 0) > 0
+   OR COALESCE(ai.Total_Available, 0) > 0;
 
 -- ============================================================================
--- END OF VIEW 09 (REFACTORED)
+-- END OF VIEW 09 (CONSOLIDATED FINAL)
 -- ============================================================================
