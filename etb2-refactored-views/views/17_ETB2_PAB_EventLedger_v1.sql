@@ -66,15 +66,16 @@ PABWithCleanOrder AS (
             REPLACE(
                 REPLACE(
                     REPLACE(
-                        REPLACE(pab.ORDERNUMBER, 'MO', ''),
+                        REPLACE(
+                            REPLACE(pab.ORDERNUMBER, 'MO', ''),
                             '-', ''
                         ),
-                    ' ', ''
+                        ' ', ''
+                    ),
+                    '/', ''
                 ),
-                '/', ''
+                '.', ''
             ),
-            '.', ''
-        ),
             '#', ''
         ) AS CleanOrder
     FROM dbo.ETB_PAB_AUTO pab WITH (NOLOCK)
