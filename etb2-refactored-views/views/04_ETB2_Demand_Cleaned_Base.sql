@@ -1,7 +1,21 @@
--- VIEW 04: Fixed FG Source Mapping
--- Mapping: m.Customer -> Construct, m.MakeItem -> FG_Item_Number, m.[Desc] -> FG_Description
-CREATE OR ALTER VIEW [dbo].[ETB2_Demand_Cleaned_Base]
-AS
+/* VIEW 04 - STATUS: VALIDATED */
+-- ============================================================================
+-- VIEW 04: dbo.ETB2_Demand_Cleaned_Base (CONSOLIDATED FINAL)
+-- ============================================================================
+-- Purpose: Cleaned and normalized demand data with FG/Construct derivation
+-- Grain: One row per demand event (order line)
+-- Dependencies:
+--   - dbo.ETB_PAB_AUTO (external table)
+--   - dbo.Prosenthal_Vendor_Items (external table)
+--   - dbo.ETB_ActiveDemand_Union_FG_MO (external table - FG SOURCE)
+--   - dbo.ETB2_Config_Items (view 02B)
+-- Features:
+--   - Context columns: client, contract, run
+--   - FG + Construct derived from ETB_ActiveDemand_Union_FG_MO via MO linkage
+--   - Is_Suppressed flag
+-- Last Updated: 2026-02-05
+-- ============================================================================
+
 WITH GlobalConfig AS (
     SELECT 90 AS Planning_Window_Days
 ),
@@ -38,7 +52,7 @@ CleanOrderLogic AS (
 
 -- ============================================================================
 -- FG SOURCE (FIXED): Join to ETB_ActiveDemand_Union_FG_MO for FG + Construct derivation
--- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
+-- FIX: Uses correct source column names from ETB_ActiveDemand_Union_FG_MO
 -- Schema Map: Customer->Construct, FG->FG_Item_Number, [FG Desc]->FG_Description
 -- Uses ROW_NUMBER partitioning by CleanOrder + FG for deterministic selection
 -- ============================================================================
@@ -255,3 +269,7 @@ SELECT
 FROM CleanedDemand cd
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
     ON cd.ITEMNMBR = ci.Item_Number;
+
+-- ============================================================================
+-- END OF VIEW 04 (CONSOLIDATED FINAL)
+-- ============================================================================

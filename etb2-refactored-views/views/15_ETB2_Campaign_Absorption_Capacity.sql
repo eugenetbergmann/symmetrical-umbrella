@@ -1,3 +1,4 @@
+/* VIEW 15 - STATUS: VALIDATED */
 -- ============================================================================
 -- VIEW 15: dbo.ETB2_Campaign_Absorption_Capacity (CONSOLIDATED FINAL)
 -- ============================================================================
@@ -7,9 +8,9 @@
 --   - dbo.ETB2_Campaign_Risk_Adequacy (view 14)
 -- Features:
 --   - Context columns: client, contract, run
---   - FG + Construct aggregated from risk adequacy
+--   - FG + Construct aggregated from risk adequacy (view 14)
 --   - Is_Suppressed flag
--- Last Updated: 2026-01-30
+-- Last Updated: 2026-02-05
 -- ============================================================================
 
 SELECT 
@@ -36,10 +37,10 @@ SELECT
     AVG(COALESCE(TRY_CAST(r.Adequacy_Score AS DECIMAL(10,2)), 0)) AS Avg_Adequacy,
     GETDATE() AS Calculated_Date,
     
-    -- FG SOURCE (PAB-style): Carry primary FG from first item in campaign
+    -- FG SOURCE (PAB-style): Carry primary FG from first item in campaign (view 14)
     MAX(r.FG_Item_Number) AS FG_Item_Number,
     MAX(r.FG_Description) AS FG_Description,
-    -- Construct SOURCE (PAB-style): Carry primary Construct from first item in campaign
+    -- Construct SOURCE (PAB-style): Carry primary Construct from first item in campaign (view 14)
     MAX(r.Construct) AS Construct,
     
     -- Suppression flag (aggregate - if any suppressed, mark all)

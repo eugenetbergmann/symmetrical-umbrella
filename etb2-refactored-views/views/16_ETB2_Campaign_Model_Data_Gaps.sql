@@ -1,3 +1,4 @@
+/* VIEW 16 - STATUS: VALIDATED */
 -- ============================================================================
 -- VIEW 16: dbo.ETB2_Campaign_Model_Data_Gaps (CONSOLIDATED FINAL)
 -- ============================================================================
@@ -10,9 +11,9 @@
 --   - dbo.ETB2_Campaign_Normalized_Demand (view 11)
 -- Features:
 --   - Context columns: client, contract, run
---   - FG + Construct linked from demand base
+--   - FG + Construct linked from demand base (view 04)
 --   - Is_Suppressed flag
--- Last Updated: 2026-01-30
+-- Last Updated: 2026-02-05
 -- ============================================================================
 
 SELECT 
@@ -103,7 +104,7 @@ SELECT
         ELSE 3
     END AS Remediation_Priority,
     
-    -- FG SOURCE (PAB-style): Link to demand for FG info
+    -- FG SOURCE (PAB-style): Link to demand (view 04) for FG info
     (SELECT TOP 1 d.FG_Item_Number 
      FROM dbo.ETB2_Demand_Cleaned_Base d 
      WHERE d.Item_Number = c.ITEMNMBR
@@ -112,7 +113,7 @@ SELECT
      FROM dbo.ETB2_Demand_Cleaned_Base d 
      WHERE d.Item_Number = c.ITEMNMBR
        AND d.client = c.client AND d.contract = c.contract AND d.run = c.run) AS FG_Description,
-    -- Construct SOURCE (PAB-style): Link to demand for Construct info
+    -- Construct SOURCE (PAB-style): Link to demand (view 04) for Construct info
     (SELECT TOP 1 d.Construct 
      FROM dbo.ETB2_Demand_Cleaned_Base d 
      WHERE d.Item_Number = c.ITEMNMBR

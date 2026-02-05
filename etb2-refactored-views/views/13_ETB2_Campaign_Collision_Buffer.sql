@@ -1,3 +1,4 @@
+/* VIEW 13 - STATUS: VALIDATED */
 -- ============================================================================
 -- VIEW 13: dbo.ETB2_Campaign_Collision_Buffer (CONSOLIDATED FINAL)
 -- ============================================================================
@@ -8,9 +9,9 @@
 --   - dbo.ETB2_Campaign_Concurrency_Window (view 12)
 -- Features:
 --   - Context columns: client, contract, run
---   - FG + Construct carried from normalized demand
+--   - FG + Construct carried from normalized demand (view 11)
 --   - Is_Suppressed flag
--- Last Updated: 2026-01-30
+-- Last Updated: 2026-02-05
 -- ============================================================================
 
 SELECT 
@@ -33,10 +34,10 @@ SELECT
     END AS Collision_Risk_Level,
     COUNT(w.Campaign_B) AS Overlapping_Campaigns,
     
-    -- FG SOURCE (PAB-style): Carried through from normalized demand
+    -- FG SOURCE (PAB-style): Carried through from normalized demand (view 11)
     n.FG_Item_Number,
     n.FG_Description,
-    -- Construct SOURCE (PAB-style): Carried through from normalized demand
+    -- Construct SOURCE (PAB-style): Carried through from normalized demand (view 11)
     n.Construct,
     
     -- Suppression flag (combined)

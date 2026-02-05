@@ -1,3 +1,4 @@
+/* VIEW 08 - STATUS: VALIDATED */
 -- ============================================================================
 -- VIEW 08: dbo.ETB2_Planning_Net_Requirements (CONSOLIDATED FINAL)
 -- ============================================================================
@@ -8,9 +9,9 @@
 --   - dbo.ETB2_Config_Items (view 02B)
 -- Features:
 --   - Context columns: client, contract, run
---   - FG + Construct aggregated from demand
+--   - FG + Construct aggregated from demand (view 04)
 --   - Is_Suppressed flag
--- Last Updated: 2026-01-30
+-- Last Updated: 2026-02-05
 -- ============================================================================
 
 WITH Demand_Aggregated AS (
@@ -27,10 +28,10 @@ WITH Demand_Aggregated AS (
         MIN(CAST(Due_Date AS DATE)) AS Earliest_Demand_Date,
         MAX(CAST(Due_Date AS DATE)) AS Latest_Demand_Date,
         
-        -- FG SOURCE (PAB-style): Carry primary FG from demand
+        -- FG SOURCE (PAB-style): Carry primary FG from demand (view 04)
         MAX(FG_Item_Number) AS FG_Item_Number,
         MAX(FG_Description) AS FG_Description,
-        -- Construct SOURCE (PAB-style): Carry primary Construct from demand
+        -- Construct SOURCE (PAB-style): Carry primary Construct from demand (view 04)
         MAX(Construct) AS Construct,
         
         -- Suppression flag (aggregate - if any suppressed, mark all)
@@ -69,10 +70,10 @@ SELECT
     da.Earliest_Demand_Date,
     da.Latest_Demand_Date,
     
-    -- FG SOURCE (PAB-style): Carried through from demand aggregation
+    -- FG SOURCE (PAB-style): Carried through from demand aggregation (view 04)
     da.FG_Item_Number,
     da.FG_Description,
-    -- Construct SOURCE (PAB-style): Carried through from demand aggregation
+    -- Construct SOURCE (PAB-style): Carried through from demand aggregation (view 04)
     da.Construct,
     
     -- Suppression flag

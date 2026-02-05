@@ -1,3 +1,4 @@
+/* VIEW 14 - STATUS: VALIDATED */
 -- ============================================================================
 -- VIEW 14: dbo.ETB2_Campaign_Risk_Adequacy (CONSOLIDATED FINAL)
 -- ============================================================================
@@ -8,9 +9,9 @@
 --   - dbo.ETB2_Inventory_Unified (view 07)
 -- Features:
 --   - Context columns: client, contract, run
---   - FG + Construct carried from collision buffer
+--   - FG + Construct carried from collision buffer (view 13)
 --   - Is_Suppressed flag
--- Last Updated: 2026-01-30
+-- Last Updated: 2026-02-05
 -- ============================================================================
 
 SELECT 
@@ -44,10 +45,10 @@ SELECT
         ELSE 'ADEQUATE'
     END AS Recommendation,
     
-    -- FG SOURCE (PAB-style): Carried through from collision buffer
+    -- FG SOURCE (PAB-style): Carried through from collision buffer (view 13)
     b.FG_Item_Number,
     b.FG_Description,
-    -- Construct SOURCE (PAB-style): Carried through from collision buffer
+    -- Construct SOURCE (PAB-style): Carried through from collision buffer (view 13)
     b.Construct,
     
     -- Suppression flag (combined)

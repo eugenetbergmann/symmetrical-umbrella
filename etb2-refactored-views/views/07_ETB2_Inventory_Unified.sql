@@ -1,3 +1,4 @@
+/* VIEW 07 - STATUS: VALIDATED */
 -- ============================================================================
 -- VIEW 07: dbo.ETB2_Inventory_Unified (CONSOLIDATED FINAL)
 -- ============================================================================
@@ -8,9 +9,9 @@
 --   - dbo.ETB2_Inventory_Quarantine_Restricted (view 06)
 -- Features:
 --   - Context columns: client, contract, run
---   - FG + Construct carried through from source views
+--   - FG + Construct carried through from source views (05, 06)
 --   - Is_Suppressed flag
--- Last Updated: 2026-01-30
+-- Last Updated: 2026-02-05
 -- ============================================================================
 
 -- WC Batches (always eligible)

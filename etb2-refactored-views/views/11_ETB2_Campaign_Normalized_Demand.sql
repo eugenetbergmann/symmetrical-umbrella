@@ -1,3 +1,4 @@
+/* VIEW 11 - STATUS: VALIDATED */
 -- ============================================================================
 -- VIEW 11: dbo.ETB2_Campaign_Normalized_Demand (CONSOLIDATED FINAL)
 -- ============================================================================
@@ -7,9 +8,9 @@
 --   - dbo.ETB2_Demand_Cleaned_Base (view 04)
 -- Features:
 --   - Context columns: client, contract, run
---   - FG + Construct aggregated from demand
+--   - FG + Construct aggregated from demand (view 04)
 --   - Is_Suppressed flag
--- Last Updated: 2026-01-30
+-- Last Updated: 2026-02-05
 -- ============================================================================
 
 SELECT 
@@ -28,10 +29,10 @@ SELECT
     DATEDIFF(DAY, MIN(d.Due_Date), MAX(d.Due_Date)) AS Campaign_Duration_Days,
     COUNT(DISTINCT d.Due_Date) AS Active_Days_Count,
     
-    -- FG SOURCE (PAB-style): Carried through from demand base
+    -- FG SOURCE (PAB-style): Carried through from demand base (view 04)
     MAX(d.FG_Item_Number) AS FG_Item_Number,
     MAX(d.FG_Description) AS FG_Description,
-    -- Construct SOURCE (PAB-style): Carried through from demand base
+    -- Construct SOURCE (PAB-style): Carried through from demand base (view 04)
     MAX(d.Construct) AS Construct,
     
     -- Suppression flag (aggregate - if any suppressed, mark all)
