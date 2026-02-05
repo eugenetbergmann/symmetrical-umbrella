@@ -7,10 +7,10 @@
 -- Dependencies:
 --   - dbo.ETB_PAB_AUTO (external table)
 --   - dbo.Prosenthal_Vendor_Items (external table)
---   - dbo.ETB_ActiveDemand_Union_FG_MO (external table - FG SOURCE)
+--   - dbo.ETB_CLIENT (view - FG SOURCE)
 -- Features:
---   - Context columns: client (from Construct), contract (from FG_Description)
---   - FG derived from ETB_ActiveDemand_Union_FG_MO via MO linkage
+--   - Context columns: client (from Customer), contract (from [Desc])
+--   - FG derived from ETB_CLIENT via CleanOrder/MONumber matching
 -- Last Updated: 2026-02-05
 -- ============================================================================
 
@@ -51,33 +51,34 @@ CleanOrderLogic AS (
 ),
 
 -- ============================================================================
--- FG SOURCE (FIXED): Join to ETB_ActiveDemand_Union_FG_MO for FG derivation
--- FIX: Uses correct source column names from ETB_ActiveDemand_Union_FG_MO
--- Schema Map: FG->FG_Item_Number, [FG Desc]->FG_Description
--- Uses ROW_NUMBER partitioning by CleanOrder + FG for deterministic selection
+-- FG SOURCE: Join to ETB_CLIENT for FG derivation
+-- Schema Map: MakeItem->FG_Item_Number, [Desc]->contract, Customer->client
+-- Uses ROW_NUMBER partitioning by CleanOrder + MakeItem for deterministic selection
 -- ============================================================================
 FG_Source AS (
     SELECT
         col.ORDERNUMBER,
         col.CleanOrder,
-        -- Enforced Schema Map: FG -> FG_Item_Number
-        m.FG AS FG_Item_Number,
-        -- Enforced Schema Map: [FG Desc] -> FG_Description
-        m.[FG Desc] AS FG_Description,
-        -- Deduplication: Select deterministic FG row per CleanOrder
+        -- Schema Map: MakeItem -> FG_Item_Number
+        ec.MakeItem AS FG_Item_Number,
+        -- Schema Map: [Desc] -> contract
+        ec.[Desc] AS contract,
+        -- Schema Map: Customer -> client
+        ec.Customer AS client,
+        -- Deduplication: Select deterministic row per CleanOrder + MakeItem
         ROW_NUMBER() OVER (
-            PARTITION BY col.CleanOrder, m.FG
-            ORDER BY m.Customer, m.[FG Desc], col.ORDERNUMBER
+            PARTITION BY col.CleanOrder, ec.MakeItem
+            ORDER BY ec.Customer, ec.[Desc], col.ORDERNUMBER
         ) AS FG_RowNum
     FROM CleanOrderLogic col
-    INNER JOIN dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
+    INNER JOIN dbo.ETB_CLIENT ec WITH (NOLOCK)
         ON col.CleanOrder = UPPER(
             REPLACE(
                 REPLACE(
                     REPLACE(
                         REPLACE(
                             REPLACE(
-                                REPLACE(m.ORDERNUMBER, 'MO', ''),
+                                REPLACE(ec.MONumber, 'MO', ''),
                                 '-', ''
                             ),
                             ' ', ''
@@ -92,14 +93,15 @@ FG_Source AS (
 ),
 
 -- ============================================================================
--- Deduplicated FG rows (rn = 1 per CleanOrder + FG)
+-- Deduplicated FG rows (rn = 1 per CleanOrder + MakeItem)
 -- ============================================================================
 FG_Deduped AS (
     SELECT
         ORDERNUMBER,
         CleanOrder,
         FG_Item_Number,
-        FG_Description
+        contract,
+        client
     FROM FG_Source
     WHERE FG_RowNum = 1
 ),
@@ -121,14 +123,15 @@ RawDemand AS (
         pvi.UOMSCHDL,
         'MAIN' AS Site,
 
-        -- FG SOURCE (PAB-style): Carried through from deduped FG join
+        -- FG SOURCE: Carried through from deduped FG join
         fd.FG_Item_Number,
-        fd.FG_Description
+        fd.contract,
+        fd.client
 
     FROM dbo.ETB_PAB_AUTO pa WITH (NOLOCK)
     INNER JOIN Prosenthal_Vendor_Items pvi WITH (NOLOCK)
       ON LTRIM(RTRIM(pa.ITEMNMBR)) = LTRIM(RTRIM(pvi.[Item Number]))
-    -- FG SOURCE (PAB-style): Left join to carry FG forward
+    -- FG SOURCE: Left join to carry FG forward
     LEFT JOIN FG_Deduped fd
         ON pa.ORDERNUMBER = fd.ORDERNUMBER
     WHERE pa.ITEMNMBR NOT LIKE '60.%'
@@ -199,9 +202,10 @@ CleanedDemand AS (
             )
         ) AS Clean_Order_Number,
 
-        -- FG SOURCE (PAB-style): Carried through from base
+        -- FG SOURCE: Carried through from base
         FG_Item_Number,
-        FG_Description
+        contract,
+        client
 
     FROM RawDemand
     WHERE Due_Date_Clean IS NOT NULL
@@ -229,15 +233,16 @@ SELECT
     cd.Event_Sort_Priority,
     cd.MRP_IssueDate,
 
-    -- ROW_NUMBER without hardcoded context columns
+    -- ROW_NUMBER with client for stability
     ROW_NUMBER() OVER (
-        PARTITION BY cd.ITEMNMBR
+        PARTITION BY cd.ITEMNMBR, cd.client
         ORDER BY cd.Due_Date ASC, cd.Base_Demand_Qty DESC
     ) AS Demand_Sequence,
 
     -- FG from source join
     cd.FG_Item_Number AS FG_Item_Code,
-    cd.FG_Description AS contract
+    cd.contract,
+    cd.client
 
 FROM CleanedDemand cd;
 
