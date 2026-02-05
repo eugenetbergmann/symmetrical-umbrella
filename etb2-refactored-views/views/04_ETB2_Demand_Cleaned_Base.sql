@@ -39,23 +39,23 @@ CleanOrderLogic AS (
 -- ============================================================================
 -- FG SOURCE (FIXED): Join to ETB_ActiveDemand_Union_FG_MO for FG + Construct derivation
 -- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
--- Uses actual column names from source table: Customer, MakeItem, [Desc]
+-- Schema Map: Customer->Construct, FG->FG_Item_Number, [FG Desc]->FG_Description
 -- Uses ROW_NUMBER partitioning by CleanOrder + FG for deterministic selection
 -- ============================================================================
 FG_Source AS (
     SELECT
         col.ORDERNUMBER,
         col.CleanOrder,
-        -- FG SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
-        m.MakeItem AS FG_Item_Number,
-        -- FG Desc SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
-        m.[Desc] AS FG_Description,
-        -- Construct SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
+        -- Enforced Schema Map: FG -> FG_Item_Number
+        m.FG AS FG_Item_Number,
+        -- Enforced Schema Map: [FG Desc] -> FG_Description
+        m.[FG Desc] AS FG_Description,
+        -- Enforced Schema Map: Customer -> Construct
         m.Customer AS Construct,
         -- Deduplication: Select deterministic FG row per CleanOrder
         ROW_NUMBER() OVER (
-            PARTITION BY col.CleanOrder, m.MakeItem
-            ORDER BY m.Customer, m.[Desc], col.ORDERNUMBER
+            PARTITION BY col.CleanOrder, m.FG
+            ORDER BY m.Customer, m.[FG Desc], col.ORDERNUMBER
         ) AS FG_RowNum
     FROM CleanOrderLogic col
     INNER JOIN dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
