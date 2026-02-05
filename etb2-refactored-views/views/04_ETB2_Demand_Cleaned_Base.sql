@@ -215,7 +215,7 @@ SELECT
     cd.Clean_Order_Number AS Order_Number,
     cd.ITEMNMBR AS Item_Number,
     cd.Item_Description,
-    cd.UOMSCHDL AS Unit_Of_Measure,
+    cd.UOMSCHDL,
     cd.Site,
     cd.Due_Date,
     cd.STSDESCR AS Status_Description,
@@ -229,7 +229,7 @@ SELECT
     cd.Event_Sort_Priority,
     cd.MRP_IssueDate,
 
-    -- ROW_NUMBER without hardcoded context columns
+    -- ROW_NUMBER
     ROW_NUMBER() OVER (
         PARTITION BY cd.ITEMNMBR
         ORDER BY cd.Due_Date ASC, cd.Base_Demand_Qty DESC
