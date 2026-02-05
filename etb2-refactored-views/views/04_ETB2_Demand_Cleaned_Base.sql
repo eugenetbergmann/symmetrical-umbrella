@@ -2,7 +2,7 @@
 -- ============================================================================
 -- VIEW 04: dbo.ETB2_Demand_Cleaned_Base (CONSOLIDATED FINAL)
 -- ============================================================================
--- Purpose: Cleaned and normalized demand data with FG/Construct derivation
+-- Purpose: Cleaned and normalized demand data with FG derivation
 -- Grain: One row per demand event (order line)
 -- Dependencies:
 --   - dbo.ETB_PAB_AUTO (external table)
@@ -11,7 +11,7 @@
 --   - dbo.ETB2_Config_Items (view 02B)
 -- Features:
 --   - Context columns: client, contract, run
---   - FG + Construct derived from ETB_ActiveDemand_Union_FG_MO via MO linkage
+--   - FG derived from ETB_ActiveDemand_Union_FG_MO via MO linkage
 --   - Is_Suppressed flag
 -- Last Updated: 2026-02-05
 -- ============================================================================
@@ -53,9 +53,9 @@ CleanOrderLogic AS (
 ),
 
 -- ============================================================================
--- FG SOURCE (FIXED): Join to ETB_ActiveDemand_Union_FG_MO for FG + Construct derivation
+-- FG SOURCE (FIXED): Join to ETB_ActiveDemand_Union_FG_MO for FG derivation
 -- FIX: Uses correct source column names from ETB_ActiveDemand_Union_FG_MO
--- Schema Map: Customer->Construct, FG->FG_Item_Number, [FG Desc]->FG_Description
+-- Schema Map: FG->FG_Item_Number, [FG Desc]->FG_Description
 -- Uses ROW_NUMBER partitioning by CleanOrder + FG for deterministic selection
 -- ============================================================================
 FG_Source AS (
@@ -66,8 +66,6 @@ FG_Source AS (
         m.FG AS FG_Item_Number,
         -- Enforced Schema Map: [FG Desc] -> FG_Description
         m.[FG Desc] AS FG_Description,
-        -- Enforced Schema Map: Customer -> Construct
-        m.Customer AS Construct,
         -- Deduplication: Select deterministic FG row per CleanOrder
         ROW_NUMBER() OVER (
             PARTITION BY col.CleanOrder, m.FG
@@ -103,8 +101,7 @@ FG_Deduped AS (
         ORDERNUMBER,
         CleanOrder,
         FG_Item_Number,
-        FG_Description,
-        Construct
+        FG_Description
     FROM FG_Source
     WHERE FG_RowNum = 1
 ),
@@ -133,14 +130,12 @@ RawDemand AS (
 
         -- FG SOURCE (PAB-style): Carried through from deduped FG join
         fd.FG_Item_Number,
-        fd.FG_Description,
-        -- Construct SOURCE (PAB-style): Carried through from deduped FG join
-        fd.Construct
+        fd.FG_Description
 
     FROM dbo.ETB_PAB_AUTO pa WITH (NOLOCK)
     INNER JOIN Prosenthal_Vendor_Items pvi WITH (NOLOCK)
       ON LTRIM(RTRIM(pa.ITEMNMBR)) = LTRIM(RTRIM(pvi.[Item Number]))
-    -- FG SOURCE (PAB-style): Left join to carry FG/Construct forward
+    -- FG SOURCE (PAB-style): Left join to carry FG forward
     LEFT JOIN FG_Deduped fd
         ON pa.ORDERNUMBER = fd.ORDERNUMBER
     WHERE pa.ITEMNMBR NOT LIKE '60.%'
@@ -221,9 +216,7 @@ CleanedDemand AS (
 
         -- FG SOURCE (PAB-style): Carried through from base
         FG_Item_Number,
-        FG_Description,
-        -- Construct SOURCE (PAB-style): Carried through from base
-        Construct
+        FG_Description
 
     FROM RawDemand
     WHERE Due_Date_Clean IS NOT NULL
@@ -231,7 +224,7 @@ CleanedDemand AS (
 )
 
 -- ============================================================
--- FINAL OUTPUT: Demand with FG + Construct carried through
+-- FINAL OUTPUT: Demand with FG carried through
 -- ============================================================
 SELECT
     -- Context columns (hardcoded placeholder values)
@@ -266,10 +259,9 @@ SELECT
         ORDER BY cd.Due_Date ASC, cd.Base_Demand_Qty DESC
     ) AS Demand_Sequence,
 
-    -- FG/Construct from source join
+    -- FG from source join
     cd.FG_Item_Number AS FG_Item_Code,
-    cd.FG_Description AS contract,
-    cd.Construct AS client
+    cd.FG_Description AS contract
 
 FROM CleanedDemand cd
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
