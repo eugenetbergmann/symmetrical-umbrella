@@ -109,11 +109,6 @@ FG_Deduped AS (
 
 RawDemand AS (
     SELECT
-        -- Context columns
-        'DEFAULT_CLIENT' AS client,
-        'DEFAULT_CONTRACT' AS contract,
-        'CURRENT_RUN' AS run,
-
         pa.ORDERNUMBER,
         pa.ITEMNMBR,
         pa.DUEDATE,
@@ -152,11 +147,6 @@ RawDemand AS (
 
 CleanedDemand AS (
     SELECT
-        -- Context columns preserved
-        client,
-        contract,
-        run,
-
         ORDERNUMBER,
         ITEMNMBR,
         STSDESCR,
@@ -213,9 +203,6 @@ CleanedDemand AS (
             )
         ) AS Clean_Order_Number,
 
-        -- Suppression flag
-        CAST(0 AS BIT) AS Is_Suppressed,
-
         -- FG SOURCE (PAB-style): Carried through from base
         FG_Item_Number,
         FG_Description,
@@ -232,8 +219,8 @@ CleanedDemand AS (
 SELECT
     cd.Clean_Order_Number AS Order_Number,
     cd.ITEMNMBR AS Item_Number,
-    COALESCE(ci.Item_Description, cd.Item_Description) AS Item_Description,
-    ci.UOM_Schedule,
+    cd.Item_Description,
+    cd.UOMSCHDL,
     cd.Site,
     cd.Due_Date,
     cd.STSDESCR AS Status_Description,
@@ -248,12 +235,9 @@ SELECT
     cd.Event_Sort_Priority,
     cd.MRP_IssueDate,
 
-    -- Suppression flag
-    CAST(COALESCE(ci.Is_Suppressed, 0) AS BIT) AS Is_Suppressed,
-
-    -- ROW_NUMBER with context in PARTITION BY
+    -- ROW_NUMBER
     ROW_NUMBER() OVER (
-        PARTITION BY cd.client, cd.contract, cd.run, cd.ITEMNMBR
+        PARTITION BY cd.ITEMNMBR
         ORDER BY cd.Due_Date ASC, cd.Base_Demand_Qty DESC
     ) AS Demand_Sequence,
 
@@ -262,9 +246,7 @@ SELECT
     cd.FG_Description AS contract,
     cd.Construct AS client
 
-FROM CleanedDemand cd
-LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
-    ON cd.ITEMNMBR = ci.Item_Number;
+FROM CleanedDemand cd;
 
 -- ============================================================================
 -- END OF VIEW 04 (CONSOLIDATED FINAL)
