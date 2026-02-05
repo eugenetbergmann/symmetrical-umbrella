@@ -234,10 +234,10 @@ CleanedDemand AS (
 -- FINAL OUTPUT: Demand with FG + Construct carried through
 -- ============================================================
 SELECT
-    -- Context columns preserved
-    cd.client,
-    cd.contract,
-    cd.run,
+    -- Context columns (hardcoded placeholder values)
+    cd.client AS Client_Context,
+    cd.contract AS Contract_Context,
+    cd.run AS Run_Context,
 
     cd.Clean_Order_Number AS Order_Number,
     cd.ITEMNMBR AS Item_Number,
@@ -266,11 +266,9 @@ SELECT
         ORDER BY cd.Due_Date ASC, cd.Base_Demand_Qty DESC
     ) AS Demand_Sequence,
 
-    -- FG SOURCE (PAB-style): Exposed in final output
-    cd.FG_Item_Number,
-    cd.FG_Description,
-    -- Construct SOURCE (PAB-style): Exposed in final output
-    cd.Construct
+    -- FG/Construct from source join
+    cd.FG_Item_Number AS FG_Item_Code,
+    cd.Construct AS Construct_or_Series
 
 FROM CleanedDemand cd
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
