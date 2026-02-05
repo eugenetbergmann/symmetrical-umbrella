@@ -268,7 +268,8 @@ SELECT
 
     -- FG/Construct from source join
     cd.FG_Item_Number AS FG_Item_Code,
-    cd.Construct AS Construct_or_Series
+    cd.FG_Description AS contract,
+    cd.Construct AS client
 
 FROM CleanedDemand cd
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
