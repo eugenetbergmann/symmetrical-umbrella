@@ -101,7 +101,8 @@ FG_Deduped AS (
         ORDERNUMBER,
         CleanOrder,
         FG_Item_Number,
-        FG_Description
+        FG_Description,
+        Construct
     FROM FG_Source
     WHERE FG_RowNum = 1
 ),
@@ -130,7 +131,8 @@ RawDemand AS (
 
         -- FG SOURCE (PAB-style): Carried through from deduped FG join
         fd.FG_Item_Number,
-        fd.FG_Description
+        fd.FG_Description,
+        fd.Construct
 
     FROM dbo.ETB_PAB_AUTO pa WITH (NOLOCK)
     INNER JOIN Prosenthal_Vendor_Items pvi WITH (NOLOCK)
@@ -216,7 +218,8 @@ CleanedDemand AS (
 
         -- FG SOURCE (PAB-style): Carried through from base
         FG_Item_Number,
-        FG_Description
+        FG_Description,
+        Construct
 
     FROM RawDemand
     WHERE Due_Date_Clean IS NOT NULL
@@ -227,11 +230,6 @@ CleanedDemand AS (
 -- FINAL OUTPUT: Demand with FG carried through
 -- ============================================================
 SELECT
-    -- Context columns (hardcoded placeholder values)
-    cd.client AS Client_Context,
-    cd.contract AS Contract_Context,
-    cd.run AS Run_Context,
-
     cd.Clean_Order_Number AS Order_Number,
     cd.ITEMNMBR AS Item_Number,
     COALESCE(ci.Item_Description, cd.Item_Description) AS Item_Description,
@@ -261,7 +259,8 @@ SELECT
 
     -- FG from source join
     cd.FG_Item_Number AS FG_Item_Code,
-    cd.FG_Description AS contract
+    cd.FG_Description AS contract,
+    cd.Construct AS client
 
 FROM CleanedDemand cd
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
