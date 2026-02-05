@@ -78,7 +78,7 @@ FG_Source AS (
                 REPLACE(
                     REPLACE(
                         REPLACE(
-                            REPLACE(m.MONumber, 'MO', ''),
+                            REPLACE(m.ORDERNUMBER, 'MO', ''),
                             '-', ''
                         ),
                         ' ', ''
