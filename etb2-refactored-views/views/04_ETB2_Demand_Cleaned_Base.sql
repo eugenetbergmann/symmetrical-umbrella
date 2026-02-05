@@ -8,11 +8,9 @@
 --   - dbo.ETB_PAB_AUTO (external table)
 --   - dbo.Prosenthal_Vendor_Items (external table)
 --   - dbo.ETB_ActiveDemand_Union_FG_MO (external table - FG SOURCE)
---   - dbo.ETB2_Config_Items (view 02B)
 -- Features:
---   - Context columns: client, contract, run
+--   - Context columns: client (from Construct), contract (from FG_Description)
 --   - FG derived from ETB_ActiveDemand_Union_FG_MO via MO linkage
---   - Is_Suppressed flag
 -- Last Updated: 2026-02-05
 -- ============================================================================
 
@@ -109,11 +107,6 @@ FG_Deduped AS (
 
 RawDemand AS (
     SELECT
-        -- Context columns
-        'DEFAULT_CLIENT' AS client,
-        'DEFAULT_CONTRACT' AS contract,
-        'CURRENT_RUN' AS run,
-
         pa.ORDERNUMBER,
         pa.ITEMNMBR,
         pa.DUEDATE,
@@ -152,11 +145,6 @@ RawDemand AS (
 
 CleanedDemand AS (
     SELECT
-        -- Context columns preserved
-        client,
-        contract,
-        run,
-
         ORDERNUMBER,
         ITEMNMBR,
         STSDESCR,
@@ -213,9 +201,6 @@ CleanedDemand AS (
             )
         ) AS Clean_Order_Number,
 
-        -- Suppression flag
-        CAST(0 AS BIT) AS Is_Suppressed,
-
         -- FG SOURCE (PAB-style): Carried through from base
         FG_Item_Number,
         FG_Description,
@@ -232,15 +217,14 @@ CleanedDemand AS (
 SELECT
     cd.Clean_Order_Number AS Order_Number,
     cd.ITEMNMBR AS Item_Number,
-    COALESCE(ci.Item_Description, cd.Item_Description) AS Item_Description,
-    ci.UOM_Schedule,
+    cd.Item_Description,
+    cd.UOMSCHDL AS Unit_Of_Measure,
     cd.Site,
     cd.Due_Date,
     cd.STSDESCR AS Status_Description,
     cd.Base_Demand_Qty,
     cd.Expiry_Qty,
     cd.Expiry_Date,
-    cd.UOMSCHDL AS Unit_Of_Measure,
     cd.Remaining_Qty,
     cd.Deductions_Qty,
     cd.Demand_Priority_Type,
@@ -248,23 +232,20 @@ SELECT
     cd.Event_Sort_Priority,
     cd.MRP_IssueDate,
 
-    -- Suppression flag
-    CAST(COALESCE(ci.Is_Suppressed, 0) AS BIT) AS Is_Suppressed,
-
-    -- ROW_NUMBER with context in PARTITION BY
+    -- ROW_NUMBER without hardcoded context columns
     ROW_NUMBER() OVER (
-        PARTITION BY cd.client, cd.contract, cd.run, cd.ITEMNMBR
+        PARTITION BY cd.ITEMNMBR
         ORDER BY cd.Due_Date ASC, cd.Base_Demand_Qty DESC
     ) AS Demand_Sequence,
 
     -- FG from source join
     cd.FG_Item_Number AS FG_Item_Code,
-    cd.FG_Description AS contract,
-    cd.Construct AS client
 
-FROM CleanedDemand cd
-LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
-    ON cd.ITEMNMBR = ci.Item_Number;
+    -- Context columns remapped from FG data
+    cd.Construct AS client,
+    cd.FG_Description AS contract
+
+FROM CleanedDemand cd;
 
 -- ============================================================================
 -- END OF VIEW 04 (CONSOLIDATED FINAL)
