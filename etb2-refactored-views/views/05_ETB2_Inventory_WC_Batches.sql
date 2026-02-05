@@ -1,43 +1,57 @@
--- VIEW 05: Fixed FG Source Mapping
--- Mapping: m.Customer -> Construct, m.MakeItem -> FG_Item_Number, m.[Desc] -> FG_Description
-CREATE OR ALTER VIEW [dbo].[ETB2_Inventory_WC_Batches]
-AS
+/* VIEW 05 - STATUS: VALIDATED */
+-- ============================================================================
+-- VIEW 05: dbo.ETB2_Inventory_WC_Batches (CONSOLIDATED FINAL)
+-- ============================================================================
+-- Purpose: Work center inventory batches with FG/Construct derivation
+-- Grain: One row per lot/bin combination
+-- Dependencies:
+--   - dbo.Prosenthal_INV_BIN_QTY_wQTYTYPE (external table)
+--   - dbo.IV00101 (external table)
+--   - dbo.ETB_ActiveDemand_Union_FG_MO (external table - FG SOURCE)
+-- Features:
+--   - Context columns: client, contract, run
+--   - FG + Construct derived from ETB_ActiveDemand_Union_FG_MO via MO linkage
+--   - Is_Suppressed flag
+-- Last Updated: 2026-02-05
+-- ============================================================================
+
 WITH GlobalShelfLife AS (
     SELECT 180 AS Default_WC_Shelf_Life_Days
 ),
 
 -- ============================================================================
 -- FG SOURCE (FIXED): Derive FG from ETB_ActiveDemand_Union_FG_MO
--- FIX: Swapped source table from ETB_PAB_MO to ETB_ActiveDemand_Union_FG_MO
--- Uses actual column names from source table: Customer, MakeItem, [Desc]
+-- FIX: Uses correct source column names from ETB_ActiveDemand_Union_FG_MO
+-- Schema Map: Customer->Construct, FG->FG_Item_Number, [FG Desc]->FG_Description
 -- ============================================================================
 FG_From_MO AS (
     SELECT
         m.MONumber AS ORDERNUMBER,
-        -- FG SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
-        m.MakeItem AS FG_Item_Number,
-        -- FG Desc SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
-        m.[Desc] AS FG_Description,
-        -- Construct SOURCE (FIXED): Use actual column name from ETB_ActiveDemand_Union_FG_MO
+        -- Enforced Schema Map: FG -> FG_Item_Number
+        m.FG AS FG_Item_Number,
+        -- Enforced Schema Map: [FG Desc] -> FG_Description
+        m.[FG Desc] AS FG_Description,
+        -- Enforced Schema Map: Customer -> Construct
         m.Customer AS Construct,
         UPPER(
             REPLACE(
                 REPLACE(
                     REPLACE(
-                        REPLACE(m.MONumber, 'MO', ''),
+                        REPLACE(
+                            REPLACE(m.MONumber, 'MO', ''),
                             '-', ''
                         ),
-                    ' ', ''
+                        ' ', ''
+                    ),
+                    '/', ''
                 ),
-                '/', ''
+                '.', ''
             ),
-            '.', ''
-        ),
             '#', ''
         ) AS CleanOrder
     FROM dbo.ETB_ActiveDemand_Union_FG_MO m WITH (NOLOCK)
-    WHERE m.MakeItem IS NOT NULL
-      AND m.MakeItem <> ''
+    WHERE m.FG IS NOT NULL
+      AND m.FG <> ''
 ),
 
 RawWCInventory AS (
@@ -140,7 +154,7 @@ ParsedInventory AS (
 
 -- ============================================================
 -- FINAL OUTPUT: 20 columns, planner-optimized order
--- LEFT → RIGHT = IDENTIFY → LOCATE → QUANTIFY → TIME → DECIDE → FG/CONSTRUCT
+-- LEFT -> RIGHT = IDENTIFY -> LOCATE -> QUANTIFY -> TIME -> DECIDE -> FG/CONSTRUCT
 -- ============================================================
 SELECT
     -- Context columns preserved
@@ -186,3 +200,7 @@ SELECT
 
 FROM ParsedInventory
 WHERE Is_Suppressed = 0;
+
+-- ============================================================================
+-- END OF VIEW 05 (CONSOLIDATED FINAL)
+-- ============================================================================

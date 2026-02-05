@@ -1,3 +1,4 @@
+/* VIEW 09 - STATUS: VALIDATED */
 -- ============================================================================
 -- VIEW 09: dbo.ETB2_Planning_Stockout (CONSOLIDATED FINAL)
 -- ============================================================================
@@ -9,9 +10,9 @@
 --   - dbo.ETB2_Config_Items (view 02B)
 -- Features:
 --   - Context columns: client, contract, run
---   - FG + Construct coalesced from demand and inventory sources
+--   - FG + Construct coalesced from demand (view 08) and inventory (view 07) sources
 --   - Is_Suppressed flag
--- Last Updated: 2026-01-30
+-- Last Updated: 2026-02-05
 -- ============================================================================
 
 WITH
@@ -52,10 +53,10 @@ AvailableInventory AS (
         
         Item_Number,
         SUM(Usable_Qty) AS Total_Available,
-        -- FG SOURCE (PAB-style): Carry primary FG from inventory
+        -- FG SOURCE (PAB-style): Carry primary FG from inventory (view 07)
         MAX(FG_Item_Number) AS FG_Item_Number,
         MAX(FG_Description) AS FG_Description,
-        -- Construct SOURCE (PAB-style): Carry primary Construct from inventory
+        -- Construct SOURCE (PAB-style): Carry primary Construct from inventory (view 07)
         MAX(Construct) AS Construct,
         MAX(CASE WHEN Is_Suppressed = 1 THEN 1 ELSE 0 END) AS Has_Suppressed
     FROM dbo.ETB2_Inventory_Unified WITH (NOLOCK)
@@ -114,10 +115,10 @@ SELECT
     nr.Requirement_Priority,
     nr.Requirement_Status,
 
-    -- FG SOURCE (PAB-style): Coalesce from demand and inventory sources
+    -- FG SOURCE (PAB-style): Coalesce from demand (view 08) and inventory (view 07) sources
     COALESCE(nr.FG_Item_Number, ai.FG_Item_Number) AS FG_Item_Number,
     COALESCE(nr.FG_Description, ai.FG_Description) AS FG_Description,
-    -- Construct SOURCE (PAB-style): Coalesce from demand and inventory sources
+    -- Construct SOURCE (PAB-style): Coalesce from demand (view 08) and inventory (view 07) sources
     COALESCE(nr.Construct, ai.Construct) AS Construct,
     
     -- Suppression flag

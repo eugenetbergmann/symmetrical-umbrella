@@ -1,3 +1,4 @@
+/* VIEW 10 - STATUS: VALIDATED */
 -- ============================================================================
 -- VIEW 10: dbo.ETB2_Planning_Rebalancing_Opportunities (CONSOLIDATED FINAL)
 -- ============================================================================
@@ -9,9 +10,9 @@
 --   - dbo.ETB2_Inventory_Unified (view 07)
 -- Features:
 --   - Context columns: client, contract, run
---   - FG + Construct coalesced from surplus/deficit sources
+--   - FG + Construct coalesced from surplus (view 07) and deficit (view 04) sources
 --   - Is_Suppressed flag
--- Last Updated: 2026-01-30
+-- Last Updated: 2026-02-05
 -- ============================================================================
 
 WITH SurplusInventory AS (
@@ -25,7 +26,7 @@ WITH SurplusInventory AS (
         pib.LOCNID AS From_Work_Center,
         SUM(COALESCE(TRY_CAST(pib.QTY AS DECIMAL(18,4)), 0)) AS Surplus_Qty,
         
-        -- FG SOURCE (PAB-style): Carry FG from inventory view if available
+        -- FG SOURCE (PAB-style): Carry FG from inventory view (view 07) if available
         MAX(i.FG_Item_Number) AS FG_Item_Number,
         MAX(i.FG_Description) AS FG_Description,
         MAX(i.Construct) AS Construct,
@@ -57,7 +58,7 @@ DeficitDemand AS (
         i.Site AS To_Work_Center,
         SUM(COALESCE(TRY_CAST(d.Base_Demand_Qty AS DECIMAL(18,4)), 0)) - COALESCE(SUM(COALESCE(TRY_CAST(i.Usable_Qty AS DECIMAL(18,4)), 0)), 0) AS Deficit_Qty,
         
-        -- FG SOURCE (PAB-style): Carry FG from demand view
+        -- FG SOURCE (PAB-style): Carry FG from demand view (view 04)
         MAX(d.FG_Item_Number) AS FG_Item_Number,
         MAX(d.FG_Description) AS FG_Description,
         MAX(d.Construct) AS Construct,
@@ -97,10 +98,10 @@ SELECT
     'TRANSFER' AS Rebalancing_Type,
     GETDATE() AS Identified_Date,
     
-    -- FG SOURCE (PAB-style): Coalesce from surplus and deficit sources
+    -- FG SOURCE (PAB-style): Coalesce from surplus (view 07) and deficit (view 04) sources
     COALESCE(Surplus.FG_Item_Number, Deficit.FG_Item_Number) AS FG_Item_Number,
     COALESCE(Surplus.FG_Description, Deficit.FG_Description) AS FG_Description,
-    -- Construct SOURCE (PAB-style): Coalesce from surplus and deficit sources
+    -- Construct SOURCE (PAB-style): Coalesce from surplus (view 07) and deficit (view 04) sources
     COALESCE(Surplus.Construct, Deficit.Construct) AS Construct,
     
     -- Suppression flag

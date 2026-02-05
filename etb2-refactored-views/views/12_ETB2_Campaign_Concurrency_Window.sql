@@ -1,3 +1,4 @@
+/* VIEW 12 - STATUS: VALIDATED */
 -- ============================================================================
 -- VIEW 12: dbo.ETB2_Campaign_Concurrency_Window (CONSOLIDATED FINAL)
 -- ============================================================================
@@ -7,9 +8,9 @@
 --   - dbo.ETB2_Campaign_Normalized_Demand (view 11)
 -- Features:
 --   - Context columns: client, contract, run
---   - FG + Construct carried from campaign A (same item)
+--   - FG + Construct carried from campaign A (view 11 - same item)
 --   - Is_Suppressed flag
--- Last Updated: 2026-01-30
+-- Last Updated: 2026-02-05
 -- ============================================================================
 
 SELECT 
@@ -49,10 +50,10 @@ SELECT
     c1.CCU + c2.CCU AS Combined_CCU,
     (c1.CCU + c2.CCU) / NULLIF(c1.Campaign_Duration_Days, 0) AS Concurrency_Intensity,
     
-    -- FG SOURCE (PAB-style): Carry from campaign A (same item)
+    -- FG SOURCE (PAB-style): Carry from campaign A (view 11 - same item)
     c1.FG_Item_Number,
     c1.FG_Description,
-    -- Construct SOURCE (PAB-style): Carry from campaign A (same item)
+    -- Construct SOURCE (PAB-style): Carry from campaign A (view 11 - same item)
     c1.Construct,
     
     -- Suppression flag (combined)
