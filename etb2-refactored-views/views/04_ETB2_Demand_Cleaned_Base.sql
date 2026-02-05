@@ -8,11 +8,9 @@
 --   - dbo.ETB_PAB_AUTO (external table)
 --   - dbo.Prosenthal_Vendor_Items (external table)
 --   - dbo.ETB_ActiveDemand_Union_FG_MO (external table - FG SOURCE)
---   - dbo.ETB2_Config_Items (view 02B)
 -- Features:
---   - Context columns: client, contract, run
+--   - Context columns: client (from Construct), contract (from FG_Description)
 --   - FG derived from ETB_ActiveDemand_Union_FG_MO via MO linkage
---   - Is_Suppressed flag
 -- Last Updated: 2026-02-05
 -- ============================================================================
 
@@ -101,8 +99,7 @@ FG_Deduped AS (
         ORDERNUMBER,
         CleanOrder,
         FG_Item_Number,
-        FG_Description,
-        Construct
+        FG_Description
     FROM FG_Source
     WHERE FG_RowNum = 1
 ),
@@ -126,8 +123,7 @@ RawDemand AS (
 
         -- FG SOURCE (PAB-style): Carried through from deduped FG join
         fd.FG_Item_Number,
-        fd.FG_Description,
-        fd.Construct
+        fd.FG_Description
 
     FROM dbo.ETB_PAB_AUTO pa WITH (NOLOCK)
     INNER JOIN Prosenthal_Vendor_Items pvi WITH (NOLOCK)
@@ -205,8 +201,7 @@ CleanedDemand AS (
 
         -- FG SOURCE (PAB-style): Carried through from base
         FG_Item_Number,
-        FG_Description,
-        Construct
+        FG_Description
 
     FROM RawDemand
     WHERE Due_Date_Clean IS NOT NULL
@@ -227,7 +222,6 @@ SELECT
     cd.Base_Demand_Qty,
     cd.Expiry_Qty,
     cd.Expiry_Date,
-    cd.UOMSCHDL AS Unit_Of_Measure,
     cd.Remaining_Qty,
     cd.Deductions_Qty,
     cd.Demand_Priority_Type,
@@ -243,8 +237,7 @@ SELECT
 
     -- FG from source join
     cd.FG_Item_Number AS FG_Item_Code,
-    cd.FG_Description AS contract,
-    cd.Construct AS client
+    cd.FG_Description AS contract
 
 FROM CleanedDemand cd;
 
