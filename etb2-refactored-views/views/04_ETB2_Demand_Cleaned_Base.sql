@@ -239,38 +239,38 @@ SELECT
     cd.contract,
     cd.run,
 
-    Clean_Order_Number AS Order_Number,
-    ITEMNMBR AS Item_Number,
+    cd.Clean_Order_Number AS Order_Number,
+    cd.ITEMNMBR AS Item_Number,
     COALESCE(ci.Item_Description, cd.Item_Description) AS Item_Description,
     ci.UOM_Schedule,
-    Site,
-    Due_Date,
-    STSDESCR AS Status_Description,
-    Base_Demand_Qty,
-    Expiry_Qty,
-    Expiry_Date,
-    UOMSCHDL AS Unit_Of_Measure,
-    Remaining_Qty,
-    Deductions_Qty,
-    Demand_Priority_Type,
-    Is_Within_Active_Planning_Window,
-    Event_Sort_Priority,
-    MRP_IssueDate,
+    cd.Site,
+    cd.Due_Date,
+    cd.STSDESCR AS Status_Description,
+    cd.Base_Demand_Qty,
+    cd.Expiry_Qty,
+    cd.Expiry_Date,
+    cd.UOMSCHDL AS Unit_Of_Measure,
+    cd.Remaining_Qty,
+    cd.Deductions_Qty,
+    cd.Demand_Priority_Type,
+    cd.Is_Within_Active_Planning_Window,
+    cd.Event_Sort_Priority,
+    cd.MRP_IssueDate,
 
     -- Suppression flag
-    CAST(cd.Is_Suppressed | COALESCE(ci.Is_Suppressed, 0) AS BIT) AS Is_Suppressed,
+    CAST(COALESCE(ci.Is_Suppressed, 0) AS BIT) AS Is_Suppressed,
 
     -- ROW_NUMBER with context in PARTITION BY
     ROW_NUMBER() OVER (
-        PARTITION BY client, contract, run, ITEMNMBR
-        ORDER BY Due_Date ASC, Base_Demand_Qty DESC
+        PARTITION BY cd.client, cd.contract, cd.run, cd.ITEMNMBR
+        ORDER BY cd.Due_Date ASC, cd.Base_Demand_Qty DESC
     ) AS Demand_Sequence,
 
     -- FG SOURCE (PAB-style): Exposed in final output
-    FG_Item_Number,
-    FG_Description,
+    cd.FG_Item_Number,
+    cd.FG_Description,
     -- Construct SOURCE (PAB-style): Exposed in final output
-    Construct
+    cd.Construct
 
 FROM CleanedDemand cd
 LEFT JOIN dbo.ETB2_Config_Items ci WITH (NOLOCK)
