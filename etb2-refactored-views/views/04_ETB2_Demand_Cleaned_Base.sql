@@ -32,16 +32,18 @@ CleanOrderLogic AS (
                 REPLACE(
                     REPLACE(
                         REPLACE(
-                            REPLACE(ORDERNUMBER, 'MO', ''),
-                            '-', ''
+                            REPLACE(
+                                REPLACE(ORDERNUMBER, 'MO', ''),
+                                '-', ''
+                            ),
+                            ' ', ''
                         ),
-                        ' ', ''
+                        '/', ''
                     ),
-                    '/', ''
+                    '.', ''
                 ),
-                '.', ''
-            ),
-            '#', ''
+                '#', ''
+            )
         ) AS CleanOrder
     FROM dbo.ETB_PAB_AUTO
     WHERE ITEMNMBR NOT LIKE '60.%'
@@ -78,16 +80,18 @@ FG_Source AS (
                 REPLACE(
                     REPLACE(
                         REPLACE(
-                            REPLACE(m.ORDERNUMBER, 'MO', ''),
-                            '-', ''
+                            REPLACE(
+                                REPLACE(m.ORDERNUMBER, 'MO', ''),
+                                '-', ''
+                            ),
+                            ' ', ''
                         ),
-                        ' ', ''
+                        '/', ''
                     ),
-                    '/', ''
+                    '.', ''
                 ),
-                '.', ''
-            ),
-            '#', ''
+                '#', ''
+            )
         )
 ),
 
@@ -198,16 +202,18 @@ CleanedDemand AS (
                 REPLACE(
                     REPLACE(
                         REPLACE(
-                            REPLACE(ORDERNUMBER, 'MO', ''),
-                            '-', ''
+                            REPLACE(
+                                REPLACE(ORDERNUMBER, 'MO', ''),
+                                '-', ''
+                            ),
+                            ' ', ''
                         ),
-                        ' ', ''
+                        '/', ''
                     ),
-                    '/', ''
+                    '.', ''
                 ),
-                '.', ''
-            ),
-            '#', ''
+                '#', ''
+            )
         ) AS Clean_Order_Number,
 
         -- Suppression flag
