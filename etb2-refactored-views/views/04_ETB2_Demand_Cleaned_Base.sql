@@ -64,6 +64,8 @@ FG_Source AS (
         m.FG AS FG_Item_Number,
         -- Enforced Schema Map: [FG Desc] -> FG_Description
         m.[FG Desc] AS FG_Description,
+        -- Bring in Customer from ETB_ActiveDemand_Union_FG_MO (renamed to client)
+        m.Customer AS client,
         -- Deduplication: Select deterministic FG row per CleanOrder
         ROW_NUMBER() OVER (
             PARTITION BY col.CleanOrder, m.FG
@@ -99,7 +101,8 @@ FG_Deduped AS (
         ORDERNUMBER,
         CleanOrder,
         FG_Item_Number,
-        FG_Description
+        FG_Description,
+        client
     FROM FG_Source
     WHERE FG_RowNum = 1
 ),
@@ -123,7 +126,8 @@ RawDemand AS (
 
         -- FG SOURCE (PAB-style): Carried through from deduped FG join
         fd.FG_Item_Number,
-        fd.FG_Description
+        fd.FG_Description,
+        fd.client
 
     FROM dbo.ETB_PAB_AUTO pa WITH (NOLOCK)
     INNER JOIN Prosenthal_Vendor_Items pvi WITH (NOLOCK)
@@ -201,7 +205,8 @@ CleanedDemand AS (
 
         -- FG SOURCE (PAB-style): Carried through from base
         FG_Item_Number,
-        FG_Description
+        FG_Description,
+        client
 
     FROM RawDemand
     WHERE Due_Date_Clean IS NOT NULL
@@ -237,7 +242,8 @@ SELECT
 
     -- FG from source join
     cd.FG_Item_Number AS FG_Item_Code,
-    cd.FG_Description AS contract
+    cd.FG_Description AS contract,
+    cd.client
 
 FROM CleanedDemand cd;
 
