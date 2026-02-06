@@ -15,15 +15,16 @@ WITH EventStream AS (
     
     UNION ALL
     
-    -- 2. DEDUCTIONS (Priority 2) - FROM VIEW 4 (Single Source of Demand Truth)
-    -- NO extraction logic here - demand is interpreted, not extracted
-    SELECT 
-        v4.Item_Number AS ITEMNMBR, 
-        v4.Due_Date AS E_Date, 
-        2 AS E_Pri, 
-        (v4.Suppressed_Demand_Qty * -1) AS Delta, 
+    ------------------------------------------------
+    -- Demand Events (FROM FOUNDATION VIEW ONLY)
+    ------------------------------------------------
+    SELECT
+        v4.Item_Number AS ITEMNMBR,
+        v4.Due_Date AS E_Date,
+        2 AS E_Pri,
+        -v4.Suppressed_Demand_Qty AS Delta,
         'DEMAND' AS Type
-    FROM dbo.PROD_04_ETB_Demand_Extraction_Hardened v4
+    FROM dbo.ETB2_DEMAND_EXTRACT v4
     
     UNION ALL
     
