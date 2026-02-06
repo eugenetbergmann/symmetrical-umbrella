@@ -2,7 +2,8 @@
 -- SELECT 03: Stockout Risk Identification (Production Ready)
 -- ============================================================================
 -- Purpose: Filter PAB Ledger to identify rows where Running_PAB < 0
--- Status: DEPLOYED - Production Stabilization Complete
+-- Architecture: VIEW 4 (Demand) -> VIEW 2 (Running Balance) -> VIEW 3 (Stockout Filter)
+-- Status: REFACTORED - Now consumes from VIEW 2 for consistent lineage
 -- ============================================================================
 
 WITH EventStream AS (
@@ -12,10 +13,14 @@ WITH EventStream AS (
     
     UNION ALL
     
-    -- 2. DEDUCTIONS (Priority 2) - SUBTRACT POST-SUPPRESSION
-    SELECT ITEMNMBR, TRY_CONVERT(DATE, DUEDATE), 2, 
-           (CASE WHEN ITEMNMBR LIKE 'MO-%' THEN 0 ELSE TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)) END * -1)
-    FROM dbo.ETB_PAB_AUTO WHERE MRP_TYPE = 6
+    -- 2. DEDUCTIONS (Priority 2) - FROM VIEW 4 (Single Source of Demand Truth)
+    -- NO extraction logic here - demand is interpreted, not extracted
+    SELECT 
+        v4.Item_Number AS ITEMNMBR, 
+        v4.Due_Date AS E_Date, 
+        2 AS E_Pri, 
+        (v4.Suppressed_Demand_Qty * -1) AS Delta
+    FROM dbo.PROD_04_ETB_Demand_Extraction_Hardened v4
     
     UNION ALL
     
@@ -48,20 +53,11 @@ PAB_Calculated AS (
 SELECT 
     Item_Number,
     Event_Date AS Stockout_Date,
-    Running_PAB AS Deficit_Qty,
-    -- Stockout severity classification
-    CASE
-        WHEN Running_PAB < -1000 THEN 'CRITICAL'
-        WHEN Running_PAB < -100 THEN 'HIGH'
-        WHEN Running_PAB < -10 THEN 'MEDIUM'
-        WHEN Running_PAB < 0 THEN 'LOW'
-        ELSE 'NONE'
-    END AS Stockout_Severity,
-    -- Days until stockout from today
-    DATEDIFF(DAY, CAST(GETDATE() AS DATE), Event_Date) AS Days_Until_Stockout
+    Delta AS Qty_Change,
+    Running_PAB AS Stockout_Severity
 FROM PAB_Calculated
 WHERE Running_PAB < 0
-ORDER BY ABS(Running_PAB) DESC, Event_Date ASC;
+ORDER BY Item_Number, Event_Date, E_Pri;
 
 -- ============================================================================
 -- END OF SELECT 03
