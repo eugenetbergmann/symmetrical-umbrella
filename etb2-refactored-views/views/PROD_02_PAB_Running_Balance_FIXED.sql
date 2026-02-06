@@ -10,18 +10,14 @@
 
 WITH EventStream AS (
     ------------------------------------------------
-    -- DEMAND (FROM BASE TABLE dbo.ETB_PAB)
-    -- NOTE: Demand rows show in output with Total=0 for visibility.
-    -- The original view dbo.ETB2_DEMAND_EXTRACT had varchar conversion issues
-    -- with Suppressed_Demand_Qty. Since demand is intentionally suppressed
-    -- (Total=0) per business rules, we query the base table directly with
-    -- safe filters to avoid any conversion errors.
-    -- DECISION: We include MO-% items (suppressed demand) because they were
-    -- visible in the original output (Suppressed_Demand_Qty = 0), and keeping
-    -- them maintains visibility of suppressed demand rows in the ledger.
+    -- DEMAND (DIRECT FROM SOURCE TABLE - BYPASSES PROBLEMATIC VIEW)
+    -- Reason: dbo.ETB2_DEMAND_EXTRACT causes "varchar to numeric" error
+    --         due to unclean data in Deductions column.
+    --         Since demand is placeholder (Total = 0), we query dbo.ETB_PAB
+    --         directly with safe filters and force Total = 0.
     ------------------------------------------------
     SELECT
-        p.ITEMNMBR,
+        p.ITEMNMBR AS ITEMNMBR,
         'DEMAND' AS ORDERNUMBER,
         TRY_CONVERT(DATE, p.DUEDATE) AS DUEDATE,
         NULL AS ExpiryDate,
@@ -37,11 +33,9 @@ WITH EventStream AS (
       AND p.ITEMNMBR NOT LIKE '70.%'
       AND p.ITEMNMBR IS NOT NULL
       AND TRY_CONVERT(DATE, p.DUEDATE) IS NOT NULL
-      -- Safe filter: replicate Raw_Demand <> 0 without conversion errors
+      -- Match original view's intent: only rows that would have non-zero raw demand
       AND COALESCE(TRY_CAST(p.Deductions AS DECIMAL(18,4)), 0) <> 0
-
     UNION ALL
-
     ------------------------------------------------
     -- PURCHASE ORDERS
     ------------------------------------------------
@@ -58,9 +52,7 @@ WITH EventStream AS (
     FROM dbo.ETB_PAB_AUTO pa
     WHERE pa.MRPTYPE = 7
       AND pa.ITEMNMBR IS NOT NULL
-
     UNION ALL
-
     ------------------------------------------------
     -- EXPIRY RETURNS
     ------------------------------------------------
@@ -89,9 +81,7 @@ WITH EventStream AS (
     FROM dbo.ETB_PAB_AUTO pa
     WHERE pa.MRPTYPE = 11
       AND pa.ITEMNMBR IS NOT NULL
-
     UNION ALL
-
     ------------------------------------------------
     -- BEGINNING BALANCE (ONE ROW PER ITEM)
     ------------------------------------------------
@@ -107,11 +97,11 @@ WITH EventStream AS (
         1 AS BegBalFirst
     FROM (
         -- Aggregate to ONE row per ITEMNMBR (eliminate duplicates)
-        SELECT
+        SELECT 
             ITEMNMBR,
             SUM(COALESCE(TRY_CAST(BEG_BAL AS DECIMAL(18,4)), 0)) AS BEG_BAL
         FROM dbo.ETB_PAB_AUTO
-        WHERE BEG_BAL IS NOT NULL
+        WHERE BEG_BAL IS NOT NULL 
           AND BEG_BAL <> ''
           AND COALESCE(TRY_CAST(BEG_BAL AS DECIMAL(18,4)), 0) <> 0
         GROUP BY ITEMNMBR
@@ -200,13 +190,9 @@ FIXES APPLIED:
 2. ✓ All numerics wrapped with COALESCE(TRY_CAST(...), 0)
 3. ✓ Beg Bal aggregated via GROUP BY ITEMNMBR
 4. ✓ Special characters removed from column names
-5. ✓ Replaced dbo.ETB2_DEMAND_EXTRACT view with direct query to dbo.ETB_PAB
-    - Avoids "varchar to numeric" conversion error from Suppressed_Demand_Qty
-    - Demand rows still appear in output (STSDESCR='Demand', Total=0)
-    - CleanOrder CROSS APPLY and FG OUTER APPLY omitted (not used in output)
-6. ✓ Added safe filter: COALESCE(TRY_CAST(p.Deductions AS DECIMAL(18,4)), 0) <> 0
-    - Replicates Raw_Demand <> 0 filter without conversion errors
+5. ✓ Suppressed_Demand_Qty removed (returns varchar, set Total=0 for DEMAND)
+6. ✓ Demand rows still appear in output (STSDESCR='Demand', Total=0)
+7. ✓ NEW: Bypassed dbo.ETB2_DEMAND_EXTRACT view entirely (direct from dbo.ETB_PAB with safe TRY_CAST) to eliminate "varchar to numeric" error
 
 STATUS: PRODUCTION READY ✓
-
 */
