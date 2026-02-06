@@ -20,7 +20,7 @@ WITH EventStream AS (
         v4.Due_Date AS DatePlusExpiry,
         6 AS MRPTYPE,
         'Demand' AS STSDESCR,
-        COALESCE(-v4.Suppressed_Demand_Qty, 0) AS Total,
+        COALESCE(-TRY_CAST(v4.Suppressed_Demand_Qty AS DECIMAL(18,4)), 0) AS Total,
         0 AS BegBalFirst
     FROM dbo.ETB2_DEMAND_EXTRACT v4
     WHERE v4.Item_Number IS NOT NULL
