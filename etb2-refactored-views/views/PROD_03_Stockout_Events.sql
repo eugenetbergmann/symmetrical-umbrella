@@ -7,14 +7,24 @@
 -- ============================================================================
 
 WITH EventStream AS (
-    -- 1. BEG BAL (Priority 1) - Anchor calculation
-    SELECT ITEMNMBR, CAST(GETDATE() AS DATE) AS E_Date, 1 AS E_Pri, SUM(TRY_CAST(BEG_BAL AS DECIMAL(18,4))) AS Delta
-    FROM dbo.ETB_PAB_AUTO GROUP BY ITEMNMBR
-    
-    UNION ALL
-    
+
     ------------------------------------------------
-    -- Demand Events (FROM FOUNDATION VIEW ONLY)
+    -- BEGIN BALANCE
+    ------------------------------------------------
+    SELECT 
+        ITEMNMBR,
+        CAST(GETDATE() AS DATE) AS E_Date,
+        1 AS E_Pri,
+        SUM(TRY_CAST(BEG_BAL AS DECIMAL(18,4))) AS Delta
+    FROM dbo.ETB_PAB_AUTO
+    GROUP BY ITEMNMBR
+
+
+    UNION ALL
+
+
+    ------------------------------------------------
+    -- DEMAND (FOUNDATION VIEW)
     ------------------------------------------------
     SELECT
         v4.Item_Number AS ITEMNMBR,
@@ -22,34 +32,59 @@ WITH EventStream AS (
         2 AS E_Pri,
         -v4.Suppressed_Demand_Qty AS Delta
     FROM dbo.ETB2_DEMAND_EXTRACT v4
-    
+
+
     UNION ALL
-    
-    -- 3. POs (Priority 3) - ADD
-    SELECT ITEMNMBR, TRY_CONVERT(DATE, DUEDATE), 3, TRY_CAST(REMAINING AS DECIMAL(18,4))
-    FROM dbo.ETB_PAB_AUTO WHERE MRP_TYPE = 7
-    
+
+
+    ------------------------------------------------
+    -- PURCHASE ORDERS
+    ------------------------------------------------
+    SELECT
+        ITEMNMBR,
+        TRY_CONVERT(DATE, DUEDATE),
+        3,
+        TRY_CAST(REMAINING AS DECIMAL(18,4))
+    FROM dbo.ETB_PAB_AUTO
+    WHERE MRPTYPE = 7
+
+
     UNION ALL
-    
-    -- 4. EXPIRY (Priority 4) - ADD
-    SELECT ITEMNMBR, TRY_CONVERT(DATE, [Date + Expiry]), 4, TRY_CAST(EXPIRY AS DECIMAL(18,4))
-    FROM dbo.ETB_PAB_AUTO WHERE MRP_TYPE = 11
+
+
+    ------------------------------------------------
+    -- EXPIRY RETURNS
+    ------------------------------------------------
+    SELECT
+        ITEMNMBR,
+        TRY_CONVERT(DATE, [Date + Expiry]),
+        4,
+        TRY_CAST(EXPIRY AS DECIMAL(18,4))
+    FROM dbo.ETB_PAB_AUTO
+    WHERE MRPTYPE = 11
 ),
+
 PAB_Calculated AS (
+
     SELECT 
         e1.ITEMNMBR, 
         e1.E_Date,
         e1.E_Pri,
         e1.Delta,
-        -- Running Balance via correlated scalar subquery
-        (SELECT SUM(e2.Delta) 
-         FROM EventStream e2 
-         WHERE e2.ITEMNMBR = e1.ITEMNMBR 
-           AND (e2.E_Date < e1.E_Date 
-                OR (e2.E_Date = e1.E_Date AND e2.E_Pri <= e1.E_Pri))
+
+        (
+            SELECT SUM(e2.Delta)
+            FROM EventStream e2
+            WHERE e2.ITEMNMBR = e1.ITEMNMBR
+              AND (
+                    e2.E_Date < e1.E_Date
+                 OR (e2.E_Date = e1.E_Date AND e2.E_Pri <= e1.E_Pri)
+              )
         ) AS Running_PAB
+
     FROM EventStream e1
 )
+
 -- Stockout Events Only: Running_PAB < 0
 SELECT 
     Item_Number,
