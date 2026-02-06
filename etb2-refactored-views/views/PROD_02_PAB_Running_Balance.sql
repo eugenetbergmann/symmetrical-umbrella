@@ -2,9 +2,10 @@
 -- SELECT 02: Stabilized PAB Ledger - Running Balance (Production Ready)
 -- ============================================================================
 -- Purpose: Projected Available Balance ledger with deterministic running total
+--          THIN ORCHESTRATION LAYER - Calls VIEW 4 for demand truth
+-- Architecture: VIEW 4 (Demand Extraction) -> VIEW 2 (Planning/Modeling)
 -- Math: Scalar subquery for running balance (no window functions)
--- Suppression: Excludes WF-Q/WF-R deductions from balance corruption
--- Status: DEPLOYED - Production Stabilization Complete
+-- Status: REFACTORED - Now consumes from single demand source (VIEW 4)
 -- ============================================================================
 
 WITH EventStream AS (
@@ -14,10 +15,15 @@ WITH EventStream AS (
     
     UNION ALL
     
-    -- 2. DEDUCTIONS (Priority 2) - SUBTRACT POST-SUPPRESSION
-    SELECT ITEMNMBR, TRY_CONVERT(DATE, DUEDATE), 2, 
-           (CASE WHEN ITEMNMBR LIKE 'MO-%' THEN 0 ELSE TRY_CAST(DEDUCTIONS AS DECIMAL(18,4)) END * -1), 'DEMAND'
-    FROM dbo.ETB_PAB_AUTO WHERE MRP_TYPE = 6
+    -- 2. DEDUCTIONS (Priority 2) - FROM VIEW 4 (Single Source of Demand Truth)
+    -- NO extraction logic here - demand is interpreted, not extracted
+    SELECT 
+        v4.Item_Number AS ITEMNMBR, 
+        v4.Due_Date AS E_Date, 
+        2 AS E_Pri, 
+        (v4.Suppressed_Demand_Qty * -1) AS Delta, 
+        'DEMAND' AS Type
+    FROM dbo.PROD_04_ETB_Demand_Extraction_Hardened v4
     
     UNION ALL
     
