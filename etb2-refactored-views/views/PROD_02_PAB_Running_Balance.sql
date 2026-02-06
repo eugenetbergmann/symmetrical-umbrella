@@ -47,14 +47,14 @@ WITH EventStream AS (
         pa.ITEMNMBR,
         pa.ORDERNUMBER,
         TRY_CONVERT(DATE, pa.DUEDATE) AS DUEDATE,
-        TRY_CONVERT(DATE, 
+        TRY_CONVERT(DATE,
             COALESCE(
                 TRY_CONVERT(DATE, RIGHT(LTRIM(RTRIM(pa.ORDERNUMBER)), 8), 1),
                 TRY_CONVERT(DATE, RIGHT(LTRIM(RTRIM(pa.ORDERNUMBER)), 10), 23),
                 TRY_CONVERT(DATE, RIGHT(LTRIM(RTRIM(pa.ORDERNUMBER)), 8), 112)
             )
         ) AS ExpiryDate,
-        TRY_CONVERT(DATE, 
+        TRY_CONVERT(DATE,
             COALESCE(
                 TRY_CONVERT(DATE, RIGHT(LTRIM(RTRIM(pa.ORDERNUMBER)), 8), 1),
                 TRY_CONVERT(DATE, RIGHT(LTRIM(RTRIM(pa.ORDERNUMBER)), 10), 23),

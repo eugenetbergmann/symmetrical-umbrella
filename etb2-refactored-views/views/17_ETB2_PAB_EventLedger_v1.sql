@@ -69,8 +69,8 @@ PABWithCleanOrder AS (
         pab.Running_Balance,
         pab.STSDESCR,
         pab.DEDUCTIONS,
-        pab.MRP_TYPE,
-        
+        pab.MRPTYPE,
+
         -- SUPPRESSION FLAG: Items LIKE 'MO-%' are suppressed
         CASE 
             WHEN pab.ITEMNMBR LIKE 'MO-%' THEN 1 
@@ -110,9 +110,9 @@ PABWithCleanOrder AS (
 -- ============================================================================
 -- EVENT STREAM: All events with proper prioritization
 -- Priority 1: BEG BAL (current inventory)
--- Priority 2: DEMAND (MRP_TYPE 6) - SUBTRACT POST-SUPPRESSION
--- Priority 3: POs (MRP_TYPE 7) - ADD
--- Priority 4: EXPIRY (MRP_TYPE 11) - ADD
+-- Priority 2: DEMAND (MRPTYPE 6) - SUBTRACT POST-SUPPRESSION
+-- Priority 3: POs (MRPTYPE 7) - ADD
+-- Priority 4: EXPIRY (MRPTYPE 11) - ADD
 -- ============================================================================
 EventStream AS (
     -- 1. BEG BAL (Priority 1): Current inventory from ETB_PAB_AUTO
@@ -190,10 +190,10 @@ EventStream AS (
     FROM PABWithCleanOrder pco
     LEFT JOIN FG_From_MO fg
         ON pco.CleanOrder = fg.CleanOrder
-    WHERE pco.MRP_TYPE = 6  -- Demand type
-    
+    WHERE pco.MRPTYPE = 6  -- Demand type
+
     UNION ALL
-    
+
     -- 4. EXPIRY (Priority 4): ADD (treated as supply inflow)
     SELECT
         pab.ITEMNMBR,
@@ -212,7 +212,7 @@ EventStream AS (
         NULL AS FG_Description,
         NULL AS Construct
     FROM dbo.ETB_PAB_AUTO pab WITH (NOLOCK)
-    WHERE pab.MRP_TYPE = 11  -- Expiry type
+    WHERE pab.MRPTYPE = 11  -- Expiry type
       AND pab.ITEMNMBR NOT LIKE '60.%'
       AND pab.ITEMNMBR NOT LIKE '70.%'
 ),

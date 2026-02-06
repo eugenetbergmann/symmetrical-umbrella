@@ -130,7 +130,7 @@ SuppressionLogic AS (
         pa.STSDESCR,
         pa.[Date + Expiry] AS Date_Expiry_String,
         pa.MRP_IssueDate,
-        pa.MRP_TYPE,
+        pa.MRPTYPE,
         TRY_CONVERT(DATE, pa.DUEDATE) AS Due_Date_Clean,
         TRY_CONVERT(DATE, pa.[Date + Expiry]) AS Expiry_Date_Clean,
         pvi.ITEMDESC AS Item_Description,
@@ -224,14 +224,14 @@ CleanedDemand AS (
 
         -- EVENT SORT PRIORITY: Prevents balance flipping on same date
         -- Priority 1: BEG BAL (not in this view, handled in PAB ledger)
-        -- Priority 2: DEMAND (MRP_TYPE 6)
-        -- Priority 3: PO (MRP_TYPE 7)
-        -- Priority 4: EXPIRY (MRP_TYPE 11)
+        -- Priority 2: DEMAND (MRPTYPE 6)
+        -- Priority 3: PO (MRPTYPE 7)
+        -- Priority 4: EXPIRY (MRPTYPE 11)
         CASE
             WHEN Is_Suppressed = 1 THEN 99  -- Suppressed items last
-            WHEN MRP_TYPE = 6 THEN 2        -- Demand
-            WHEN MRP_TYPE = 7 THEN 3        -- PO
-            WHEN MRP_TYPE = 11 THEN 4       -- Expiry
+            WHEN MRPTYPE = 6 THEN 2        -- Demand
+            WHEN MRPTYPE = 7 THEN 3        -- PO
+            WHEN MRPTYPE = 11 THEN 4       -- Expiry
             ELSE 5
         END AS Event_Sort_Priority,
 
