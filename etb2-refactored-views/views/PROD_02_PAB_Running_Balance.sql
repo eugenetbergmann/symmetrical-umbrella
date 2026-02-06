@@ -90,7 +90,7 @@ KEY PERFORMANCE IMPROVEMENTS:
 ================================================================================
 
 1. WINDOW FUNCTION REPLACEMENT
-   Before: Scalar subquery executed for every row (N x M complexity)
+   Before: Scalar subquery executed for every row (N × M complexity)
    After:  Window function computed once per partition (linear)
    
 2. QUERY PLAN OPTIMIZATION
